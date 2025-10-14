@@ -15,7 +15,7 @@ enum Commands {
     /// Run player session simulation
     Player {
         /// Starting handicap (0-30)
-        #[arg(short, long)]
+        #[arg(long)]
         handicap: u8,
 
         /// Number of shots to simulate

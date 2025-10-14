@@ -451,10 +451,10 @@ Replicate business plan claims:
 
 ## Phase 7: Advanced Features (Post-MVP)
 
-### 7.1 Web Visualization
-- [ ] Generate HTML reports with Plotters
-- [ ] Create interactive charts (via JSON export + JavaScript)
-- [ ] Real-time simulation dashboard
+### 7.1 Data Export & Reports
+- [ ] Generate CSV/JSON exports with comprehensive data
+- [ ] Create summary reports with statistics
+- [ ] Export heatmaps and time-series data
 
 ### 7.2 Parameter Optimization
 - [ ] Grid search for optimal k and d_max values
@@ -470,6 +470,299 @@ Replicate business plan claims:
 - [ ] Simulate franchise network
 - [ ] Regional player archetype differences
 - [ ] Cross-venue player tracking
+
+---
+
+## Phase 8: Web Interface for Investor Showcase 🌐
+
+**Goal:** Create an interactive web demo deployable to Vercel/GitHub Pages
+
+### 8.1 Architecture & Setup
+- [ ] **WebAssembly Compilation**
+  - [ ] Add `wasm-bindgen` and `wasm-pack` to dependencies
+  - [ ] Create `src/wasm.rs` module for WASM exports
+  - [ ] Compile Rust simulator to WASM (runs in browser, no server needed!)
+  - [ ] Optimize WASM binary size (<500KB)
+
+- [ ] **Frontend Stack Selection**
+  - [ ] Choose framework: React + TypeScript (recommended for investor appeal)
+  - [ ] Alternative: Svelte (smaller bundle, faster)
+  - [ ] Set up Vite for fast development
+  - [ ] Configure Tailwind CSS for professional UI
+
+### 8.2 Core Simulator Interface (`web/`)
+
+#### Landing Page
+- [ ] **Hero Section**
+  - [ ] Animated golf ball trajectory (canvas/Three.js)
+  - [ ] Tagline: "Fair, Dynamic, Profitable - Golf Wagering Reimagined"
+  - [ ] Quick stats: RTP ranges, fairness guarantee, Kalman adaptation
+  - [ ] CTA: "Try Live Demo" button
+
+#### Interactive Simulator Dashboard
+- [ ] **Player Session Simulator**
+  ```
+  Controls:
+  - Handicap slider (0-30)
+  - Number of shots (10-1000)
+  - Wager range ($1-$100)
+  - Hole selection dropdown (H1-H8)
+
+  Live Visualization:
+  - Real-time shot-by-shot animation
+  - Running P/L chart (updating line graph)
+  - Skill confidence meter (0-100%)
+  - Miss distance scatter plot
+  ```
+
+- [ ] **Venue Economics Dashboard**
+  ```
+  Controls:
+  - Number of bays (10-100)
+  - Operating hours (1-24)
+  - Player archetype (Uniform/Bell Curve/Skewed)
+  - Shots per hour (50-150)
+
+  Visualizations:
+  - Real-time profit ticker
+  - Hold percentage gauge
+  - Hourly revenue bar chart
+  - Player distribution pie chart
+  ```
+
+- [ ] **Fairness Validator**
+  ```
+  Interactive Proof:
+  - Select any hole
+  - Run 10,000 shots for handicaps 0, 10, 20, 30
+  - Show EV is identical (±0.5%)
+  - Animated "Equal Opportunity" visualization
+  ```
+
+### 8.3 Advanced Visualizations
+
+#### Real-Time Charts (using Chart.js or Recharts)
+- [ ] **Shot Trajectory Viewer**
+  - [ ] 2D scatter plot: distance vs. angle
+  - [ ] Color-coded by payout multiplier
+  - [ ] Animated shot landing with payout popup
+  - [ ] Breakeven radius circle overlay
+
+- [ ] **Kalman Filter Evolution**
+  - [ ] Time-series: skill estimate (σ) over shots
+  - [ ] Confidence band (P_k → shaded area)
+  - [ ] Animated convergence visualization
+  - [ ] "Before/After" comparison slider
+
+- [ ] **Profitability Heatmap**
+  - [ ] Rows: Hole distances (75-250 yds)
+  - [ ] Columns: Handicap ranges (0-30)
+  - [ ] Cell color: House edge %
+  - [ ] Hover: detailed breakout (RTP, hold, EV)
+
+- [ ] **Revenue Projection Calculator**
+  - [ ] Input: venue size, location, foot traffic
+  - [ ] Output: monthly/annual revenue estimate
+  - [ ] Scenario comparison (optimistic/realistic/conservative)
+  - [ ] Interactive sliders with live updates
+
+### 8.4 Educational Content
+
+- [ ] **"How It Works" Explainer**
+  - [ ] Step-by-step animated breakdown:
+    1. Player takes shot → Rayleigh distribution
+    2. Miss distance measured → Kalman update
+    3. Dynamic P_max calculated → Fairness maintained
+    4. Payout awarded → RTP guaranteed
+  - [ ] Toggle "Technical Details" for formulas
+
+- [ ] **Math Behind the Magic**
+  - [ ] Interactive Rayleigh distribution visualizer
+  - [ ] Kalman filter prediction/update animation
+  - [ ] P_max calculation explainer with sliders
+  - [ ] "Try Your Own Parameters" sandbox
+
+- [ ] **Competitive Analysis**
+  - [ ] Side-by-side comparison: Continuum vs. Traditional TopGolf
+  - [ ] Engagement metrics, revenue per bay, player retention
+  - [ ] Animated infographic
+
+### 8.5 Investor-Focused Features
+
+- [ ] **Business Metrics Dashboard**
+  - [ ] Key metrics cards:
+    - Revenue per bay per hour
+    - Average session length
+    - Player lifetime value (estimated)
+    - Profit margin breakdown
+  - [ ] Growth projections chart
+  - [ ] Unit economics calculator
+
+- [ ] **Scenario Builder**
+  - [ ] "What if we opened in [city]?"
+  - [ ] Select: venue size, pricing, target demographic
+  - [ ] Output: 5-year financial model
+  - [ ] Downloadable PDF report
+
+- [ ] **Risk Analysis**
+  - [ ] Monte Carlo simulation: 1000 venue scenarios
+  - [ ] Distribution of outcomes (best/worst/median)
+  - [ ] Sensitivity analysis: which variables matter most?
+  - [ ] "Stress Test" mode: recession, competition, etc.
+
+### 8.6 Technical Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│         Frontend (React + TypeScript)       │
+│  ┌──────────────────────────────────────┐  │
+│  │  Components:                          │  │
+│  │  - SimulatorControls                  │  │
+│  │  - LiveCharts (Chart.js)              │  │
+│  │  - AnimatedGolfBall (Three.js)        │  │
+│  │  - DataTable (TanStack Table)         │  │
+│  └──────────────────────────────────────┘  │
+│                    ↓                         │
+│  ┌──────────────────────────────────────┐  │
+│  │     WASM Bridge (wasm-bindgen)        │  │
+│  │  - run_player_session()               │  │
+│  │  - run_venue_simulation()             │  │
+│  │  - validate_fairness()                │  │
+│  └──────────────────────────────────────┘  │
+│                    ↓                         │
+│  ┌──────────────────────────────────────┐  │
+│  │   Rust Simulator (compiled to WASM)  │  │
+│  │  - All Phase 1-6 code runs in browser│  │
+│  │  - No server needed!                  │  │
+│  └──────────────────────────────────────┘  │
+└─────────────────────────────────────────────┘
+```
+
+### 8.7 Implementation Steps
+
+- [ ] **Step 1: WASM Bridge**
+  ```rust
+  // src/wasm.rs
+  use wasm_bindgen::prelude::*;
+
+  #[wasm_bindgen]
+  pub fn simulate_player_session(
+      handicap: u8,
+      shots: usize,
+      wager_min: f64,
+      wager_max: f64
+  ) -> JsValue {
+      // Run simulation, return JSON
+  }
+  ```
+
+- [ ] **Step 2: React Hooks**
+  ```typescript
+  // hooks/useSimulator.ts
+  import init, { simulate_player_session } from '../wasm/continuum_simulator';
+
+  export function useSimulator() {
+      const [results, setResults] = useState(null);
+      const runSimulation = async (params) => {
+          await init(); // Load WASM
+          const data = simulate_player_session(...params);
+          setResults(JSON.parse(data));
+      };
+      return { results, runSimulation };
+  }
+  ```
+
+- [ ] **Step 3: Deploy Pipeline**
+  - [ ] Build WASM: `wasm-pack build --target web`
+  - [ ] Build frontend: `npm run build`
+  - [ ] Deploy to Vercel: one-click (or GitHub Pages)
+  - [ ] Custom domain: `continuum-demo.com`
+
+### 8.8 UI/UX Design Requirements
+
+- [ ] **Brand Identity**
+  - [ ] Color scheme: Golf green (#2D5016), Gold (#D4AF37), Dark navy (#1A1D29)
+  - [ ] Typography: Montserrat (headings), Inter (body)
+  - [ ] Logo: Minimalist golf ball with data waves
+
+- [ ] **Responsive Design**
+  - [ ] Desktop (1920×1080): Full dashboard layout
+  - [ ] Tablet (768×1024): Stacked components
+  - [ ] Mobile (375×667): Simplified controls, scrollable charts
+
+- [ ] **Accessibility**
+  - [ ] WCAG 2.1 AA compliance
+  - [ ] Keyboard navigation
+  - [ ] Screen reader support
+  - [ ] High contrast mode
+
+### 8.9 Performance Targets
+
+- [ ] **Load Time**
+  - [ ] Initial page load: <2 seconds
+  - [ ] WASM initialization: <500ms
+  - [ ] Time to interactive: <3 seconds
+
+- [ ] **Simulation Speed**
+  - [ ] 100 shots: <100ms
+  - [ ] 1,000 shots: <500ms
+  - [ ] 10,000 shots: <3 seconds
+  - [ ] Real-time updates: 60 FPS animations
+
+- [ ] **Bundle Size**
+  - [ ] WASM binary: <500 KB (gzipped)
+  - [ ] JavaScript: <200 KB
+  - [ ] Total: <1 MB initial load
+
+### 8.10 Deployment & Sharing
+
+- [ ] **GitHub Pages Setup**
+  - [ ] Create `gh-pages` branch
+  - [ ] Configure build workflow
+  - [ ] URL: `https://iansabia.github.io/Continuum_algo`
+
+- [ ] **Vercel Alternative**
+  - [ ] Connect GitHub repo
+  - [ ] Auto-deploy on push
+  - [ ] Custom domain support
+  - [ ] URL: `https://continuum-golf.vercel.app`
+
+- [ ] **Shareable Features**
+  - [ ] Export simulation results to PDF
+  - [ ] Share link with pre-configured scenario
+  - [ ] Embed widget for pitch decks
+  - [ ] QR code generator for tablet demos
+
+### 8.11 Investor Pitch Integration
+
+- [ ] **Pitch Deck Companion**
+  - [ ] "Live Demo" slide with QR code
+  - [ ] Embedded calculator in deck
+  - [ ] Video recording of key features
+
+- [ ] **Meeting Tools**
+  - [ ] "Presenter Mode" (simplified controls)
+  - [ ] Pre-loaded impressive scenarios
+  - [ ] One-click reset to demo state
+  - [ ] Export button for meeting notes
+
+---
+
+## Phase 8 Success Metrics
+
+- [ ] **Functionality**: All core simulations work in browser via WASM
+- [ ] **Performance**: <3s load time, smooth 60 FPS animations
+- [ ] **Usability**: Non-technical investors can run scenarios independently
+- [ ] **Visual Impact**: Professional, polished UI that "wows" on first impression
+- [ ] **Shareability**: Easy to send link, works on mobile/tablet
+- [ ] **Credibility**: Technical depth visible but not overwhelming
+
+---
+
+**Phase 8 Priority:** HIGH (for investor showcase)
+**Estimated Timeline:** 2-3 weeks after Phase 6 completion
+**Technologies:** Rust + WASM + React + TypeScript + Chart.js + Tailwind
+**Deployment:** Vercel (recommended) or GitHub Pages
 
 ---
 
