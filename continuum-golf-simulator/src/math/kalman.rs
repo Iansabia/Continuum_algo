@@ -4,6 +4,8 @@
 // noisy shot measurements. The filter adapts to player's changing performance
 // over time while accounting for measurement uncertainty.
 
+use serde::{Deserialize, Serialize};
+
 /// Kalman filter state for tracking player skill
 ///
 /// Maintains the current estimate of a player's skill parameter (σ)
@@ -14,7 +16,7 @@
 /// * `error_covariance` - Uncertainty in estimate (P_k)
 /// * `process_noise` - Expected skill drift between updates (Q)
 /// * `initial_estimate` - Starting σ_0 for reset functionality
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KalmanState {
     pub estimate: f64,
     pub error_covariance: f64,

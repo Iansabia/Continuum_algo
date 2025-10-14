@@ -92,10 +92,10 @@ Rebuild the Continuum Golf wagering simulator in Rust for superior performance, 
 
 ---
 
-## Phase 2: Core Data Models (`src/models/`)
+## Phase 2: Core Data Models (`src/models/`) ✅
 
-### 2.1 Hole Configuration (`hole.rs`)
-- [ ] Define `ClubCategory` enum:
+### 2.1 Hole Configuration (`hole.rs`) ✅
+- [x] Define `ClubCategory` enum:
   ```rust
   pub enum ClubCategory {
       Wedge,      // 75-125 yds
@@ -103,7 +103,7 @@ Rebuild the Continuum Golf wagering simulator in Rust for superior performance, 
       LongIron,   // 200-250 yds
   }
   ```
-- [ ] Define `Hole` struct:
+- [x] Define `Hole` struct:
   ```rust
   pub struct Hole {
       pub id: u8,
@@ -114,11 +114,11 @@ Rebuild the Continuum Golf wagering simulator in Rust for superior performance, 
       pub category: ClubCategory,
   }
   ```
-- [ ] Implement `Hole::calculate_payout(miss_distance: f64, p_max: f64) -> f64`
+- [x] Implement `Hole::calculate_payout(miss_distance: f64, p_max: f64) -> f64`
   - Formula: `P(d) = P_max * (1 - d/d_max)^k` if d ≤ d_max, else 0
-- [ ] Implement `Hole::calculate_breakeven_radius(p_max: f64) -> f64`
+- [x] Implement `Hole::calculate_breakeven_radius(p_max: f64) -> f64`
   - Solve: `d_break = d_max * (1 - P_max^(-1/k))`
-- [ ] Create `HOLE_CONFIGURATIONS: [Hole; 8]` constant with data from business plan:
+- [x] Create `HOLE_CONFIGURATIONS: [Hole; 8]` constant with data from business plan:
   ```
   H1: 75yd,  d_max=17.95, RTP=0.86, k=5.0
   H2: 100yd, d_max=25.69, RTP=0.86, k=5.0
@@ -130,46 +130,46 @@ Rebuild the Continuum Golf wagering simulator in Rust for superior performance, 
   H8: 250yd, d_max=101.14, RTP=0.90, k=6.5
   ```
 
-### 2.2 Player Model (`player.rs`)
-- [ ] Define `Player` struct:
+### 2.2 Player Model (`player.rs`) ✅
+- [x] Define `Player` struct:
   ```rust
   pub struct Player {
       pub id: String,
       pub handicap: u8,           // 0-30
       pub skill_profiles: HashMap<ClubCategory, SkillProfile>,
   }
-  
+
   pub struct SkillProfile {
       pub kalman_filter: KalmanState,
       pub p_max_history: Vec<f64>,
       pub shot_batch: Vec<ShotRecord>,
   }
-  
+
   pub struct ShotRecord {
       pub miss_distance: f64,
       pub wager: f64,
   }
   ```
-- [ ] Implement `Player::new(handicap: u8) -> Self`
+- [x] Implement `Player::new(handicap: u8) -> Self`
   - Initialize 3 skill profiles (one per club category)
   - Calculate initial σ for each: `σ_0 = distance * 3 * (0.05 + (dist-75)/(250-75)*0.01) * (0.5 + handicap/30)`
   - Start with `error_covariance = 1000` (low confidence)
-- [ ] Implement `calculate_initial_dispersion(handicap: u8, distance_yds: u16) -> f64`
+- [x] Implement `calculate_initial_dispersion(handicap: u8, distance_yds: u16) -> f64`
   - Matches JS formula exactly
-- [ ] Implement `get_skill_for_hole(&self, hole: &Hole) -> &SkillProfile`
-- [ ] Implement `calculate_p_max(&self, hole: &Hole) -> f64`
+- [x] Implement `get_skill_for_hole(&self, hole: &Hole) -> &SkillProfile`
+- [x] Implement `calculate_p_max(&self, hole: &Hole) -> f64`
   - Numerical integration: `∫[0, d_max] (1 - d/d_max)^k * PDF(d | σ) dd`
   - PDF is Rayleigh: `f(d) = (d/σ²) * exp(-d²/2σ²)`
   - Solve: `P_max = RTP / integral`
-- [ ] Implement `update_skill(&mut self, hole: &Hole, batch: Vec<ShotRecord>, p_max: f64)`
+- [x] Implement `update_skill(&mut self, hole: &Hole, batch: Vec<ShotRecord>, p_max: f64)`
   - Calculate wager-weighted average miss: `z = Σ(miss_i * wager_i) / Σ(wager_i)`
   - Unbias for Rayleigh: `z_unbiased = z / sqrt(π/2)`
   - Calculate batch variance for dynamic measurement noise
   - Update Kalman filter
   - Clear shot batch, append p_max to history
 
-### 2.3 Shot Outcome (`shot.rs`)
-- [ ] Define `ShotOutcome` struct:
+### 2.3 Shot Outcome (`shot.rs`) ✅
+- [x] Define `ShotOutcome` struct:
   ```rust
   pub struct ShotOutcome {
       pub miss_distance_ft: f64,
@@ -180,10 +180,18 @@ Rebuild the Continuum Golf wagering simulator in Rust for superior performance, 
       pub is_fat_tail: bool,      // Flagged extreme mishit
   }
   ```
-- [ ] Implement `simulate_shot(sigma: f64, fat_tail_prob: f64, fat_tail_mult: f64) -> (f64, bool)`
+- [x] Implement `simulate_shot(sigma: f64, fat_tail_prob: f64, fat_tail_mult: f64) -> (f64, bool)`
   - 2% chance: sample from σ * 3.0
   - 98% chance: sample from σ
   - Return (miss_distance, is_fat_tail)
+
+**Phase 2 Summary:**
+- ✅ **All 3 core data models implemented** (hole, player, shot)
+- ✅ **52 unit tests passing** (14 hole + 14 player + 11 shot + 13 from Phase 1)
+- ✅ **Comprehensive P_max calculation** with numerical integration
+- ✅ **Kalman filter integration** for adaptive skill tracking
+- ✅ **Shot batching and high-stakes detection** implemented
+- ✅ **Full serialization support** with serde for all models
 
 ---
 
