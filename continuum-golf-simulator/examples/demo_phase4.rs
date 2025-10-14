@@ -116,6 +116,7 @@ fn main() {
         hours: 2.0,
         shots_per_hour: 100,
         player_archetype: PlayerArchetype::BellCurve { mean: 15, std_dev: 5.0 },
+        wager_range: (5.0, 15.0),
     };
     let venue_result = run_venue_simulation(venue_config);
     
