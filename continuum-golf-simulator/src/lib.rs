@@ -12,6 +12,7 @@ pub mod math;
 pub mod models;
 pub mod simulators;
 pub mod analytics;
+pub mod anti_cheat;
 pub mod config;
 
 // Re-export commonly used types
