@@ -795,20 +795,34 @@ fn print_venue_results(result: &VenueResult) {
     payout_table.add_row(Row::new(vec![
         Cell::new("Multiplier Range").style_spec("Fb"),
         Cell::new("Count").style_spec("Fb"),
+        Cell::new("% of Total").style_spec("Fb"),
     ]));
+
+    let total_shots: usize = result.payout_distribution.iter().sum();
 
     for (i, count) in result.payout_distribution.iter().enumerate() {
         let range = if i < 10 {
             format!("{}x - {}x", i, i + 1)
         } else {
-            "10x+".to_string()
+            "10x+ (all big wins)".to_string()
+        };
+        let percentage = if total_shots > 0 {
+            (*count as f64 / total_shots as f64) * 100.0
+        } else {
+            0.0
         };
         payout_table.add_row(Row::new(vec![
             Cell::new(&range),
             Cell::new(&format!("{}", count)),
+            Cell::new(&format!("{:.2}%", percentage)),
         ]));
     }
     payout_table.printstd();
+
+    // Add explanatory note
+    println!();
+    println!("{}", "Note: The 10x+ bucket includes all exceptional shots (10x-50x+).".bright_black());
+    println!("{}", "      This represents the long tail of near-perfect shots.".bright_black());
     println!();
 }
 
