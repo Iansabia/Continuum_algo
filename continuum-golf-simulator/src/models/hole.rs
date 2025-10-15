@@ -145,17 +145,16 @@ impl Hole {
 
 /// The 8 official hole configurations from the business plan
 ///
-/// Configuration format:
-/// - H1-H2: Short (wedge) - RTP 86%, k=5.0
-/// - H3-H5: Mid (iron) - RTP 88%, k=5.5-6.0
-/// - H6-H8: Long (iron) - RTP 90%, k=6.5
+/// Configuration format (adjusted for 15% target hold):
+/// - All holes: RTP 85.0%, targeting 15% hold
+/// - Different k values provide varying payout curves
 pub const HOLE_CONFIGURATIONS: [Hole; 8] = [
     // Short holes (Wedge category)
     Hole {
         id: 1,
         distance_yds: 75,
         d_max_ft: 17.95,
-        rtp: 0.86,
+        rtp: 0.85,
         k: 5.0,
         category: ClubCategory::Wedge,
     },
@@ -163,7 +162,7 @@ pub const HOLE_CONFIGURATIONS: [Hole; 8] = [
         id: 2,
         distance_yds: 100,
         d_max_ft: 25.69,
-        rtp: 0.86,
+        rtp: 0.85,
         k: 5.0,
         category: ClubCategory::Wedge,
     },
@@ -171,7 +170,7 @@ pub const HOLE_CONFIGURATIONS: [Hole; 8] = [
         id: 3,
         distance_yds: 125,
         d_max_ft: 36.71,
-        rtp: 0.88,
+        rtp: 0.85,
         k: 5.5,
         category: ClubCategory::Wedge,
     },
@@ -180,7 +179,7 @@ pub const HOLE_CONFIGURATIONS: [Hole; 8] = [
         id: 4,
         distance_yds: 150,
         d_max_ft: 47.58,
-        rtp: 0.88,
+        rtp: 0.85,
         k: 6.0,
         category: ClubCategory::MidIron,
     },
@@ -188,7 +187,7 @@ pub const HOLE_CONFIGURATIONS: [Hole; 8] = [
         id: 5,
         distance_yds: 175,
         d_max_ft: 59.09,
-        rtp: 0.88,
+        rtp: 0.85,
         k: 6.0,
         category: ClubCategory::MidIron,
     },
@@ -197,7 +196,7 @@ pub const HOLE_CONFIGURATIONS: [Hole; 8] = [
         id: 6,
         distance_yds: 200,
         d_max_ft: 73.58,
-        rtp: 0.90,
+        rtp: 0.85,
         k: 6.5,
         category: ClubCategory::LongIron,
     },
@@ -205,7 +204,7 @@ pub const HOLE_CONFIGURATIONS: [Hole; 8] = [
         id: 7,
         distance_yds: 225,
         d_max_ft: 84.84,
-        rtp: 0.90,
+        rtp: 0.85,
         k: 6.5,
         category: ClubCategory::LongIron,
     },
@@ -213,7 +212,7 @@ pub const HOLE_CONFIGURATIONS: [Hole; 8] = [
         id: 8,
         distance_yds: 250,
         d_max_ft: 101.14,
-        rtp: 0.90,
+        rtp: 0.85,
         k: 6.5,
         category: ClubCategory::LongIron,
     },
@@ -258,13 +257,13 @@ mod tests {
         let h1 = &HOLE_CONFIGURATIONS[0];
         assert_eq!(h1.id, 1);
         assert_eq!(h1.distance_yds, 75);
-        assert_eq!(h1.rtp, 0.86);
+        assert_eq!(h1.rtp, 0.85);
 
         // Check last hole
         let h8 = &HOLE_CONFIGURATIONS[7];
         assert_eq!(h8.id, 8);
         assert_eq!(h8.distance_yds, 250);
-        assert_eq!(h8.rtp, 0.90);
+        assert_eq!(h8.rtp, 0.85);
     }
 
     #[test]
@@ -364,16 +363,14 @@ mod tests {
 
     #[test]
     fn test_rtp_progression() {
-        // Short holes should have RTP around 0.86
+        // All holes should have RTP of 0.85
         let h1 = get_hole_by_id(1).unwrap();
-        assert_eq!(h1.rtp, 0.86);
+        assert_eq!(h1.rtp, 0.85);
 
-        // Mid holes should have RTP around 0.88
         let h4 = get_hole_by_id(4).unwrap();
-        assert_eq!(h4.rtp, 0.88);
+        assert_eq!(h4.rtp, 0.85);
 
-        // Long holes should have RTP of 0.90
         let h8 = get_hole_by_id(8).unwrap();
-        assert_eq!(h8.rtp, 0.90);
+        assert_eq!(h8.rtp, 0.85);
     }
 }

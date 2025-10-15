@@ -111,10 +111,13 @@ impl Player {
     /// P_max is the maximum payout multiplier that maintains the house's RTP.
     ///
     /// # Formula
-    /// P_max = RTP / ∫[0, d_max] (1 - d/d_max)^k * PDF(d | σ) dd
+    /// P_max = RTP / E[payout]
     ///
-    /// Where PDF(d | σ) is the Rayleigh distribution:
-    /// PDF(d) = (d/σ²) * exp(-d²/(2σ²))
+    /// Where E[payout] accounts for fat-tail distribution:
+    /// E[payout] = (1-p_fat) * ∫ (1-d/d_max)^k * Rayleigh(d|σ) dd
+    ///           + p_fat * ∫ (1-d/d_max)^k * Rayleigh(d|3σ) dd
+    ///
+    /// With p_fat = 0.02 (2% chance of fat-tail shot)
     ///
     /// # Arguments
     /// * `hole` - The hole configuration
@@ -138,11 +141,14 @@ impl Player {
         let sigma = skill.kalman_filter.estimate;
 
         // Calculate expected payout using numerical integration
+        // Must account for fat-tail distribution (2% chance of 3x sigma)
         let d_max = hole.d_max_ft;
         let k = hole.k;
+        let fat_tail_prob = 0.02;
+        let fat_tail_mult = 3.0;
 
-        // Define integrand: payout_function(d) * rayleigh_pdf(d, sigma)
-        let integrand = |d: f64| -> f64 {
+        // Define integrand for normal shots: payout_function(d) * rayleigh_pdf(d, sigma)
+        let integrand_normal = |d: f64| -> f64 {
             if d > d_max {
                 return 0.0;
             }
@@ -156,11 +162,32 @@ impl Player {
             payout_factor * rayleigh_pdf
         };
 
+        // Define integrand for fat-tail shots: payout_function(d) * rayleigh_pdf(d, 3*sigma)
+        let sigma_fat = sigma * fat_tail_mult;
+        let integrand_fat = |d: f64| -> f64 {
+            if d > d_max {
+                return 0.0;
+            }
+
+            // Payout function: (1 - d/d_max)^k
+            let payout_factor = (1.0 - d / d_max).powf(k);
+
+            // Rayleigh PDF with fat-tail sigma: (d/(3σ)²) * exp(-d²/(2(3σ)²))
+            let rayleigh_pdf = (d / (sigma_fat * sigma_fat)) * (-d * d / (2.0 * sigma_fat * sigma_fat)).exp();
+
+            payout_factor * rayleigh_pdf
+        };
+
         // Integrate from 0 to d_max (use higher bound for numerical stability)
-        let upper_bound = (d_max * 1.5).max(sigma * 5.0);
+        // Use the fat-tail sigma for upper bound since it has longer tail
+        let upper_bound = (d_max * 1.5).max(sigma_fat * 5.0);
         let n_subdivisions = 2000; // High accuracy
 
-        let expected_payout = trapezoidal_rule(integrand, 0.0, upper_bound, n_subdivisions);
+        let expected_payout_normal = trapezoidal_rule(integrand_normal, 0.0, upper_bound, n_subdivisions);
+        let expected_payout_fat = trapezoidal_rule(integrand_fat, 0.0, upper_bound, n_subdivisions);
+
+        // Weighted average: (1 - p_fat) * E[normal] + p_fat * E[fat]
+        let expected_payout = (1.0 - fat_tail_prob) * expected_payout_normal + fat_tail_prob * expected_payout_fat;
 
         // P_max = RTP / expected_payout
         // Add small epsilon to prevent division by zero
