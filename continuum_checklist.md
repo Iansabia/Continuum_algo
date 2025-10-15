@@ -377,9 +377,9 @@ Rebuild the Continuum Golf wagering simulator in Rust for superior performance, 
 
 ---
 
-## Phase 5: CLI Interface (`src/main.rs`)
+## Phase 5: CLI Interface (`src/main.rs`) ✅
 
-### 5.1 Command Structure
+### 5.1 Command Structure ✅
 ```bash
 continuum-golf-simulator [COMMAND] [OPTIONS]
 
@@ -390,8 +390,8 @@ Commands:
   validate     Run validation tests
 ```
 
-### 5.2 Implement Commands
-- [ ] **Player Command**
+### 5.2 Implement Commands ✅
+- [x] **Player Command**
   ```bash
   --handicap <0-30>           Starting handicap
   --shots <N>                 Number of shots to simulate
@@ -401,23 +401,25 @@ Commands:
   --developer-mode           Enable manual miss input
   --export <path.csv>        Export results
   ```
-  - Interactive mode: prompt for each shot's manual miss if enabled
-  - Print real-time stats after each batch update
-  
-- [ ] **Venue Command**
+  - ✅ Interactive mode: prompt for each shot's manual miss if enabled
+  - ✅ Print real-time stats after each batch update
+
+- [x] **Venue Command**
   ```bash
   --bays <N>                 Number of hitting bays
   --hours <H>                Operating hours
   --shots-per-hour <N>       Average shots per bay per hour
   --archetype <uniform|bell|beginners|experts>
+  --wager-min <$>            Minimum wager
+  --wager-max <$>            Maximum wager
   --export-json <path.json>
   --export-heatmap <path.csv>
   --progress                 Show progress bar
   ```
-  - Use `rayon` for parallel bay simulation
-  - Print summary: profit, hold%, ARPU
-  
-- [ ] **Tournament Command**
+  - ✅ Use `rayon` for parallel bay simulation
+  - ✅ Print summary: profit, hold%, ARPU
+
+- [x] **Tournament Command**
   ```bash
   --mode <longest|ctp>
   --hole <id>                For CTP mode
@@ -425,24 +427,32 @@ Commands:
   --entry-fee <$>
   --rake <percent>
   --payout <winner|top2|top3>
-  --randomize                Randomize all parameters
+  --attempts <N>             Attempts per player
   ```
-  - Print top 10 leaderboard
-  - Show financial breakdown
-  
-- [ ] **Validate Command**
+  - ✅ Print top 10 leaderboard
+  - ✅ Show financial breakdown
+
+- [x] **Validate Command**
   ```bash
   --test <all|rtp|fairness|convergence>
   --verbose                  Show detailed output
   ```
-  - Run test suites, report pass/fail
-  - Generate validation report
+  - ✅ Run test suites, report pass/fail
+  - ✅ Generate validation report
 
-### 5.3 Output Formatting
-- [ ] Pretty-print tables with alignment
-- [ ] Color-code gains (green) vs losses (red)
-- [ ] Show progress spinners for long operations
-- [ ] ASCII art logo on startup
+### 5.3 Output Formatting ✅
+- [x] Pretty-print tables with alignment (using prettytable-rs)
+- [x] Color-code gains (green) vs losses (red) (using colored crate)
+- [x] Show progress spinners for long operations (using indicatif)
+- [x] ASCII art logo on startup (custom CONTINUUM banner)
+
+**Phase 5 Summary:**
+- ✅ **All 4 CLI commands implemented** (player, venue, tournament, validate)
+- ✅ **Professional output formatting** with colored tables and progress bars
+- ✅ **ASCII art branding** on startup
+- ✅ **Comprehensive help system** with clap
+- ✅ **All features tested** and working correctly
+- ✅ **Export functionality** for CSV and JSON formats
 
 ---
 
