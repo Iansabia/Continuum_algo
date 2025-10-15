@@ -7,9 +7,10 @@
 /// - Pattern-based exploitation
 
 use crate::models::shot::ShotOutcome;
+use serde::{Deserialize, Serialize};
 
 /// Anomaly detection result
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnomalyReport {
     pub is_suspicious: bool,
     pub confidence: f64, // 0.0-1.0

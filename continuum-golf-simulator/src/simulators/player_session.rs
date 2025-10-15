@@ -12,6 +12,7 @@ use crate::models::{
     player::Player,
     shot::{simulate_shot, ShotOutcome},
 };
+use crate::anti_cheat::{detect_cherry_picking, detect_sandbagging, AnomalyReport};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -62,9 +63,14 @@ pub enum HoleSelection {
 }
 
 /// Developer mode settings for manual testing
+///
+/// ⚠️ SECURITY WARNING: Developer mode should NEVER be accessible to real players.
+/// Manual miss distances allow complete control over shot outcomes, enabling
+/// trivial exploitation of the payout system.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeveloperMode {
     /// If set, use this miss distance instead of simulating
+    /// ⚠️ CRITICAL: This must never be available in production
     pub manual_miss_distance: Option<f64>,
     /// If true, disable Kalman filter updates (skill stays constant)
     pub disable_kalman: bool,
@@ -89,6 +95,10 @@ pub struct SessionResult {
     pub num_kalman_updates: usize,
     /// Number of high-stakes shots (triggered immediate updates)
     pub num_high_stakes_shots: usize,
+    /// Anti-cheat detection report for cherry-picking
+    pub cherry_picking_report: Option<AnomalyReport>,
+    /// Anti-cheat detection report for sandbagging
+    pub sandbagging_report: Option<AnomalyReport>,
 }
 
 impl SessionResult {
@@ -136,7 +146,7 @@ pub fn run_session(player: &mut Player, config: SessionConfig) -> SessionResult 
     let mut num_kalman_updates = 0;
     let mut num_high_stakes_shots = 0;
 
-    for _shot_num in 0..config.num_shots {
+    for shot_num in 0..config.num_shots {
         // Select hole based on strategy
         let hole = select_hole(&config.hole_selection, &mut rng);
 
@@ -179,10 +189,28 @@ pub fn run_session(player: &mut Player, config: SessionConfig) -> SessionResult 
         total_won += payout_amount;
         shots.push(outcome);
 
+        // SECURITY FIX: Track wager for lifetime average (cross-session detection)
+        player.track_wager(wager);
+
         // Add shot to batch (unless Kalman is disabled)
         if config.developer_mode.as_ref().map_or(true, |dm| !dm.disable_kalman) {
-            // Check if this is a high-stakes shot
-            let is_high_stakes = player.is_high_stakes_shot(hole, wager);
+            // SECURITY FIX: Use lifetime average wager if available, otherwise use session average
+            let lifetime_avg = player.get_lifetime_avg_wager();
+            let session_avg_wager = if shot_num > 0 {
+                total_wagered / (shot_num + 1) as f64
+            } else {
+                wager
+            };
+
+            // Use the more conservative of lifetime or session average
+            let reference_avg = if lifetime_avg > 0.0 {
+                lifetime_avg.max(session_avg_wager)
+            } else {
+                session_avg_wager
+            };
+
+            // SECURITY FIX: More aggressive high-stakes detection (2x reference average instead of 10x batch average)
+            let is_high_stakes = wager >= 2.0 * reference_avg;
 
             if is_high_stakes {
                 num_high_stakes_shots += 1;
@@ -233,6 +261,19 @@ pub fn run_session(player: &mut Player, config: SessionConfig) -> SessionResult 
         0.0
     };
 
+    // SECURITY FIX: Run anti-cheat detection on session results
+    let cherry_picking_report = if shots.len() >= 10 {
+        Some(detect_cherry_picking(&shots))
+    } else {
+        None
+    };
+
+    let sandbagging_report = if shots.len() >= 20 {
+        Some(detect_sandbagging(&shots))
+    } else {
+        None
+    };
+
     SessionResult {
         total_wagered,
         total_won,
@@ -242,6 +283,8 @@ pub fn run_session(player: &mut Player, config: SessionConfig) -> SessionResult 
         session_house_edge,
         num_kalman_updates,
         num_high_stakes_shots,
+        cherry_picking_report,
+        sandbagging_report,
     }
 }
 
@@ -487,6 +530,8 @@ mod tests {
             session_house_edge: 0.12,
             num_kalman_updates: 1,
             num_high_stakes_shots: 0,
+            cherry_picking_report: None,
+            sandbagging_report: None,
         };
 
         assert_eq!(result.house_edge_percent(), 12.0);

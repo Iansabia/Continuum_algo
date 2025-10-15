@@ -18,6 +18,10 @@ pub struct Player {
     pub handicap: u8,
     /// Skill profiles for each club category
     pub skill_profiles: HashMap<ClubCategory, SkillProfile>,
+    /// Lifetime wager history for anti-cheat detection
+    pub lifetime_wagers: Vec<f64>,
+    /// Lifetime total wagered (for average calculation)
+    pub lifetime_total_wagered: f64,
 }
 
 /// Skill profile for a specific club category
@@ -87,6 +91,8 @@ impl Player {
             id,
             handicap,
             skill_profiles,
+            lifetime_wagers: Vec::new(),
+            lifetime_total_wagered: 0.0,
         }
     }
 
@@ -119,6 +125,10 @@ impl Player {
     ///
     /// With p_fat = 0.02 (2% chance of fat-tail shot)
     ///
+    /// # Security
+    /// If P_max history exists, returns the last value (which has rate limiting applied).
+    /// This prevents rapid P_max inflation from sandbagging attacks.
+    ///
     /// # Arguments
     /// * `hole` - The hole configuration
     ///
@@ -137,6 +147,19 @@ impl Player {
     /// assert!(p_max < 20.0);
     /// ```
     pub fn calculate_p_max(&self, hole: &Hole) -> f64 {
+        let skill = self.get_skill_for_hole(hole);
+
+        // SECURITY FIX: Use rate-limited P_max from history if available
+        if !skill.p_max_history.is_empty() {
+            return *skill.p_max_history.last().unwrap();
+        }
+
+        // Otherwise calculate fresh P_max
+        self.calculate_p_max_fresh(hole)
+    }
+
+    /// Calculate fresh P_max without rate limiting (internal use only)
+    fn calculate_p_max_fresh(&self, hole: &Hole) -> f64 {
         let skill = self.get_skill_for_hole(hole);
         let sigma = skill.kalman_filter.estimate;
 
@@ -251,6 +274,10 @@ impl Player {
     /// 4. Update Kalman filter
     /// 5. Store P_max in history
     /// 6. Clear shot batch
+    ///
+    /// # Security
+    /// - Limits P_max changes to 20% per update to prevent sandbagging exploitation
+    /// - Applies outlier detection to reduce impact of suspicious miss distances
     pub fn update_skill(&mut self, hole: &Hole, p_max: f64) {
         let skill = self.get_skill_for_hole_mut(hole);
 
@@ -263,28 +290,149 @@ impl Player {
             .map(|s| (s.miss_distance, s.wager))
             .collect();
 
+        // SECURITY FIX: Outlier detection - flag shots >3 standard deviations from batch mean
+        let miss_distances: Vec<f64> = skill.shot_batch.iter()
+            .map(|s| s.miss_distance)
+            .collect();
+
+        let mean_miss: f64 = miss_distances.iter().sum::<f64>() / miss_distances.len() as f64;
+        let variance: f64 = miss_distances.iter()
+            .map(|&d| (d - mean_miss).powi(2))
+            .sum::<f64>() / miss_distances.len() as f64;
+        let std_dev = variance.sqrt();
+
+        // Filter out extreme outliers (>3 sigma) to reduce impact of intentional sandbagging
+        let filtered_measurements: Vec<(f64, f64)> = measurements.iter()
+            .filter(|(dist, _)| (*dist - mean_miss).abs() <= 3.0 * std_dev)
+            .copied()
+            .collect();
+
+        // If all measurements were outliers, use original (but increase measurement noise)
+        let final_measurements = if filtered_measurements.is_empty() {
+            measurements
+        } else {
+            filtered_measurements
+        };
+
         // Calculate wager-weighted average
-        let weighted_avg = weighted_average_measurement(&measurements);
+        let weighted_avg = weighted_average_measurement(&final_measurements);
 
         // Debias for Rayleigh distribution
         let unbiased_measurement = debias_rayleigh_measurement(weighted_avg);
 
         // Calculate batch variance for dynamic measurement noise
-        let miss_distances: Vec<f64> = skill.shot_batch.iter()
-            .map(|s| s.miss_distance)
-            .collect();
         let batch_variance = measurement_variance(&miss_distances);
 
         // Measurement noise (R) is based on batch variance
         // Higher variance = less trustworthy batch
         let measurement_noise = batch_variance.max(50.0); // Minimum R = 50
 
+        // Store previous estimate for P_max limiting
+        let previous_sigma = skill.kalman_filter.estimate;
+
         // Kalman filter update
         skill.kalman_filter.predict();
         skill.kalman_filter.update(unbiased_measurement, measurement_noise);
 
-        // Store P_max in history
-        skill.p_max_history.push(p_max);
+        // Calculate fresh P_max based on new sigma
+        let fresh_p_max = {
+            // Temporarily calculate P_max with new sigma
+            let temp_sigma = skill.kalman_filter.estimate;
+            let hole_category = &hole.category;
+
+            // Calculate using the fresh method (bypass rate limiting for calculation)
+            let d_max = hole.d_max_ft;
+            let k = hole.k;
+            let fat_tail_prob = 0.02;
+            let fat_tail_mult = 3.0;
+
+            let integrand_normal = |d: f64| -> f64 {
+                if d > d_max {
+                    return 0.0;
+                }
+                let payout_factor = (1.0 - d / d_max).powf(k);
+                let rayleigh_pdf = (d / (temp_sigma * temp_sigma)) * (-d * d / (2.0 * temp_sigma * temp_sigma)).exp();
+                payout_factor * rayleigh_pdf
+            };
+
+            let sigma_fat = temp_sigma * fat_tail_mult;
+            let integrand_fat = |d: f64| -> f64 {
+                if d > d_max {
+                    return 0.0;
+                }
+                let payout_factor = (1.0 - d / d_max).powf(k);
+                let rayleigh_pdf = (d / (sigma_fat * sigma_fat)) * (-d * d / (2.0 * sigma_fat * sigma_fat)).exp();
+                payout_factor * rayleigh_pdf
+            };
+
+            let upper_bound = (d_max * 1.5).max(sigma_fat * 5.0);
+            let n_subdivisions = 2000;
+
+            let expected_payout_normal = trapezoidal_rule(integrand_normal, 0.0, upper_bound, n_subdivisions);
+            let expected_payout_fat = trapezoidal_rule(integrand_fat, 0.0, upper_bound, n_subdivisions);
+            let expected_payout = (1.0 - fat_tail_prob) * expected_payout_normal + fat_tail_prob * expected_payout_fat;
+            let epsilon = 1e-10;
+            hole.rtp / (expected_payout + epsilon)
+        };
+
+        // SECURITY FIX: Limit P_max changes to prevent exploitation
+        // Maximum 20% change per update to prevent sandbagging -> exploitation cycles
+
+        // Get previous P_max (either from history or calculate from pre-update sigma)
+        let previous_p_max = if !skill.p_max_history.is_empty() {
+            *skill.p_max_history.last().unwrap()
+        } else {
+            // First update: calculate P_max with PREVIOUS sigma (before this update)
+            // This establishes the baseline for rate limiting
+            let d_max = hole.d_max_ft;
+            let k = hole.k;
+            let fat_tail_prob = 0.02;
+            let fat_tail_mult = 3.0;
+
+            let integrand_normal = |d: f64| -> f64 {
+                if d > d_max {
+                    return 0.0;
+                }
+                let payout_factor = (1.0 - d / d_max).powf(k);
+                let rayleigh_pdf = (d / (previous_sigma * previous_sigma)) * (-d * d / (2.0 * previous_sigma * previous_sigma)).exp();
+                payout_factor * rayleigh_pdf
+            };
+
+            let sigma_fat = previous_sigma * fat_tail_mult;
+            let integrand_fat = |d: f64| -> f64 {
+                if d > d_max {
+                    return 0.0;
+                }
+                let payout_factor = (1.0 - d / d_max).powf(k);
+                let rayleigh_pdf = (d / (sigma_fat * sigma_fat)) * (-d * d / (2.0 * sigma_fat * sigma_fat)).exp();
+                payout_factor * rayleigh_pdf
+            };
+
+            let upper_bound = (d_max * 1.5).max(sigma_fat * 5.0);
+            let n_subdivisions = 2000;
+
+            let expected_payout_normal = trapezoidal_rule(integrand_normal, 0.0, upper_bound, n_subdivisions);
+            let expected_payout_fat = trapezoidal_rule(integrand_fat, 0.0, upper_bound, n_subdivisions);
+            let expected_payout = (1.0 - fat_tail_prob) * expected_payout_normal + fat_tail_prob * expected_payout_fat;
+            let epsilon = 1e-10;
+            hole.rtp / (expected_payout + epsilon)
+        };
+
+        let max_p_max_increase = previous_p_max * 1.20; // 20% max increase
+        let max_p_max_decrease = previous_p_max * 0.80; // 20% max decrease
+
+        let limited_p_max = fresh_p_max.min(max_p_max_increase).max(max_p_max_decrease);
+
+        // If P_max would have changed too much, roll back sigma change proportionally
+        if (fresh_p_max - limited_p_max).abs() > 0.01 {
+            // P_max is inversely related to performance, so limit sigma changes
+            let sigma_change = skill.kalman_filter.estimate - previous_sigma;
+            let limited_sigma_change = sigma_change * (limited_p_max / fresh_p_max);
+            skill.kalman_filter.estimate = previous_sigma + limited_sigma_change;
+        }
+
+        // Store the limited P_max
+        skill.p_max_history.push(limited_p_max);
 
         // Clear batch
         skill.shot_batch.clear();
@@ -306,6 +454,26 @@ impl Player {
     pub fn get_batch_size(&self, hole: &Hole) -> usize {
         let skill = self.get_skill_for_hole(hole);
         skill.shot_batch.len()
+    }
+
+    /// Track a wager for lifetime average calculation
+    ///
+    /// # Security
+    /// Used for cross-session high-stakes detection to prevent cherry-picking
+    pub fn track_wager(&mut self, wager: f64) {
+        self.lifetime_wagers.push(wager);
+        self.lifetime_total_wagered += wager;
+    }
+
+    /// Get lifetime average wager
+    ///
+    /// # Security
+    /// Used for high-stakes detection across multiple sessions
+    pub fn get_lifetime_avg_wager(&self) -> f64 {
+        if self.lifetime_wagers.is_empty() {
+            return 0.0;
+        }
+        self.lifetime_total_wagered / self.lifetime_wagers.len() as f64
     }
 }
 
