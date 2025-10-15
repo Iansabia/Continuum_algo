@@ -8,7 +8,6 @@
 
 use crate::models::{hole::Hole, player::Player, shot::simulate_shot};
 use crate::simulators::player_session::SessionResult;
-use crate::models::hole::ClubCategory;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -73,10 +72,10 @@ pub fn validate_rtp_across_skills(
         
         for _ in 0..trials_per_handicap {
             let (miss_distance, _is_fat_tail) = simulate_shot(sigma, 0.02, 3.0);
-            let payout = hole.calculate_payout(miss_distance, p_max);
-            
+            let payout_multiplier = hole.calculate_payout(miss_distance, p_max);
+
             total_wagered += wager;
-            total_won += payout;
+            total_won += payout_multiplier * wager;
         }
         
         let actual_rtp = total_won / total_wagered;
@@ -211,7 +210,6 @@ pub fn analyze_kalman_convergence(
 mod tests {
     use super::*;
     use crate::models::hole::get_hole_by_id;
-    use approx::assert_relative_eq;
 
     #[test]
     fn test_calculate_expected_value() {
