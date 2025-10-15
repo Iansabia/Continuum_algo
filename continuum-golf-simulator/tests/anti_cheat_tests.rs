@@ -98,6 +98,7 @@ fn test_sandbagging_attack() {
 ///
 /// Strategy: Player gradually manipulates perceived skill over many sessions
 /// with subtle variations to avoid detection.
+/// REALISTIC: Worse shots are intentional, better shots are real.
 ///
 /// Expected Behavior: Kalman filter should track the true skill level
 /// through weighted updates, preventing gradual manipulation.
@@ -117,11 +118,16 @@ fn test_gradual_skill_manipulation() {
     // Attempt gradual manipulation over 10 sessions
     println!("\n--- Attempting gradual manipulation (10 sessions) ---");
     for session_num in 1..=10 {
-        // Alternate between slightly worse and slightly better than actual skill
-        let manipulation_distance = if session_num % 2 == 0 {
-            Some(60.0) // Slightly worse
+        // Alternate between intentional bad shots and real shots
+        let developer_mode = if session_num % 2 == 0 {
+            // Intentional bad shot
+            Some(DeveloperMode {
+                manual_miss_distance: Some(60.0),
+                disable_kalman: false,
+            })
         } else {
-            Some(40.0) // Slightly better
+            // Real shots (player's actual skill)
+            None
         };
 
         let config = SessionConfig {
@@ -129,10 +135,7 @@ fn test_gradual_skill_manipulation() {
             wager_min: 10.0,
             wager_max: 10.0,
             hole_selection: HoleSelection::Fixed(4),
-            developer_mode: Some(DeveloperMode {
-                manual_miss_distance: manipulation_distance,
-                disable_kalman: false,
-            }),
+            developer_mode,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
         };
@@ -169,24 +172,25 @@ fn test_gradual_skill_manipulation() {
 ///
 /// Strategy: Simulate a sudden improvement in skill (e.g., skilled player
 /// using a beginner's account).
+/// REALISTIC: Poor baseline is intentional, "skilled" phase is real shots.
 ///
 /// Expected Behavior: System should detect anomalous behavior patterns.
 #[test]
 fn test_sudden_skill_jump_detection() {
     println!("\n=== Anti-Cheat Test: Sudden Skill Jump Detection ===");
 
-    let mut player = Player::new("cheater_account_sharing".to_string(), 25);
+    let mut player = Player::new("cheater_account_sharing".to_string(), 5); // Low handicap skilled player
     let hole = get_hole_by_id(4).unwrap();
 
-    // Establish baseline behavior (poor player)
-    println!("\n--- Phase 1: Establishing baseline (poor player) ---");
+    // Establish baseline behavior (intentionally poor to fake being a beginner)
+    println!("\n--- Phase 1: Establishing baseline (faking poor skill) ---");
     let baseline_config = SessionConfig {
         num_shots: 50,
         wager_min: 10.0,
         wager_max: 10.0,
         hole_selection: HoleSelection::Fixed(4),
         developer_mode: Some(DeveloperMode {
-            manual_miss_distance: Some(80.0), // Consistent poor performance
+            manual_miss_distance: Some(80.0), // Intentional poor performance
             disable_kalman: false,
         }),
         fat_tail_prob: 0.02,
@@ -201,17 +205,14 @@ fn test_sudden_skill_jump_detection() {
     println!("  Sigma: {:.2} ft", baseline_sigma);
     println!("  Avg loss: ${:.2}", baseline_result.net_gain_loss / 50.0);
 
-    // Sudden improvement (potential cheating)
-    println!("\n--- Phase 2: Sudden skill jump (possible account sharing) ---");
+    // Sudden improvement - player reveals true skill (or account shared)
+    println!("\n--- Phase 2: Sudden skill jump (revealing true skill) ---");
     let cheat_config = SessionConfig {
         num_shots: 20,
         wager_min: 50.0, // Higher wagers now
         wager_max: 50.0,
         hole_selection: HoleSelection::Fixed(4),
-        developer_mode: Some(DeveloperMode {
-            manual_miss_distance: Some(15.0), // Suddenly excellent
-            disable_kalman: false,
-        }),
+        developer_mode: None, // Real shots from skilled player
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
     };
@@ -259,6 +260,7 @@ fn test_sudden_skill_jump_detection() {
 /// Test 4: Bet Timing Exploitation
 ///
 /// Strategy: Player only bets high on their best shots (cherry-picking).
+/// REALISTIC: Bad shots use developer mode (intentional misses), good shots are real.
 ///
 /// Expected Behavior: Kalman filter should adapt based on actual shot quality,
 /// not wager size. High-stakes shots trigger immediate updates.
@@ -269,19 +271,24 @@ fn test_bet_timing_exploitation() {
     let mut player = Player::new("cheater_timing".to_string(), 15);
     let hole = get_hole_by_id(4).unwrap();
 
-    println!("\n--- Strategy: Low wagers on bad shots, high wagers on good shots ---");
+    println!("\n--- Strategy: Low wagers on intentional bad shots, high wagers on real shots ---");
 
     let mut total_wagered = 0.0;
     let mut total_won = 0.0;
 
     // Simulate 50 shots with cherry-picking strategy
     for shot_num in 0..50 {
-        // Simulate shot quality (alternating good/bad)
+        // Player can intentionally miss, but can't guarantee perfect shots
         let is_good_shot = shot_num % 3 == 0;
-        let (wager, miss_distance) = if is_good_shot {
-            (100.0, 20.0) // High wager on good shot
+        let (wager, developer_mode) = if is_good_shot {
+            // High wager on real shot (player's actual skill)
+            (100.0, None)
         } else {
-            (5.0, 60.0) // Low wager on bad shot
+            // Low wager on intentional bad shot
+            (5.0, Some(DeveloperMode {
+                manual_miss_distance: Some(60.0),
+                disable_kalman: false,
+            }))
         };
 
         let config = SessionConfig {
@@ -289,10 +296,7 @@ fn test_bet_timing_exploitation() {
             wager_min: wager,
             wager_max: wager,
             hole_selection: HoleSelection::Fixed(4),
-            developer_mode: Some(DeveloperMode {
-                manual_miss_distance: Some(miss_distance),
-                disable_kalman: false,
-            }),
+            developer_mode,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
         };
@@ -399,6 +403,7 @@ fn test_multi_account_collusion() {
 /// Test 6: Session Interruption Exploitation
 ///
 /// Strategy: Player interrupts sessions after good shots, resumes after bad ones.
+/// REALISTIC: Bad sessions use intentional misses, good sessions use real shots.
 ///
 /// Expected Behavior: Kalman filter batching and high-stakes detection should
 /// prevent exploitation through session manipulation.
@@ -409,7 +414,7 @@ fn test_session_interruption_exploitation() {
     let mut player = Player::new("cheater_interruption".to_string(), 15);
     let hole = get_hole_by_id(4).unwrap();
 
-    println!("\n--- Strategy: Interrupt after good shots, resume after bad ---");
+    println!("\n--- Strategy: Interrupt after real good shots, resume with bad shots ---");
 
     let mut total_wagered = 0.0;
     let mut total_won = 0.0;
@@ -417,18 +422,24 @@ fn test_session_interruption_exploitation() {
 
     // Simulate 10 short sessions (interruption pattern)
     for session_num in 0..10 {
-        // Alternate quality to simulate interruption after good shots
-        let shot_quality = if session_num % 2 == 0 { 25.0 } else { 65.0 };
+        // Alternate between real shots and intentional bad shots
+        let developer_mode = if session_num % 2 == 0 {
+            // Real shots (good session)
+            None
+        } else {
+            // Intentional bad shots
+            Some(DeveloperMode {
+                manual_miss_distance: Some(65.0),
+                disable_kalman: false,
+            })
+        };
 
         let config = SessionConfig {
             num_shots: 5, // Short sessions
             wager_min: 20.0,
             wager_max: 20.0,
             hole_selection: HoleSelection::Fixed(4),
-            developer_mode: Some(DeveloperMode {
-                manual_miss_distance: Some(shot_quality),
-                disable_kalman: false,
-            }),
+            developer_mode,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
         };
@@ -439,7 +450,7 @@ fn test_session_interruption_exploitation() {
         session_count += 1;
 
         if session_num % 2 == 0 {
-            println!("Session {} (good): Net ${:.2}", session_num + 1, result.net_gain_loss);
+            println!("Session {} (real shots): Net ${:.2}", session_num + 1, result.net_gain_loss);
         }
     }
 
@@ -466,6 +477,7 @@ fn test_session_interruption_exploitation() {
 /// Test 7: Stress Test - Maximum Exploitation Attempt
 ///
 /// Combines multiple strategies to attempt maximum exploitation.
+/// REALISTIC: Bad shots are intentional, good shots are real player skill.
 #[test]
 fn test_maximum_exploitation_attempt() {
     println!("\n=== Anti-Cheat Test: Maximum Exploitation Attempt ===");
@@ -477,7 +489,7 @@ fn test_maximum_exploitation_attempt() {
     let initial_p_max = player.calculate_p_max(hole);
     println!("\nInitial P_max: {:.2}", initial_p_max);
 
-    // Phase 1: Sandbagging (inflate sigma)
+    // Phase 1: Sandbagging (inflate sigma) - intentional bad shots
     println!("\n--- Phase 1: Sandbagging ---");
     for _ in 0..5 {
         let config = SessionConfig {
@@ -504,10 +516,16 @@ fn test_maximum_exploitation_attempt() {
     let mut exploitation_won = 0.0;
 
     for shot_num in 0..20 {
-        let (wager, miss) = if shot_num % 3 == 0 {
-            (200.0, 10.0) // High wager, excellent shot
+        // Player can intentionally miss, but cannot guarantee perfect shots
+        let (wager, developer_mode) = if shot_num % 3 == 0 {
+            // High wager on real shot (actual player skill)
+            (200.0, None)
         } else {
-            (1.0, 90.0) // Throw-away shot
+            // Throw-away shot (intentional bad miss)
+            (1.0, Some(DeveloperMode {
+                manual_miss_distance: Some(90.0),
+                disable_kalman: false,
+            }))
         };
 
         let config = SessionConfig {
@@ -515,10 +533,7 @@ fn test_maximum_exploitation_attempt() {
             wager_min: wager,
             wager_max: wager,
             hole_selection: HoleSelection::Fixed(4),
-            developer_mode: Some(DeveloperMode {
-                manual_miss_distance: Some(miss),
-                disable_kalman: false,
-            }),
+            developer_mode,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
         };
