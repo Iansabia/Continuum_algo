@@ -162,21 +162,21 @@ pub fn run_session(player: &mut Player, config: SessionConfig) -> SessionResult 
         };
 
         // Calculate payout
-        let payout = hole.calculate_payout(miss_distance, p_max);
-        let multiplier = if wager > 0.0 { payout / wager } else { 0.0 };
+        let payout_multiplier = hole.calculate_payout(miss_distance, p_max);
+        let payout_amount = payout_multiplier * wager;
 
         // Create shot outcome
         let outcome = ShotOutcome {
             miss_distance_ft: miss_distance,
-            multiplier,
-            payout,
+            multiplier: payout_multiplier,
+            payout: payout_amount,
             wager,
             hole_id: hole.id,
             is_fat_tail,
         };
 
         total_wagered += wager;
-        total_won += payout;
+        total_won += payout_amount;
         shots.push(outcome);
 
         // Add shot to batch (unless Kalman is disabled)
@@ -340,7 +340,9 @@ mod tests {
         assert_eq!(result.shots.len(), 10);
         assert!(result.total_wagered >= 50.0 && result.total_wagered <= 100.0);
         assert_eq!(result.net_gain_loss, result.total_won - result.total_wagered);
-        assert!(result.session_house_edge >= 0.0 && result.session_house_edge <= 1.0);
+        // House edge can be negative in individual sessions (player wins)
+        // Typically should be between -5.0 and 1.0 for small sample sizes
+        assert!(result.session_house_edge >= -5.0 && result.session_house_edge <= 1.0);
     }
 
     #[test]
