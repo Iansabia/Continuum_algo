@@ -47,8 +47,10 @@ Create an **investor-ready web demo** showcasing the Continuum Golf simulator wi
 │   [Animated Golf Ball Trajectory - 3D Canvas]          │
 │                                                          │
 │   ┌─────────┐  ┌─────────┐  ┌─────────┐               │
-│   │ 86-90%  │  │ Perfect  │  │ Kalman  │               │
+│   │   85%   │  │ Perfect  │  │ Kalman  │               │
 │   │   RTP   │  │ Fairness │  │ Adaptive│               │
+│   │  (15%   │  │  (Equal  │  │  (Bias  │               │
+│   │  Edge)  │  │   EV)    │  │  Track) │               │
 │   └─────────┘  └─────────┘  └─────────┘               │
 │                                                          │
 │            [Try Live Demo →] [Watch Video]              │
@@ -103,12 +105,14 @@ Create an **investor-ready web demo** showcasing the Continuum Golf simulator wi
 │                                                           │
 │  Running 10,000 shots for each handicap level...         │
 │                                                           │
-│  Handicap 0:   EV = -12.02% ✓                           │
-│  Handicap 10:  EV = -12.00% ✓                           │
-│  Handicap 20:  EV = -11.98% ✓                           │
-│  Handicap 30:  EV = -12.01% ✓                           │
+│  Handicap 0:   EV = -15.02% ✓                           │
+│  Handicap 10:  EV = -15.00% ✓                           │
+│  Handicap 20:  EV = -14.98% ✓                           │
+│  Handicap 30:  EV = -15.01% ✓                           │
 │                                                           │
-│  ✅ All handicaps within ±0.5% - FAIRNESS PROVEN        │
+│  ✅ All handicaps within ±0.5% (15% house edge)         │
+│  ✅ FAIRNESS PROVEN: Equal opportunity regardless of    │
+│      skill level - everyone faces same 15% edge         │
 │                                                           │
 │  [Animated Visualization: Equal Opportunity Circle]      │
 └──────────────────────────────────────────────────────────┘
@@ -118,26 +122,45 @@ Create an **investor-ready web demo** showcasing the Continuum Golf simulator wi
 
 ## 📊 Advanced Visualizations
 
-### 1. Shot Trajectory Viewer
-- **Type**: 2D scatter plot
-- **X-axis**: Distance from pin (feet)
-- **Y-axis**: Lateral deviation (feet)
+### 1. Shot Trajectory Viewer (Enhanced with BVN)
+- **Type**: 2D scatter plot with bias overlay
+- **X-axis**: Lateral position (feet from pin, negative = left, positive = right)
+- **Y-axis**: Distance position (feet from pin, negative = short, positive = long)
 - **Color**: Payout multiplier (green = high, red = low)
+- **NEW: Bias Vector**: Arrow showing systematic miss tendency (μ_x, μ_y)
+- **NEW: Elliptical Confidence**: 1σ and 2σ ellipses showing dispersion (σ_x vs σ_y)
 - **Interactive**: Hover for details, click to highlight shot
-- **Animation**: Shots appear one-by-one with fade-in
+- **Animation**: Shots appear one-by-one with fade-in, bias updates in real-time
 
-### 2. Kalman Filter Evolution
-- **Type**: Time series line chart
-- **Main line**: Skill estimate (σ) over time
-- **Shaded area**: Confidence band (P_k)
+### 2. Kalman Filter Evolution (Enhanced for 4D)
+- **Type**: Multi-line time series chart
+- **Legacy (1D)**: Single line showing σ over time
+- **NEW (4D)**:
+  - **Line 1**: μ_x (lateral bias) - Red line
+  - **Line 2**: μ_y (distance bias) - Blue line
+  - **Line 3**: σ_x (lateral precision) - Orange area
+  - **Line 4**: σ_y (distance precision) - Green area
+- **Shaded areas**: Confidence bands for each parameter
 - **Annotations**: Key events (batch updates, high-stakes shots)
+- **Toggle**: Switch between 1D (legacy) and 4D (BVN) views
 - **Controls**: Scrub through time, zoom in/out
 
-### 3. Profitability Heatmap
+### 2b. Bias Detection Dashboard (NEW)
+- **Purpose**: Show systematic shooting tendencies
+- **Components**:
+  - **Bias Magnitude**: `sqrt(μ_x² + μ_y²)` - How far off-center on average
+  - **Bias Direction**: Compass showing direction (e.g., "4 ft right, 2 ft long")
+  - **Precision Ratio**: `σ_x / σ_y` - Are you better at distance or lateral control?
+  - **Coaching Tip**: "Work on lateral control - you're 2× more precise at distance"
+- **Visual**: Polar plot with bias vector and elliptical confidence region
+
+### 3. Profitability Heatmap (Updated for 15% Edge)
 - **Rows**: 8 holes (75-250 yds)
 - **Columns**: 7 handicap ranges (0-4, 5-9, ..., 25-30)
-- **Cell color**: House edge % (dark green = high profit)
-- **Hover**: Detailed tooltip (RTP, hold %, sample size)
+- **Cell color**: Hold percentage (green gradient, all ~15% theoretical)
+- **Hover**: Detailed tooltip (RTP=85%, actual hold %, sample size, variance)
+- **Note**: Cells show actual hold (15-17%) due to variance, fat-tails, Kalman learning
+- **Insight**: "All holes maintain 15% house edge - uniform fairness across all distances"
 
 ### 4. Revenue Projection Calculator
 - **Inputs**: Venue size, pricing, location, demographics
@@ -150,6 +173,22 @@ Create an **investor-ready web demo** showcasing the Continuum Golf simulator wi
 - **Display**: Histogram of outcomes
 - **Highlight**: Percentiles (10th, 50th, 90th)
 - **Insight**: "95% chance of $X+ profit"
+
+### 6. Camera System Visualizations (NEW - Phase 9)
+- **Purpose**: Show camera integration and (x,y) coordinate capture
+- **Components**:
+  - **Live Camera Feed**: Real-time view with ball detection overlay
+  - **Homography Calibration**: Visual guide for setting up 4 corner markers
+  - **Ball ID Recognition**: Show detected ball ID and matched player
+  - **Coordinate Accuracy**: Display measured (x,y) vs. expected position
+  - **System Health**: Camera uptime, calibration drift, accuracy metrics
+
+### 7. Player Bias Heatmap (NEW - Phase 9)
+- **Type**: 2D density plot
+- **Shows**: Where player's shots tend to land (aggregated over all shots)
+- **Color**: Frequency (red = often misses here, blue = rarely)
+- **Overlay**: Pin location, breakeven radius, 1σ/2σ ellipses
+- **Use Case**: Identify if player consistently misses in specific direction
 
 ---
 
@@ -369,13 +408,17 @@ https://continuum-demo.vercel.app/?scenario=venue&bays=50&hours=8
 
 ---
 
-## 💡 Future Enhancements (Phase 9+)
+## 💡 Future Enhancements (Phase 10+)
+
+**Note:** Phase 9 is now dedicated to Camera Integration & BVN Migration (see `continuum_checklist.md`)
 
 - **AI Assistant**: "Ask questions about the simulator"
 - **Multi-language**: Spanish, Mandarin for global investors
 - **Video Explainers**: Embedded Loom/YouTube tutorials
 - **Live Data**: Connect to real venue once operational
 - **Comparison Tool**: Side-by-side scenario comparison
+- **Advanced Coaching**: AI-powered swing analysis using bias patterns
+- **Tournament Brackets**: Visualize tournament gameplay with BVN stats
 
 ---
 
@@ -390,6 +433,28 @@ Include in footer:
 ---
 
 **Created**: 2025-10-13
-**Last Updated**: 2025-10-13
-**Status**: Planning Phase
+**Last Updated**: 2025-10-18
+**Status**: Planning Phase (Updated for BVN & 15% house edge)
 **Target Completion**: 3 weeks after Phase 6
+
+---
+
+## 📝 Changelog
+
+### 2025-10-18: BVN Integration & House Edge Update
+- ✅ Updated landing page to show 85% RTP (15% house edge) instead of variable 86-90%
+- ✅ Updated fairness validator to show -15% EV across all handicaps
+- ✅ Enhanced Shot Trajectory Viewer with bias vectors and elliptical confidence regions
+- ✅ Upgraded Kalman Filter Evolution chart to show 4D state (μ_x, μ_y, σ_x, σ_y)
+- ✅ Added Bias Detection Dashboard for systematic tendency analysis
+- ✅ Updated Profitability Heatmap to reflect uniform 15% edge
+- ✅ Added Camera System Visualizations (live feed, calibration, accuracy)
+- ✅ Added Player Bias Heatmap for shot distribution analysis
+- ✅ Renamed Future Enhancements to Phase 10+ (Phase 9 = Camera/BVN)
+
+### 2025-10-13: Initial Planning
+- Created comprehensive web interface plan for investor showcase
+- Defined WASM architecture and React frontend
+- Outlined 3 main interactive tabs: Player, Venue, Fairness
+- Designed 5 advanced visualizations
+- Established deployment strategy (Vercel/GitHub Pages)

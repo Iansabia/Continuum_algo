@@ -43,13 +43,22 @@ Rebuild the Continuum Golf wagering simulator in Rust for superior performance, 
 #### `distributions.rs` ✅
 - [x] Implement `normal_random(mean: f64, std_dev: f64) -> f64`
   - Box-Muller transform for normal distribution
-- [x] Implement `rayleigh_random(sigma: f64) -> f64`
+- [x] Implement `rayleigh_random(sigma: f64) -> f64` (Legacy - for backward compatibility)
   - Miss distance distribution: `d = σ * sqrt(-2 * ln(U))`
+- [ ] **NEW: Implement `bvn_random(mu_x: f64, mu_y: f64, sigma_x: f64, sigma_y: f64) -> (f64, f64)`**
+  - Bivariate Normal distribution for (x,y) coordinates
+  - Box-Muller transform for 2D sampling
+  - Enables directional bias and elliptical dispersion modeling
+- [ ] **NEW: Implement `bvn_pdf(x: f64, y: f64, mu_x: f64, mu_y: f64, sigma_x: f64, sigma_y: f64) -> f64`**
+  - 2D Gaussian probability density function
+  - Required for P_max calculation with BVN
 - [x] Implement `fat_tail_shot(sigma: f64, probability: f64, multiplier: f64) -> (f64, bool)`
   - 2% chance of 3× worse dispersion (configurable)
 - [x] Add helper functions: `rayleigh_pdf`, `rayleigh_mean`, `rayleigh_variance`
+- [ ] **NEW: Add BVN helper functions: `bvn_mean`, `bvn_covariance`**
 - [x] Add unit tests for distribution properties (mean, variance)
   - **5 tests passing**: mean, variance, fat-tail frequency, PDF properties
+- [ ] **NEW: Add unit tests for BVN (symmetry check, bias detection, covariance)**
 
 #### `integration.rs` ✅
 - [x] Implement `trapezoidal_rule(f: impl Fn(f64) -> f64, a: f64, b: f64, n: usize) -> f64`
@@ -61,7 +70,7 @@ Rebuild the Continuum Golf wagering simulator in Rust for superior performance, 
   - **6 tests passing**: trapezoidal, Simpson's, adaptive, payout integration
 
 #### `kalman.rs` ✅
-- [x] Define `KalmanState` struct:
+- [x] Define `KalmanState` struct (1D - Legacy):
   ```rust
   pub struct KalmanState {
       pub estimate: f64,           // Current skill estimate (σ)
@@ -70,19 +79,40 @@ Rebuild the Continuum Golf wagering simulator in Rust for superior performance, 
       pub initial_estimate: f64,   // σ_0 for reset
   }
   ```
+- [ ] **NEW: Define `KalmanState4D` struct:**
+  ```rust
+  pub struct KalmanState4D {
+      pub estimate: [f64; 4],              // [μ_x, μ_y, σ_x, σ_y]
+      pub error_covariance: [[f64; 4]; 4], // 4×4 covariance matrix
+      pub process_noise: [[f64; 4]; 4],    // Q matrix
+      pub initial_estimate: [f64; 4],      // Initial state
+  }
+  ```
 - [x] Implement `KalmanState::new(initial_sigma: f64, process_noise: f64) -> Self`
+- [ ] **NEW: Implement `KalmanState4D::new(mu_x, mu_y, sigma_x, sigma_y, process_noise) -> Self`**
+  - Initialize 4D state vector and covariance matrices
 - [x] Implement `predict(&mut self) -> (f64, f64)`
   - Returns (predicted_estimate, predicted_covariance)
+- [ ] **NEW: Implement `predict_4d(&mut self)` for 4D state**
+  - Matrix operations: x_prior = x_posterior, P_prior = P_posterior + Q
 - [x] Implement `update(&mut self, measurement: f64, measurement_noise: f64)`
   - Kalman gain: `K = P_k / (P_k + R)`
   - Update estimate: `σ_k = σ_k-1 + K(z - σ_k-1)`
   - Update covariance: `P_k = (1 - K) * P_k-1`
+- [ ] **NEW: Implement `update_4d(&mut self, x: f64, y: f64, measurement_noise: [[f64; 2]; 2])`**
+  - Multivariate Kalman update with 2D measurements (x,y)
+  - Variance updates from batch statistics
 - [x] Implement `calculate_confidence(&self) -> f64`
   - Maps error_covariance (50-1000) to confidence (100%-0%)
   - Formula from JS: `100 * (1 - ln(P/50) / ln(1000/50))`
+- [ ] **NEW: Implement `calculate_confidence_4d(&self) -> [f64; 4]`**
+  - Confidence for each dimension: μ_x, μ_y, σ_x, σ_y
 - [x] Implement helper functions: `debias_rayleigh_measurement`, `weighted_average_measurement`, `measurement_variance`
+- [ ] **NEW: Add 4D matrix operations: matrix_mult, matrix_inv, matrix_transpose**
+  - Can use `nalgebra` or implement manually for 4×4 matrices
 - [x] Add tests validating convergence over multiple updates
   - **7 tests passing**: initialization, convergence, confidence, debiasing, weighted average, variance, reset
+- [ ] **NEW: Add tests for 4D Kalman (bias convergence, elliptical dispersion)**
 
 **Phase 1 Summary:**
 - ✅ **18 unit tests passing** (5 distributions + 6 integration + 7 Kalman)
@@ -120,18 +150,21 @@ Rebuild the Continuum Golf wagering simulator in Rust for superior performance, 
   - Solve: `d_break = d_max * (1 - P_max^(-1/k))`
 - [x] Create `HOLE_CONFIGURATIONS: [Hole; 8]` constant with data from business plan:
   ```
-  H1: 75yd,  d_max=17.95, RTP=0.86, k=5.0
-  H2: 100yd, d_max=25.69, RTP=0.86, k=5.0
-  H3: 125yd, d_max=36.71, RTP=0.88, k=5.5
-  H4: 150yd, d_max=47.58, RTP=0.88, k=6.0
-  H5: 175yd, d_max=59.09, RTP=0.88, k=6.0
-  H6: 200yd, d_max=73.58, RTP=0.90, k=6.5
-  H7: 225yd, d_max=84.84, RTP=0.90, k=6.5
-  H8: 250yd, d_max=101.14, RTP=0.90, k=6.5
+  ✅ CURRENT (15% uniform house edge):
+  H1: 75yd,  d_max=17.95, RTP=0.85, k=5.0
+  H2: 100yd, d_max=25.69, RTP=0.85, k=5.0
+  H3: 125yd, d_max=36.71, RTP=0.85, k=5.5
+  H4: 150yd, d_max=47.58, RTP=0.85, k=6.0
+  H5: 175yd, d_max=59.09, RTP=0.85, k=6.0
+  H6: 200yd, d_max=73.58, RTP=0.85, k=6.5
+  H7: 225yd, d_max=84.84, RTP=0.85, k=6.5
+  H8: 250yd, d_max=101.14, RTP=0.85, k=6.5
+
+  (OLD variable edge: H1-H2=0.86, H3-H5=0.88, H6-H8=0.90)
   ```
 
 ### 2.2 Player Model (`player.rs`) ✅
-- [x] Define `Player` struct:
+- [x] Define `Player` struct (Legacy 1D):
   ```rust
   pub struct Player {
       pub id: String,
@@ -140,13 +173,28 @@ Rebuild the Continuum Golf wagering simulator in Rust for superior performance, 
   }
 
   pub struct SkillProfile {
-      pub kalman_filter: KalmanState,
+      pub kalman_filter: KalmanState,  // 1D (σ only)
       pub p_max_history: Vec<f64>,
       pub shot_batch: Vec<ShotRecord>,
   }
 
   pub struct ShotRecord {
-      pub miss_distance: f64,
+      pub miss_distance: f64,  // Radial distance only
+      pub wager: f64,
+  }
+  ```
+- [ ] **NEW: Update to 4D model for BVN:**
+  ```rust
+  pub struct SkillProfile {
+      pub kalman_filter: KalmanState4D,  // [μ_x, μ_y, σ_x, σ_y]
+      pub p_max_history: Vec<f64>,
+      pub shot_batch: Vec<ShotRecord>,
+  }
+
+  pub struct ShotRecord {
+      pub x_ft: f64,              // NEW: Lateral coordinate
+      pub y_ft: f64,              // NEW: Distance coordinate
+      pub miss_distance_ft: f64,  // Derived: sqrt(x² + y²)
       pub wager: f64,
   }
   ```
@@ -157,19 +205,29 @@ Rebuild the Continuum Golf wagering simulator in Rust for superior performance, 
 - [x] Implement `calculate_initial_dispersion(handicap: u8, distance_yds: u16) -> f64`
   - Matches JS formula exactly
 - [x] Implement `get_skill_for_hole(&self, hole: &Hole) -> &SkillProfile`
-- [x] Implement `calculate_p_max(&self, hole: &Hole) -> f64`
+- [x] Implement `calculate_p_max(&self, hole: &Hole) -> f64` (1D Rayleigh - Legacy)
   - Numerical integration: `∫[0, d_max] (1 - d/d_max)^k * PDF(d | σ) dd`
   - PDF is Rayleigh: `f(d) = (d/σ²) * exp(-d²/2σ²)`
   - Solve: `P_max = RTP / integral`
-- [x] Implement `update_skill(&mut self, hole: &Hole, batch: Vec<ShotRecord>, p_max: f64)`
+- [ ] **NEW: Implement `calculate_p_max_bvn(&self, hole: &Hole) -> f64`**
+  - 2D numerical integration over (x,y) space
+  - Cartesian grid: `∫∫ P(x,y) * BVN_PDF(x,y | μ_x, μ_y, σ_x, σ_y) dx dy`
+  - Adaptive bounds: ±4σ_x, ±4σ_y (covers 99.99% probability)
+  - Payout still based on radial distance: `P(x,y) = k * (d_max / sqrt(x² + y²))^k`
+- [x] Implement `update_skill(&mut self, hole: &Hole, batch: Vec<ShotRecord>, p_max: f64)` (1D - Legacy)
   - Calculate wager-weighted average miss: `z = Σ(miss_i * wager_i) / Σ(wager_i)`
   - Unbias for Rayleigh: `z_unbiased = z / sqrt(π/2)`
   - Calculate batch variance for dynamic measurement noise
   - Update Kalman filter
   - Clear shot batch, append p_max to history
+- [ ] **NEW: Implement `update_skill_bvn(&mut self, hole: &Hole, batch: Vec<ShotRecord>)`**
+  - Calculate wager-weighted means: `μ̂_x = Σ(x_i * w_i) / Σw_i`, `μ̂_y = Σ(y_i * w_i) / Σw_i`
+  - Calculate sample variances: `σ̂_x² = Σ(x_i - μ̂_x)² / (n-1)`, `σ̂_y² = Σ(y_i - μ̂_y)² / (n-1)`
+  - Update 4D Kalman filter with (x,y) measurements
+  - No debiasing needed (BVN is unbiased)
 
 ### 2.3 Shot Outcome (`shot.rs`) ✅
-- [x] Define `ShotOutcome` struct:
+- [x] Define `ShotOutcome` struct (Legacy - radial only):
   ```rust
   pub struct ShotOutcome {
       pub miss_distance_ft: f64,
@@ -180,10 +238,27 @@ Rebuild the Continuum Golf wagering simulator in Rust for superior performance, 
       pub is_fat_tail: bool,      // Flagged extreme mishit
   }
   ```
-- [x] Implement `simulate_shot(sigma: f64, fat_tail_prob: f64, fat_tail_mult: f64) -> (f64, bool)`
+- [ ] **NEW: Update `ShotOutcome` for (x,y) coordinates:**
+  ```rust
+  pub struct ShotOutcome {
+      pub x_ft: f64,              // NEW: Lateral coordinate
+      pub y_ft: f64,              // NEW: Distance coordinate
+      pub miss_distance_ft: f64,  // Derived: sqrt(x² + y²)
+      pub multiplier: f64,
+      pub payout: f64,
+      pub wager: f64,
+      pub hole_id: u8,
+      pub is_fat_tail: bool,
+  }
+  ```
+- [x] Implement `simulate_shot(sigma: f64, fat_tail_prob: f64, fat_tail_mult: f64) -> (f64, bool)` (1D - Legacy)
   - 2% chance: sample from σ * 3.0
   - 98% chance: sample from σ
   - Return (miss_distance, is_fat_tail)
+- [ ] **NEW: Implement `simulate_shot_bvn(mu_x, mu_y, sigma_x, sigma_y, fat_tail_prob, fat_tail_mult) -> ((f64, f64), bool)`**
+  - Sample (x,y) from BVN(μ_x, μ_y, σ_x, σ_y)
+  - 2% chance: multiply σ_x and σ_y by 3.0
+  - Return ((x, y), is_fat_tail)
 
 **Phase 2 Summary:**
 - ✅ **All 3 core data models implemented** (hole, player, shot)
@@ -478,17 +553,22 @@ Commands:
 
 ### 6.3 Validation Tests (`tests/validation_tests.rs`) ✅
 Replicate business plan claims:
-- [x] **RTP by Distance**: Short=86%, Mid=88%, Long=90%
-- [x] **House Edge**: Short=14%, Mid=12%, Long=10%
+- [x] **RTP by Distance**: ✅ **UPDATED: All holes 85% (uniform 15% house edge)**
+- [x] **House Edge**: ✅ **UPDATED: All holes 15% (uniform)**
+  - OLD: Short=14%, Mid=12%, Long=10% (variable)
+  - NEW: All holes=15% (uniform)
 - [x] **Fairness**: All handicaps have same EV at same hole
 - [x] **Breakeven Radius**: Matches formula `d_max * (1 - P_max^(-1/k))`
 - [x] **Fat-Tail Impact**: 2% of shots increase risk by 3×
 - [x] **High-Stakes Logic**: Wager ≥10× average triggers immediate update
 - [x] **Hole Configurations**: Verify all 8 holes match business plan specs
 - [x] **Kalman Convergence**: Verify filter convergence properties
-- [x] **Rayleigh Distribution**: Validate statistical properties
+- [x] **Rayleigh Distribution**: Validate statistical properties (Legacy)
+- [ ] **NEW: BVN Distribution**: Validate symmetry, bias detection, covariance
+- [ ] **NEW: 4D Kalman Convergence**: Verify [μ_x, μ_y, σ_x, σ_y] convergence
+- [ ] **NEW: P_max Consistency**: Verify 2D integration matches 1D when symmetric
 - [x] **System-Wide RTP**: Comprehensive multi-hole/multi-handicap validation
-- **10 validation tests** covering all business plan claims
+- **10 validation tests passing** (Legacy) + **3 new BVN tests planned** = **13 total**
 
 ### 6.4 Benchmarks (`benches/`) ✅
 - [x] Benchmark single shot simulation (target: <1μs)
@@ -537,6 +617,86 @@ Replicate business plan claims:
 - [ ] Simulate franchise network
 - [ ] Regional player archetype differences
 - [ ] Cross-venue player tracking
+
+---
+
+## Phase 9: Camera Integration & BVN Migration 📷
+
+**Goal:** Transition from 1D Rayleigh (radial distance) to 2D Bivariate Normal (x,y coordinates) to enable bias detection and elliptical dispersion modeling using camera-captured ball positions.
+
+**See:** `CAMERA_INTEGRATION.md` and `BVN_MIGRATION.md` for detailed specifications.
+
+### 9.1 BVN Mathematical Foundations
+- [ ] Implement `bvn_random()` in `src/math/distributions.rs`
+- [ ] Implement `bvn_pdf()` for 2D probability density
+- [ ] Add BVN unit tests (symmetry, bias, covariance)
+- [ ] Benchmark BVN sampling (<1 μs per sample)
+
+### 9.2 4D Kalman Filter
+- [ ] Implement `KalmanState4D` struct in `src/math/kalman.rs`
+- [ ] Add 4×4 matrix operations (mult, inv, transpose)
+  - Option A: Use `nalgebra` crate
+  - Option B: Manual implementation for 4×4 matrices
+- [ ] Implement `predict_4d()` for state prediction
+- [ ] Implement `update_4d(x, y)` for 2D measurements
+- [ ] Add convergence tests for 4D state
+
+### 9.3 P_max Calculation Update
+- [ ] Implement `calculate_p_max_bvn()` with 2D integration
+- [ ] Use Cartesian grid (±4σ_x, ±4σ_y adaptive bounds)
+- [ ] Validate against 1D P_max (should match when μ_x=μ_y=0, σ_x=σ_y=σ)
+- [ ] Benchmark performance (<10 ms per calculation)
+- [ ] Add caching/memoization if needed
+
+### 9.4 Data Model Migration
+- [ ] Update `ShotRecord` with (x,y) fields
+- [ ] Update `ShotOutcome` with (x,y) fields
+- [ ] Modify `Player::update_skill()` to accept coordinates
+- [ ] Add backward compatibility layer (radial-only → derive x,y)
+- [ ] Update database schema for (x,y) storage
+- [ ] Create migration script for historical data
+
+### 9.5 Camera System Integration
+- [ ] Set up camera hardware and mounting
+- [ ] Implement ball detection (OpenCV contours)
+- [ ] Implement ball ID reading (QR/OCR/Barcode)
+- [ ] Implement homography transformation (pixel → real-world)
+- [ ] Calibration process (4 corner markers)
+- [ ] Accuracy validation (<2 inch RMSE target)
+
+### 9.6 API Integration
+- [ ] Create `POST /api/shots` endpoint
+- [ ] Accept (x,y,ball_id) in request
+- [ ] Integrate with `run_session()` simulator
+- [ ] Return updated skill parameters in response
+- [ ] Add error handling for camera failures
+
+### 9.7 UI/Analytics Updates
+- [ ] Add bias visualization (systematic miss direction)
+- [ ] Add elliptical confidence regions (σ_x vs σ_y)
+- [ ] Add player tendency heatmaps
+- [ ] Add bias-adjusted coaching tips
+- [ ] Create operator analytics dashboard
+
+### 9.8 Testing & Validation
+- [ ] **Test 1: Symmetry Check** - BVN reduces to Rayleigh when μ_x=μ_y=0, σ_x=σ_y
+- [ ] **Test 2: Bias Detection** - Kalman correctly estimates systematic bias
+- [ ] **Test 3: P_max Consistency** - 2D integration matches 1D for symmetric case
+- [ ] **Test 4: RTP Preservation** - 85% RTP maintained with BVN
+- [ ] **Test 5: Performance** - P_max calculation <10 ms
+- [ ] **Test 6: Camera Accuracy** - Position measurement <2 inch RMSE
+
+**Phase 9 Summary:**
+- ⏳ **Mathematical foundations** (BVN distribution, 4D Kalman)
+- ⏳ **P_max migration** (1D → 2D integration)
+- ⏳ **Data model updates** (radial → Cartesian coordinates)
+- ⏳ **Camera integration** (hardware, CV pipeline, API)
+- ⏳ **UI enhancements** (bias visualization, coaching)
+- ⏳ **Comprehensive testing** (6 validation tests)
+
+**Timeline:** 4-7 weeks
+**Dependencies:** Phase 1-6 complete, camera hardware acquired
+**Business Impact:** Enables bias detection, improves fairness perception, unlocks coaching features
 
 ---
 
