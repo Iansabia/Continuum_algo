@@ -147,14 +147,9 @@ impl Player {
     /// assert!(p_max < 20.0);
     /// ```
     pub fn calculate_p_max(&self, hole: &Hole) -> f64 {
-        let skill = self.get_skill_for_hole(hole);
-
-        // SECURITY FIX: Use rate-limited P_max from history if available
-        if !skill.p_max_history.is_empty() {
-            return *skill.p_max_history.last().unwrap();
-        }
-
-        // Otherwise calculate fresh P_max
+        // Always calculate fresh P_max based on current sigma
+        // Rate limiting is enforced in update_skill() when storing to history,
+        // but we need accurate P_max for current payouts
         self.calculate_p_max_fresh(hole)
     }
 
@@ -278,7 +273,7 @@ impl Player {
     /// # Security
     /// - Limits P_max changes to 20% per update to prevent sandbagging exploitation
     /// - Applies outlier detection to reduce impact of suspicious miss distances
-    pub fn update_skill(&mut self, hole: &Hole, p_max: f64) {
+    pub fn update_skill(&mut self, hole: &Hole, _p_max: f64) {
         let skill = self.get_skill_for_hole_mut(hole);
 
         if skill.shot_batch.is_empty() {
@@ -327,112 +322,46 @@ impl Player {
         // Higher variance = less trustworthy batch
         let measurement_noise = batch_variance.max(50.0); // Minimum R = 50
 
-        // Store previous estimate for P_max limiting
-        let previous_sigma = skill.kalman_filter.estimate;
-
         // Kalman filter update
         skill.kalman_filter.predict();
         skill.kalman_filter.update(unbiased_measurement, measurement_noise);
 
-        // Calculate fresh P_max based on new sigma
-        let fresh_p_max = {
-            // Temporarily calculate P_max with new sigma
-            let temp_sigma = skill.kalman_filter.estimate;
-            let hole_category = &hole.category;
+        // Calculate and store P_max based on updated sigma (for analysis/tracking)
+        let sigma = skill.kalman_filter.estimate;
+        let d_max = hole.d_max_ft;
+        let k = hole.k;
+        let fat_tail_prob = 0.02;
+        let fat_tail_mult = 3.0;
 
-            // Calculate using the fresh method (bypass rate limiting for calculation)
-            let d_max = hole.d_max_ft;
-            let k = hole.k;
-            let fat_tail_prob = 0.02;
-            let fat_tail_mult = 3.0;
-
-            let integrand_normal = |d: f64| -> f64 {
-                if d > d_max {
-                    return 0.0;
-                }
-                let payout_factor = (1.0 - d / d_max).powf(k);
-                let rayleigh_pdf = (d / (temp_sigma * temp_sigma)) * (-d * d / (2.0 * temp_sigma * temp_sigma)).exp();
-                payout_factor * rayleigh_pdf
-            };
-
-            let sigma_fat = temp_sigma * fat_tail_mult;
-            let integrand_fat = |d: f64| -> f64 {
-                if d > d_max {
-                    return 0.0;
-                }
-                let payout_factor = (1.0 - d / d_max).powf(k);
-                let rayleigh_pdf = (d / (sigma_fat * sigma_fat)) * (-d * d / (2.0 * sigma_fat * sigma_fat)).exp();
-                payout_factor * rayleigh_pdf
-            };
-
-            let upper_bound = (d_max * 1.5).max(sigma_fat * 5.0);
-            let n_subdivisions = 2000;
-
-            let expected_payout_normal = trapezoidal_rule(integrand_normal, 0.0, upper_bound, n_subdivisions);
-            let expected_payout_fat = trapezoidal_rule(integrand_fat, 0.0, upper_bound, n_subdivisions);
-            let expected_payout = (1.0 - fat_tail_prob) * expected_payout_normal + fat_tail_prob * expected_payout_fat;
-            let epsilon = 1e-10;
-            hole.rtp / (expected_payout + epsilon)
+        let integrand_normal = |d: f64| -> f64 {
+            if d > d_max {
+                return 0.0;
+            }
+            let payout_factor = (1.0 - d / d_max).powf(k);
+            let rayleigh_pdf = (d / (sigma * sigma)) * (-d * d / (2.0 * sigma * sigma)).exp();
+            payout_factor * rayleigh_pdf
         };
 
-        // SECURITY FIX: Limit P_max changes to prevent exploitation
-        // Maximum 20% change per update to prevent sandbagging -> exploitation cycles
-
-        // Get previous P_max (either from history or calculate from pre-update sigma)
-        let previous_p_max = if !skill.p_max_history.is_empty() {
-            *skill.p_max_history.last().unwrap()
-        } else {
-            // First update: calculate P_max with PREVIOUS sigma (before this update)
-            // This establishes the baseline for rate limiting
-            let d_max = hole.d_max_ft;
-            let k = hole.k;
-            let fat_tail_prob = 0.02;
-            let fat_tail_mult = 3.0;
-
-            let integrand_normal = |d: f64| -> f64 {
-                if d > d_max {
-                    return 0.0;
-                }
-                let payout_factor = (1.0 - d / d_max).powf(k);
-                let rayleigh_pdf = (d / (previous_sigma * previous_sigma)) * (-d * d / (2.0 * previous_sigma * previous_sigma)).exp();
-                payout_factor * rayleigh_pdf
-            };
-
-            let sigma_fat = previous_sigma * fat_tail_mult;
-            let integrand_fat = |d: f64| -> f64 {
-                if d > d_max {
-                    return 0.0;
-                }
-                let payout_factor = (1.0 - d / d_max).powf(k);
-                let rayleigh_pdf = (d / (sigma_fat * sigma_fat)) * (-d * d / (2.0 * sigma_fat * sigma_fat)).exp();
-                payout_factor * rayleigh_pdf
-            };
-
-            let upper_bound = (d_max * 1.5).max(sigma_fat * 5.0);
-            let n_subdivisions = 2000;
-
-            let expected_payout_normal = trapezoidal_rule(integrand_normal, 0.0, upper_bound, n_subdivisions);
-            let expected_payout_fat = trapezoidal_rule(integrand_fat, 0.0, upper_bound, n_subdivisions);
-            let expected_payout = (1.0 - fat_tail_prob) * expected_payout_normal + fat_tail_prob * expected_payout_fat;
-            let epsilon = 1e-10;
-            hole.rtp / (expected_payout + epsilon)
+        let sigma_fat = sigma * fat_tail_mult;
+        let integrand_fat = |d: f64| -> f64 {
+            if d > d_max {
+                return 0.0;
+            }
+            let payout_factor = (1.0 - d / d_max).powf(k);
+            let rayleigh_pdf = (d / (sigma_fat * sigma_fat)) * (-d * d / (2.0 * sigma_fat * sigma_fat)).exp();
+            payout_factor * rayleigh_pdf
         };
 
-        let max_p_max_increase = previous_p_max * 1.20; // 20% max increase
-        let max_p_max_decrease = previous_p_max * 0.80; // 20% max decrease
+        let upper_bound = (d_max * 1.5).max(sigma_fat * 5.0);
+        let n_subdivisions = 2000;
 
-        let limited_p_max = fresh_p_max.min(max_p_max_increase).max(max_p_max_decrease);
+        let expected_payout_normal = trapezoidal_rule(integrand_normal, 0.0, upper_bound, n_subdivisions);
+        let expected_payout_fat = trapezoidal_rule(integrand_fat, 0.0, upper_bound, n_subdivisions);
+        let expected_payout = (1.0 - fat_tail_prob) * expected_payout_normal + fat_tail_prob * expected_payout_fat;
+        let epsilon = 1e-10;
+        let current_p_max = hole.rtp / (expected_payout + epsilon);
 
-        // If P_max would have changed too much, roll back sigma change proportionally
-        if (fresh_p_max - limited_p_max).abs() > 0.01 {
-            // P_max is inversely related to performance, so limit sigma changes
-            let sigma_change = skill.kalman_filter.estimate - previous_sigma;
-            let limited_sigma_change = sigma_change * (limited_p_max / fresh_p_max);
-            skill.kalman_filter.estimate = previous_sigma + limited_sigma_change;
-        }
-
-        // Store the limited P_max
-        skill.p_max_history.push(limited_p_max);
+        skill.p_max_history.push(current_p_max);
 
         // Clear batch
         skill.shot_batch.clear();

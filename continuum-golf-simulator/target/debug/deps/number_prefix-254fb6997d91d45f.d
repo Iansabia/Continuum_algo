@@ -1,0 +1,8 @@
+/Users/iansabia/projects/OOCProjects/Continuum_algo/continuum-golf-simulator/target/debug/deps/number_prefix-254fb6997d91d45f.d: /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/number_prefix-0.4.0/src/lib.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/number_prefix-0.4.0/src/parse.rs
+
+/Users/iansabia/projects/OOCProjects/Continuum_algo/continuum-golf-simulator/target/debug/deps/libnumber_prefix-254fb6997d91d45f.rlib: /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/number_prefix-0.4.0/src/lib.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/number_prefix-0.4.0/src/parse.rs
+
+/Users/iansabia/projects/OOCProjects/Continuum_algo/continuum-golf-simulator/target/debug/deps/libnumber_prefix-254fb6997d91d45f.rmeta: /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/number_prefix-0.4.0/src/lib.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/number_prefix-0.4.0/src/parse.rs
+
+/Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/number_prefix-0.4.0/src/lib.rs:
+/Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/number_prefix-0.4.0/src/parse.rs:
