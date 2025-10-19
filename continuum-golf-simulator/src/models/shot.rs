@@ -155,7 +155,7 @@ pub fn simulate_standard_shot(sigma: f64) -> f64 {
 /// Shot record for batch processing
 ///
 /// Stores either 1D (Rayleigh) or 2D (BVN) shot data
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShotRecord {
     /// Miss distance from pin (feet) - always available
     pub miss_distance: f64,
@@ -198,7 +198,7 @@ impl ShotRecord {
 /// Batch of shot records for skill updates
 ///
 /// Used to accumulate shots before triggering a Kalman filter update
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShotBatch {
     /// Individual shot records
     pub shots: Vec<ShotRecord>,

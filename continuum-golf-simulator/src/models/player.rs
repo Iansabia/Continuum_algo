@@ -5,9 +5,10 @@
 
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
-use crate::math::kalman::{KalmanState, debias_rayleigh_measurement, weighted_average_measurement, measurement_variance};
+use crate::math::kalman::{KalmanState, KalmanState4D, debias_rayleigh_measurement, weighted_average_measurement, measurement_variance};
 use crate::math::integration::trapezoidal_rule;
 use crate::models::hole::{Hole, ClubCategory};
+use crate::models::shot::ShotBatch;
 
 /// A player with dynamic skill tracking
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,23 +28,20 @@ pub struct Player {
 /// Skill profile for a specific club category
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillProfile {
-    /// Kalman filter for adaptive skill tracking
+    /// 1D Kalman filter for radial dispersion (legacy Rayleigh)
     pub kalman_filter: KalmanState,
+    /// 4D Kalman filter for BVN distribution [μ_x, μ_y, σ_x, σ_y]
+    /// Only populated when BVN mode is enabled
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kalman_filter_4d: Option<KalmanState4D>,
+    /// Whether to use BVN (4D) mode instead of Rayleigh (1D)
+    pub use_bvn: bool,
+    /// Current batch of shots (for batched Kalman updates)
+    pub shot_batch: ShotBatch,
     /// History of P_max values (for analysis)
     pub p_max_history: Vec<f64>,
-    /// Current batch of shots (for batched Kalman updates)
-    pub shot_batch: Vec<ShotRecord>,
     /// Maximum batch size before triggering update
     pub batch_size: usize,
-}
-
-/// Record of a single shot for batch processing
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ShotRecord {
-    /// Miss distance in feet
-    pub miss_distance: f64,
-    /// Wager amount in dollars
-    pub wager: f64,
 }
 
 impl Player {
@@ -81,8 +79,10 @@ impl Player {
 
             skill_profiles.insert(*category, SkillProfile {
                 kalman_filter,
+                kalman_filter_4d: None, // 4D mode disabled by default
+                use_bvn: false,         // Start in 1D Rayleigh mode
+                shot_batch: ShotBatch::new(5), // Use ShotBatch struct
                 p_max_history: Vec::new(),
-                shot_batch: Vec::new(),
                 batch_size: 5, // Default batch size
             });
         }
@@ -110,6 +110,112 @@ impl Player {
     /// Get mutable skill profile for a specific hole
     pub fn get_skill_for_hole_mut(&mut self, hole: &Hole) -> &mut SkillProfile {
         self.skill_profiles.get_mut(&hole.category).unwrap()
+    }
+
+    /// Enable BVN (4D Kalman) mode for a specific club category
+    ///
+    /// # Arguments
+    /// * `category` - The club category to enable BVN mode for
+    /// * `initial_mu_x` - Initial lateral bias (feet, positive = right)
+    /// * `initial_mu_y` - Initial distance bias (feet, positive = long)
+    /// * `initial_sigma_x` - Initial lateral dispersion (feet)
+    /// * `initial_sigma_y` - Initial distance dispersion (feet)
+    ///
+    /// # Notes
+    /// - This initializes a 4D Kalman filter with the given parameters
+    /// - The 1D Rayleigh filter remains available for backward compatibility
+    /// - Use `disable_bvn_mode()` to revert to 1D mode
+    pub fn enable_bvn_mode(
+        &mut self,
+        category: ClubCategory,
+        initial_mu_x: f64,
+        initial_mu_y: f64,
+        initial_sigma_x: f64,
+        initial_sigma_y: f64,
+    ) {
+        if let Some(skill) = self.skill_profiles.get_mut(&category) {
+            // Process noise: [Q_mu_x, Q_mu_y, Q_sigma_x, Q_sigma_y]
+            // Small for bias (changes slowly), moderate for dispersion
+            let process_noise = [0.1, 0.1, 0.5, 0.5];
+
+            skill.kalman_filter_4d = Some(KalmanState4D::new(
+                initial_mu_x,
+                initial_mu_y,
+                initial_sigma_x,
+                initial_sigma_y,
+                process_noise,
+            ));
+            skill.use_bvn = true;
+        }
+    }
+
+    /// Enable BVN mode for all club categories using symmetric initial conditions
+    ///
+    /// # Arguments
+    /// * `initial_sigma` - Initial dispersion (same for x and y)
+    ///
+    /// # Notes
+    /// - Sets bias to (0, 0) and uses symmetric dispersion
+    /// - Useful for players with no prior shot data
+    pub fn enable_bvn_mode_all(&mut self, initial_sigma: f64) {
+        // Process noise: [Q_mu_x, Q_mu_y, Q_sigma_x, Q_sigma_y]
+        let process_noise = [0.1, 0.1, 0.5, 0.5];
+
+        for (_category, skill) in self.skill_profiles.iter_mut() {
+            skill.kalman_filter_4d = Some(KalmanState4D::new(
+                0.0,           // No initial lateral bias
+                0.0,           // No initial distance bias
+                initial_sigma, // Symmetric dispersion
+                initial_sigma,
+                process_noise,
+            ));
+            skill.use_bvn = true;
+        }
+    }
+
+    /// Disable BVN mode and revert to 1D Rayleigh for a specific category
+    ///
+    /// # Arguments
+    /// * `category` - The club category to disable BVN mode for
+    pub fn disable_bvn_mode(&mut self, category: ClubCategory) {
+        if let Some(skill) = self.skill_profiles.get_mut(&category) {
+            skill.use_bvn = false;
+            // Keep the 4D filter in memory in case we want to re-enable
+        }
+    }
+
+    /// Check if BVN mode is enabled for a specific category
+    ///
+    /// # Arguments
+    /// * `category` - The club category to check
+    ///
+    /// # Returns
+    /// True if BVN mode is enabled and 4D Kalman filter is available
+    pub fn is_bvn_mode(&self, category: ClubCategory) -> bool {
+        self.skill_profiles
+            .get(&category)
+            .map(|s| s.use_bvn && s.kalman_filter_4d.is_some())
+            .unwrap_or(false)
+    }
+
+    /// Get current 4D Kalman state for a specific category
+    ///
+    /// # Arguments
+    /// * `category` - The club category to query
+    ///
+    /// # Returns
+    /// Option containing (μ_x, μ_y, σ_x, σ_y) if BVN mode is enabled
+    pub fn get_bvn_state(&self, category: ClubCategory) -> Option<(f64, f64, f64, f64)> {
+        self.skill_profiles.get(&category).and_then(|s| {
+            s.kalman_filter_4d.as_ref().map(|kf| {
+                (
+                    kf.state[0], // μ_x
+                    kf.state[1], // μ_y
+                    kf.state[2], // σ_x
+                    kf.state[3], // σ_y
+                )
+            })
+        })
     }
 
     /// Calculate P_max for a given hole using numerical integration
@@ -339,7 +445,7 @@ impl Player {
         hole.rtp / (expected_payout + epsilon)
     }
 
-    /// Add a shot to the batch for a specific hole
+    /// Add a 1D shot (radial distance only) to the batch
     ///
     /// # Arguments
     /// * `hole` - The hole that was played
@@ -350,13 +456,24 @@ impl Player {
     /// True if the batch is full and should be processed
     pub fn add_shot_to_batch(&mut self, hole: &Hole, miss_distance: f64, wager: f64) -> bool {
         let skill = self.get_skill_for_hole_mut(hole);
+        skill.shot_batch.add_shot(miss_distance, wager);
+        skill.shot_batch.is_full()
+    }
 
-        skill.shot_batch.push(ShotRecord {
-            miss_distance,
-            wager,
-        });
-
-        skill.shot_batch.len() >= skill.batch_size
+    /// Add a 2D shot (x,y coordinates) to the batch for BVN mode
+    ///
+    /// # Arguments
+    /// * `hole` - The hole that was played
+    /// * `x_ft` - Lateral position (feet, positive = right)
+    /// * `y_ft` - Distance position (feet, positive = long)
+    /// * `wager` - Wager amount in dollars
+    ///
+    /// # Returns
+    /// True if the batch is full and should be processed
+    pub fn add_shot_to_batch_2d(&mut self, hole: &Hole, x_ft: f64, y_ft: f64, wager: f64) -> bool {
+        let skill = self.get_skill_for_hole_mut(hole);
+        skill.shot_batch.add_shot_2d(x_ft, y_ft, wager);
+        skill.shot_batch.is_full()
     }
 
     /// Check if a new shot qualifies as high-stakes (≥10× average wager)
@@ -369,36 +486,24 @@ impl Player {
     /// True if this is a high-stakes shot
     pub fn is_high_stakes_shot(&self, hole: &Hole, wager: f64) -> bool {
         let skill = self.get_skill_for_hole(hole);
-
-        if skill.shot_batch.is_empty() {
-            return false;
-        }
-
-        let total_wagers: f64 = skill.shot_batch.iter().map(|s| s.wager).sum();
-        let avg_wager = total_wagers / skill.shot_batch.len() as f64;
-
-        wager >= 10.0 * avg_wager
+        skill.shot_batch.has_high_stakes_shot(wager)
     }
 
     /// Update skill profile using Kalman filter with current batch
     ///
-    /// This performs a wager-weighted update of the player's skill estimate.
+    /// This method branches based on whether BVN (4D) or Rayleigh (1D) mode is active.
     ///
     /// # Arguments
     /// * `hole` - The hole that was played
-    /// * `p_max` - The P_max value used for these shots
+    /// * `p_max` - The P_max value used for these shots (unused, kept for backward compat)
     ///
-    /// # Process
-    /// 1. Calculate wager-weighted average miss distance
-    /// 2. Debias for Rayleigh distribution
-    /// 3. Calculate batch variance for measurement noise
-    /// 4. Update Kalman filter
-    /// 5. Store P_max in history
-    /// 6. Clear shot batch
+    /// # Modes
+    /// - **1D Rayleigh**: Updates single sigma parameter from radial miss distances
+    /// - **4D BVN**: Updates [μ_x, μ_y, σ_x, σ_y] from (x,y) coordinates
     ///
     /// # Security
-    /// - Limits P_max changes to 20% per update to prevent sandbagging exploitation
-    /// - Applies outlier detection to reduce impact of suspicious miss distances
+    /// - Applies outlier detection to reduce impact of suspicious shots
+    /// - Uses wager-weighted averaging to account for bet sizing patterns
     pub fn update_skill(&mut self, hole: &Hole, _p_max: f64) {
         let skill = self.get_skill_for_hole_mut(hole);
 
@@ -406,24 +511,43 @@ impl Player {
             return;
         }
 
+        // Branch based on mode
+        if skill.use_bvn && skill.shot_batch.has_2d_shots() {
+            self.update_skill_4d(hole);
+        } else {
+            self.update_skill_1d(hole);
+        }
+    }
+
+    /// Update skill using 1D Rayleigh Kalman filter (legacy mode)
+    fn update_skill_1d(&mut self, hole: &Hole) {
+        let skill = self.get_skill_for_hole_mut(hole);
+
+        if skill.shot_batch.is_empty() {
+            return;
+        }
+
         // Extract miss distances and wagers
-        let measurements: Vec<(f64, f64)> = skill.shot_batch.iter()
+        let shots = skill.shot_batch.get_shots();
+        let measurements: Vec<(f64, f64)> = shots
+            .iter()
             .map(|s| (s.miss_distance, s.wager))
             .collect();
 
         // SECURITY FIX: Outlier detection - flag shots >3 standard deviations from batch mean
-        let miss_distances: Vec<f64> = skill.shot_batch.iter()
-            .map(|s| s.miss_distance)
-            .collect();
+        let miss_distances: Vec<f64> = shots.iter().map(|s| s.miss_distance).collect();
 
         let mean_miss: f64 = miss_distances.iter().sum::<f64>() / miss_distances.len() as f64;
-        let variance: f64 = miss_distances.iter()
+        let variance: f64 = miss_distances
+            .iter()
             .map(|&d| (d - mean_miss).powi(2))
-            .sum::<f64>() / miss_distances.len() as f64;
+            .sum::<f64>()
+            / miss_distances.len() as f64;
         let std_dev = variance.sqrt();
 
         // Filter out extreme outliers (>3 sigma) to reduce impact of intentional sandbagging
-        let filtered_measurements: Vec<(f64, f64)> = measurements.iter()
+        let filtered_measurements: Vec<(f64, f64)> = measurements
+            .iter()
             .filter(|(dist, _)| (*dist - mean_miss).abs() <= 3.0 * std_dev)
             .copied()
             .collect();
@@ -474,22 +598,142 @@ impl Player {
                 return 0.0;
             }
             let payout_factor = (1.0 - d / d_max).powf(k);
-            let rayleigh_pdf = (d / (sigma_fat * sigma_fat)) * (-d * d / (2.0 * sigma_fat * sigma_fat)).exp();
+            let rayleigh_pdf =
+                (d / (sigma_fat * sigma_fat)) * (-d * d / (2.0 * sigma_fat * sigma_fat)).exp();
             payout_factor * rayleigh_pdf
         };
 
         let upper_bound = (d_max * 1.5).max(sigma_fat * 5.0);
         let n_subdivisions = 2000;
 
-        let expected_payout_normal = trapezoidal_rule(integrand_normal, 0.0, upper_bound, n_subdivisions);
+        let expected_payout_normal =
+            trapezoidal_rule(integrand_normal, 0.0, upper_bound, n_subdivisions);
         let expected_payout_fat = trapezoidal_rule(integrand_fat, 0.0, upper_bound, n_subdivisions);
-        let expected_payout = (1.0 - fat_tail_prob) * expected_payout_normal + fat_tail_prob * expected_payout_fat;
+        let expected_payout = (1.0 - fat_tail_prob) * expected_payout_normal
+            + fat_tail_prob * expected_payout_fat;
         let epsilon = 1e-10;
         let current_p_max = hole.rtp / (expected_payout + epsilon);
 
         skill.p_max_history.push(current_p_max);
 
         // Clear batch
+        skill.shot_batch.clear();
+    }
+
+    /// Update skill using 4D BVN Kalman filter (new mode)
+    ///
+    /// Uses (x,y) shot coordinates to update [μ_x, μ_y, σ_x, σ_y] state.
+    ///
+    /// # Process
+    /// 1. Extract (x,y) coordinates and wagers from batch
+    /// 2. Calculate wager-weighted centroids (x̄, ȳ)
+    /// 3. Use residuals to estimate σ_x and σ_y
+    /// 4. Update 4D Kalman filter
+    /// 5. Calculate P_max using BVN distribution
+    fn update_skill_4d(&mut self, hole: &Hole) {
+        // First, extract data without holding mutable reference
+        let (x_coords, y_coords, wagers) = {
+            let skill = self.get_skill_for_hole(hole);
+
+            if skill.shot_batch.is_empty() {
+                return;
+            }
+
+            let shots = skill.shot_batch.get_shots();
+
+            // Extract (x,y) coordinates with wagers
+            let mut x_coords = Vec::new();
+            let mut y_coords = Vec::new();
+            let mut wagers = Vec::new();
+
+            for shot in shots {
+                if let (Some(x), Some(y)) = (shot.x_ft, shot.y_ft) {
+                    x_coords.push(x);
+                    y_coords.push(y);
+                    wagers.push(shot.wager);
+                }
+            }
+
+            (x_coords, y_coords, wagers)
+        };
+
+        if x_coords.is_empty() {
+            // No 2D data, fall back to 1D
+            self.update_skill_1d(hole);
+            return;
+        }
+
+        // Calculate wager-weighted centroids
+        let total_wager: f64 = wagers.iter().sum();
+        let mean_x: f64 = x_coords
+            .iter()
+            .zip(wagers.iter())
+            .map(|(x, w)| x * w)
+            .sum::<f64>()
+            / total_wager;
+        let mean_y: f64 = y_coords
+            .iter()
+            .zip(wagers.iter())
+            .map(|(y, w)| y * w)
+            .sum::<f64>()
+            / total_wager;
+
+        // Estimate variances from residuals (simplified - not wager-weighted for now)
+        let var_x: f64 = x_coords.iter().map(|x| (x - mean_x).powi(2)).sum::<f64>()
+            / x_coords.len() as f64;
+        let var_y: f64 = y_coords.iter().map(|y| (y - mean_y).powi(2)).sum::<f64>()
+            / y_coords.len() as f64;
+        let sigma_x_est = var_x.sqrt();
+        let sigma_y_est = var_y.sqrt();
+
+        // Now perform Kalman update and P_max calculation
+        let skill = self.get_skill_for_hole_mut(hole);
+
+        // 4D Kalman filter update
+        if let Some(ref mut kf4d) = skill.kalman_filter_4d {
+            kf4d.predict();
+
+            // Measurement noise for bias estimates (x,y position)
+            // Higher variance in batch = higher measurement noise
+            let noise_x = var_x.max(10.0);
+            let noise_y = var_y.max(10.0);
+
+            // Measurement noise for dispersion estimates (σ_x, σ_y)
+            // These are derived from residuals, so inherently noisier
+            let noise_sigma_x = (sigma_x_est * 0.5).max(5.0);
+            let noise_sigma_y = (sigma_y_est * 0.5).max(5.0);
+
+            // Update with wager-weighted centroid
+            // Note: KalmanState4D.update uses (x, y) to internally estimate σ via residuals
+            kf4d.update(
+                mean_x,
+                mean_y,
+                [noise_x, noise_y, noise_sigma_x, noise_sigma_y],
+            );
+
+            // Get updated state
+            let mu_x = kf4d.state[0];
+            let mu_y = kf4d.state[1];
+            let sigma_x = kf4d.state[2];
+            let sigma_y = kf4d.state[3];
+
+            // Calculate P_max using BVN distribution (requires immutable self)
+            // We need to drop the mutable borrow before calling calculate_p_max_bvn
+            let current_p_max = {
+                // Clone hole to avoid lifetime issues
+                let hole_clone = hole.clone();
+                let _ = skill; // Drop mutable borrow
+
+                self.calculate_p_max_bvn(&hole_clone, mu_x, mu_y, sigma_x, sigma_y)
+            };
+
+            // Re-acquire mutable borrow to store P_max
+            let skill = self.get_skill_for_hole_mut(hole);
+            skill.p_max_history.push(current_p_max);
+        }
+
+        // Clear batch
+        let skill = self.get_skill_for_hole_mut(hole);
         skill.shot_batch.clear();
     }
 
