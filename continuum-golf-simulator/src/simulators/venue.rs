@@ -379,30 +379,9 @@ mod tests {
         use crate::models::shot::ShotOutcome;
 
         let shots = vec![
-            ShotOutcome {
-                miss_distance_ft: 5.0,
-                multiplier: 0.0,
-                payout: 0.0,
-                wager: 10.0,
-                hole_id: 1,
-                is_fat_tail: false,
-            },
-            ShotOutcome {
-                miss_distance_ft: 2.0,
-                multiplier: 5.5,
-                payout: 55.0,
-                wager: 10.0,
-                hole_id: 1,
-                is_fat_tail: false,
-            },
-            ShotOutcome {
-                miss_distance_ft: 1.0,
-                multiplier: 12.0,
-                payout: 120.0,
-                wager: 10.0,
-                hole_id: 1,
-                is_fat_tail: false,
-            },
+            ShotOutcome::new(5.0, 0.0, 10.0, 1, false),
+            ShotOutcome::new(2.0, 5.5, 10.0, 1, false),
+            ShotOutcome::new(1.0, 12.0, 10.0, 1, false),
         ];
 
         let dist = build_payout_distribution(&shots);

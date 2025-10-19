@@ -12,7 +12,7 @@ use crate::math::distributions::{rayleigh_random, fat_tail_shot};
 /// Result of a single shot attempt
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShotOutcome {
-    /// Miss distance from target in feet
+    /// Miss distance from target in feet (radial distance from pin)
     pub miss_distance_ft: f64,
     /// Payout multiplier (e.g., 5.0 = 5× return)
     pub multiplier: f64,
@@ -24,10 +24,14 @@ pub struct ShotOutcome {
     pub hole_id: u8,
     /// Whether this was a fat-tail event (extreme mishit)
     pub is_fat_tail: bool,
+    /// X coordinate (lateral position, feet right of target line, optional for BVN)
+    pub x_ft: Option<f64>,
+    /// Y coordinate (distance position, feet from pin, positive = long, optional for BVN)
+    pub y_ft: Option<f64>,
 }
 
 impl ShotOutcome {
-    /// Create a new shot outcome
+    /// Create a new shot outcome (legacy 1D Rayleigh interface)
     ///
     /// # Arguments
     /// * `miss_distance_ft` - Miss distance in feet
@@ -37,7 +41,7 @@ impl ShotOutcome {
     /// * `is_fat_tail` - Whether this was a fat-tail event
     ///
     /// # Returns
-    /// New ShotOutcome with calculated payout
+    /// New ShotOutcome with calculated payout (no x,y coordinates)
     pub fn new(
         miss_distance_ft: f64,
         multiplier: f64,
@@ -53,6 +57,42 @@ impl ShotOutcome {
             wager,
             hole_id,
             is_fat_tail,
+            x_ft: None,
+            y_ft: None,
+        }
+    }
+
+    /// Create a new shot outcome with 2D coordinates (BVN interface)
+    ///
+    /// # Arguments
+    /// * `x_ft` - Lateral position (feet right of target line)
+    /// * `y_ft` - Distance position (feet from pin, positive = long)
+    /// * `multiplier` - Payout multiplier
+    /// * `wager` - Wager amount
+    /// * `hole_id` - Hole number (1-8)
+    /// * `is_fat_tail` - Whether this was a fat-tail event
+    ///
+    /// # Returns
+    /// New ShotOutcome with calculated payout and (x,y) coordinates
+    pub fn new_bvn(
+        x_ft: f64,
+        y_ft: f64,
+        multiplier: f64,
+        wager: f64,
+        hole_id: u8,
+        is_fat_tail: bool,
+    ) -> Self {
+        let miss_distance_ft = (x_ft * x_ft + y_ft * y_ft).sqrt();
+        let payout = multiplier * wager;
+        ShotOutcome {
+            miss_distance_ft,
+            multiplier,
+            payout,
+            wager,
+            hole_id,
+            is_fat_tail,
+            x_ft: Some(x_ft),
+            y_ft: Some(y_ft),
         }
     }
 
@@ -112,13 +152,56 @@ pub fn simulate_standard_shot(sigma: f64) -> f64 {
     rayleigh_random(sigma)
 }
 
+/// Shot record for batch processing
+///
+/// Stores either 1D (Rayleigh) or 2D (BVN) shot data
+#[derive(Debug, Clone)]
+pub struct ShotRecord {
+    /// Miss distance from pin (feet) - always available
+    pub miss_distance: f64,
+    /// Wager amount (dollars)
+    pub wager: f64,
+    /// X coordinate (lateral, feet right of target line) - BVN only
+    pub x_ft: Option<f64>,
+    /// Y coordinate (distance, feet from pin, positive = long) - BVN only
+    pub y_ft: Option<f64>,
+}
+
+impl ShotRecord {
+    /// Create a 1D shot record (legacy Rayleigh)
+    pub fn new_1d(miss_distance: f64, wager: f64) -> Self {
+        ShotRecord {
+            miss_distance,
+            wager,
+            x_ft: None,
+            y_ft: None,
+        }
+    }
+
+    /// Create a 2D shot record (BVN)
+    pub fn new_2d(x_ft: f64, y_ft: f64, wager: f64) -> Self {
+        let miss_distance = (x_ft * x_ft + y_ft * y_ft).sqrt();
+        ShotRecord {
+            miss_distance,
+            wager,
+            x_ft: Some(x_ft),
+            y_ft: Some(y_ft),
+        }
+    }
+
+    /// Check if this record has 2D coordinates
+    pub fn has_coordinates(&self) -> bool {
+        self.x_ft.is_some() && self.y_ft.is_some()
+    }
+}
+
 /// Batch of shot records for skill updates
 ///
 /// Used to accumulate shots before triggering a Kalman filter update
 #[derive(Debug, Clone)]
 pub struct ShotBatch {
-    /// Individual shot records (miss_distance, wager)
-    pub shots: Vec<(f64, f64)>,
+    /// Individual shot records
+    pub shots: Vec<ShotRecord>,
     /// Maximum batch size before triggering update
     pub max_size: usize,
 }
@@ -135,14 +218,24 @@ impl ShotBatch {
         }
     }
 
-    /// Add a shot to the batch
+    /// Add a 1D shot to the batch (legacy Rayleigh)
     pub fn add_shot(&mut self, miss_distance: f64, wager: f64) {
-        self.shots.push((miss_distance, wager));
+        self.shots.push(ShotRecord::new_1d(miss_distance, wager));
+    }
+
+    /// Add a 2D shot to the batch (BVN)
+    pub fn add_shot_2d(&mut self, x_ft: f64, y_ft: f64, wager: f64) {
+        self.shots.push(ShotRecord::new_2d(x_ft, y_ft, wager));
     }
 
     /// Check if batch is full
     pub fn is_full(&self) -> bool {
         self.shots.len() >= self.max_size
+    }
+
+    /// Check if batch contains any 2D shots
+    pub fn has_2d_shots(&self) -> bool {
+        self.shots.iter().any(|s| s.has_coordinates())
     }
 
     /// Check if batch contains a high-stakes shot (≥10× average wager)
@@ -153,7 +246,7 @@ impl ShotBatch {
             return false;
         }
 
-        let avg_wager: f64 = self.shots.iter().map(|(_, w)| w).sum::<f64>()
+        let avg_wager: f64 = self.shots.iter().map(|s| s.wager).sum::<f64>()
             / self.shots.len() as f64;
 
         new_wager >= 10.0 * avg_wager
@@ -175,7 +268,7 @@ impl ShotBatch {
     }
 
     /// Get all shots as a slice
-    pub fn get_shots(&self) -> &[(f64, f64)] {
+    pub fn get_shots(&self) -> &[ShotRecord] {
         &self.shots
     }
 }
@@ -328,7 +421,9 @@ mod tests {
 
         let shots = batch.get_shots();
         assert_eq!(shots.len(), 2);
-        assert_eq!(shots[0], (10.0, 5.0));
-        assert_eq!(shots[1], (12.0, 6.0));
+        assert_eq!(shots[0].miss_distance, 10.0);
+        assert_eq!(shots[0].wager, 5.0);
+        assert_eq!(shots[1].miss_distance, 12.0);
+        assert_eq!(shots[1].wager, 6.0);
     }
 }

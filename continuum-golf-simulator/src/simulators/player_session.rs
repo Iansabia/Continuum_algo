@@ -176,14 +176,13 @@ pub fn run_session(player: &mut Player, config: SessionConfig) -> SessionResult 
         let payout_amount = payout_multiplier * wager;
 
         // Create shot outcome
-        let outcome = ShotOutcome {
-            miss_distance_ft: miss_distance,
-            multiplier: payout_multiplier,
-            payout: payout_amount,
+        let outcome = ShotOutcome::new(
+            miss_distance,
+            payout_multiplier,
             wager,
-            hole_id: hole.id,
+            hole.id,
             is_fat_tail,
-        };
+        );
 
         total_wagered += wager;
         total_won += payout_amount;
@@ -445,86 +444,16 @@ mod tests {
             total_won: 88.0,
             net_gain_loss: -12.0,
             shots: vec![
-                ShotOutcome {
-                    miss_distance_ft: 10.0,
-                    multiplier: 2.0,
-                    payout: 20.0,
-                    wager: 10.0,
-                    hole_id: 1,
-                    is_fat_tail: false,
-                },
-                ShotOutcome {
-                    miss_distance_ft: 30.0,
-                    multiplier: 0.0,
-                    payout: 0.0,
-                    wager: 10.0,
-                    hole_id: 1,
-                    is_fat_tail: false,
-                },
-                ShotOutcome {
-                    miss_distance_ft: 15.0,
-                    multiplier: 1.5,
-                    payout: 15.0,
-                    wager: 10.0,
-                    hole_id: 1,
-                    is_fat_tail: false,
-                },
-                ShotOutcome {
-                    miss_distance_ft: 8.0,
-                    multiplier: 2.3,
-                    payout: 23.0,
-                    wager: 10.0,
-                    hole_id: 1,
-                    is_fat_tail: false,
-                },
-                ShotOutcome {
-                    miss_distance_ft: 25.0,
-                    multiplier: 0.0,
-                    payout: 0.0,
-                    wager: 10.0,
-                    hole_id: 1,
-                    is_fat_tail: false,
-                },
-                ShotOutcome {
-                    miss_distance_ft: 12.0,
-                    multiplier: 1.8,
-                    payout: 18.0,
-                    wager: 10.0,
-                    hole_id: 1,
-                    is_fat_tail: false,
-                },
-                ShotOutcome {
-                    miss_distance_ft: 20.0,
-                    multiplier: 0.0,
-                    payout: 0.0,
-                    wager: 10.0,
-                    hole_id: 1,
-                    is_fat_tail: false,
-                },
-                ShotOutcome {
-                    miss_distance_ft: 9.0,
-                    multiplier: 2.1,
-                    payout: 21.0,
-                    wager: 10.0,
-                    hole_id: 1,
-                    is_fat_tail: false,
-                },
-                ShotOutcome {
-                    miss_distance_ft: 30.0,
-                    multiplier: 0.0,
-                    payout: 0.0,
-                    wager: 10.0,
-                    hole_id: 1,
-                    is_fat_tail: false,
-                },
-                ShotOutcome {
-                    miss_distance_ft: 11.0,
-                    multiplier: 1.9,
-                    payout: 19.0,
-                    wager: 10.0,
-                    hole_id: 1,
-                    is_fat_tail: false,
-                },
+                ShotOutcome::new(10.0, 2.0, 10.0, 1, false),
+                ShotOutcome::new(30.0, 0.0, 10.0, 1, false),
+                ShotOutcome::new(15.0, 1.5, 10.0, 1, false),
+                ShotOutcome::new(8.0, 2.3, 10.0, 1, false),
+                ShotOutcome::new(25.0, 0.0, 10.0, 1, false),
+                ShotOutcome::new(12.0, 1.8, 10.0, 1, false),
+                ShotOutcome::new(20.0, 0.0, 10.0, 1, false),
+                ShotOutcome::new(9.0, 2.1, 10.0, 1, false),
+                ShotOutcome::new(30.0, 0.0, 10.0, 1, false),
+                ShotOutcome::new(11.0, 1.9, 10.0, 1, false),
             ],
             final_skill_profiles: HashMap::new(),
             session_house_edge: 0.12,

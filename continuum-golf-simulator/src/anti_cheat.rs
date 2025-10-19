@@ -255,13 +255,9 @@ mod tests {
     #[test]
     fn test_detect_normal_play() {
         let shots: Vec<ShotOutcome> = (0..50)
-            .map(|i| ShotOutcome {
-                miss_distance_ft: 50.0 + (i % 10) as f64 * 5.0,
-                multiplier: 2.0,
-                payout: 20.0,
-                wager: 10.0,
-                hole_id: 4,
-                is_fat_tail: false,
+            .map(|i| {
+                let miss = 50.0 + (i % 10) as f64 * 5.0;
+                ShotOutcome::new(miss, 2.0, 10.0, 4, false)
             })
             .collect();
 
@@ -275,26 +271,12 @@ mod tests {
 
         // Phase 1: Poor shots with low wagers
         for _ in 0..25 {
-            shots.push(ShotOutcome {
-                miss_distance_ft: 100.0,
-                multiplier: 0.5,
-                payout: 0.5,
-                wager: 1.0,
-                hole_id: 4,
-                is_fat_tail: false,
-            });
+            shots.push(ShotOutcome::new(100.0, 0.5, 1.0, 4, false));
         }
 
         // Phase 2: Sudden high wagers
         for _ in 0..25 {
-            shots.push(ShotOutcome {
-                miss_distance_ft: 90.0,
-                multiplier: 1.0,
-                payout: 100.0,
-                wager: 100.0,
-                hole_id: 4,
-                is_fat_tail: false,
-            });
+            shots.push(ShotOutcome::new(90.0, 1.0, 100.0, 4, false));
         }
 
         let report = detect_sandbagging(&shots);

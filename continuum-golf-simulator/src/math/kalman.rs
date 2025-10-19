@@ -239,6 +239,272 @@ pub fn measurement_variance(measurements: &[f64]) -> f64 {
     variance
 }
 
+// ============================================================================
+// 4D KALMAN FILTER FOR BVN (BIVARIATE NORMAL)
+// ============================================================================
+
+/// 4D Kalman filter state for tracking BVN parameters
+///
+/// Maintains estimates of:
+/// - μ_x: Lateral bias (feet right of target line, positive = right)
+/// - μ_y: Distance bias (feet from pin, positive = long)
+/// - σ_x: Lateral dispersion (standard deviation)
+/// - σ_y: Distance dispersion (standard deviation)
+///
+/// # State Vector
+/// ```text
+/// x = [μ_x, μ_y, σ_x, σ_y]^T
+/// ```
+///
+/// # Covariance Matrix (4x4)
+/// ```text
+/// P = [P_μx_μx   P_μx_μy   P_μx_σx   P_μx_σy  ]
+///     [P_μy_μx   P_μy_μy   P_μy_σx   P_μy_σy  ]
+///     [P_σx_μx   P_σx_μy   P_σx_σx   P_σx_σy  ]
+///     [P_σy_μx   P_σy_μy   P_σy_σx   P_σy_σy  ]
+/// ```
+///
+/// For simplicity, we assume independence: off-diagonal terms ≈ 0
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KalmanState4D {
+    /// State vector: [μ_x, μ_y, σ_x, σ_y]
+    pub state: [f64; 4],
+
+    /// Error covariance diagonal (simplified from 4x4 matrix)
+    /// [P_μx, P_μy, P_σx, P_σy]
+    pub error_covariance: [f64; 4],
+
+    /// Process noise (how much we expect each parameter to drift)
+    pub process_noise: [f64; 4],
+
+    /// Initial state for reset
+    pub initial_state: [f64; 4],
+}
+
+impl KalmanState4D {
+    /// Create a new 4D Kalman filter
+    ///
+    /// # Arguments
+    /// * `initial_mu_x` - Initial lateral bias estimate (0.0 = no bias)
+    /// * `initial_mu_y` - Initial distance bias estimate (0.0 = no bias)
+    /// * `initial_sigma_x` - Initial lateral dispersion estimate
+    /// * `initial_sigma_y` - Initial distance dispersion estimate
+    /// * `process_noise` - Expected drift in [μ_x, μ_y, σ_x, σ_y]
+    ///
+    /// # Returns
+    /// New KalmanState4D with high initial uncertainty
+    ///
+    /// # Example
+    /// ```
+    /// use continuum_golf_simulator::math::kalman::KalmanState4D;
+    ///
+    /// // Start with no bias, σ_x=σ_y=30ft (like Rayleigh)
+    /// let kalman = KalmanState4D::new(0.0, 0.0, 30.0, 30.0, [0.1, 0.1, 0.5, 0.5]);
+    /// assert_eq!(kalman.mu_x(), 0.0);
+    /// assert_eq!(kalman.sigma_x(), 30.0);
+    /// ```
+    pub fn new(
+        initial_mu_x: f64,
+        initial_mu_y: f64,
+        initial_sigma_x: f64,
+        initial_sigma_y: f64,
+        process_noise: [f64; 4],
+    ) -> Self {
+        let state = [initial_mu_x, initial_mu_y, initial_sigma_x, initial_sigma_y];
+
+        KalmanState4D {
+            state,
+            error_covariance: [1000.0, 1000.0, 1000.0, 1000.0], // High initial uncertainty
+            process_noise,
+            initial_state: state,
+        }
+    }
+
+    /// Get current μ_x (lateral bias)
+    pub fn mu_x(&self) -> f64 {
+        self.state[0]
+    }
+
+    /// Get current μ_y (distance bias)
+    pub fn mu_y(&self) -> f64 {
+        self.state[1]
+    }
+
+    /// Get current σ_x (lateral dispersion)
+    pub fn sigma_x(&self) -> f64 {
+        self.state[2]
+    }
+
+    /// Get current σ_y (distance dispersion)
+    pub fn sigma_y(&self) -> f64 {
+        self.state[3]
+    }
+
+    /// Prediction step: project state forward
+    ///
+    /// State doesn't change (no motion model), but uncertainty increases.
+    ///
+    /// # Update Equations
+    /// - x_predicted = x_current
+    /// - P_predicted = P_current + Q
+    pub fn predict(&mut self) {
+        // State stays the same (no deterministic change in skill)
+        // Only covariance increases due to process noise
+        for i in 0..4 {
+            self.error_covariance[i] += self.process_noise[i];
+        }
+    }
+
+    /// Update step: incorporate (x, y) measurement
+    ///
+    /// Uses a shot's (x, y) landing position to update all four parameters.
+    /// This is a simplified update that treats each dimension independently.
+    ///
+    /// # Arguments
+    /// * `measured_x` - Lateral position of shot (feet right of target line)
+    /// * `measured_y` - Distance position of shot (feet from pin)
+    /// * `measurement_noise` - Measurement uncertainty [R_x, R_y, R_σx, R_σy]
+    ///
+    /// # Update Strategy
+    /// 1. Update μ_x using measured_x
+    /// 2. Update μ_y using measured_y
+    /// 3. Update σ_x using |measured_x - μ_x| (residual-based)
+    /// 4. Update σ_y using |measured_y - μ_y| (residual-based)
+    ///
+    /// # Example
+    /// ```
+    /// use continuum_golf_simulator::math::kalman::KalmanState4D;
+    ///
+    /// let mut kalman = KalmanState4D::new(0.0, 0.0, 30.0, 30.0, [0.1, 0.1, 0.5, 0.5]);
+    ///
+    /// // Shot landed 5ft right, 2ft long
+    /// kalman.update(5.0, 2.0, [50.0, 50.0, 100.0, 100.0]);
+    ///
+    /// // μ_x should move toward 5.0, μ_y toward 2.0
+    /// assert!(kalman.mu_x() > 0.0);
+    /// assert!(kalman.mu_y() > 0.0);
+    /// ```
+    pub fn update(&mut self, measured_x: f64, measured_y: f64, measurement_noise: [f64; 4]) {
+        // Update μ_x using measured_x
+        let k_mu_x = self.error_covariance[0] / (self.error_covariance[0] + measurement_noise[0]);
+        let innovation_mu_x = measured_x - self.state[0];
+        self.state[0] += k_mu_x * innovation_mu_x;
+        self.error_covariance[0] *= 1.0 - k_mu_x;
+
+        // Update μ_y using measured_y
+        let k_mu_y = self.error_covariance[1] / (self.error_covariance[1] + measurement_noise[1]);
+        let innovation_mu_y = measured_y - self.state[1];
+        self.state[1] += k_mu_y * innovation_mu_y;
+        self.error_covariance[1] *= 1.0 - k_mu_y;
+
+        // Update σ_x using residual-based estimate
+        // The squared residual (x - μ_x)² is a noisy estimate of σ_x²
+        let residual_x = measured_x - self.state[0];
+        let sigma_x_measurement = residual_x.abs(); // Simplified: use |residual| as estimate
+
+        let k_sigma_x = self.error_covariance[2] / (self.error_covariance[2] + measurement_noise[2]);
+        let innovation_sigma_x = sigma_x_measurement - self.state[2];
+        self.state[2] += k_sigma_x * innovation_sigma_x;
+        self.error_covariance[2] *= 1.0 - k_sigma_x;
+
+        // Clamp σ_x to reasonable bounds
+        self.state[2] = self.state[2].max(5.0).min(200.0);
+
+        // Update σ_y using residual-based estimate
+        let residual_y = measured_y - self.state[1];
+        let sigma_y_measurement = residual_y.abs();
+
+        let k_sigma_y = self.error_covariance[3] / (self.error_covariance[3] + measurement_noise[3]);
+        let innovation_sigma_y = sigma_y_measurement - self.state[3];
+        self.state[3] += k_sigma_y * innovation_sigma_y;
+        self.error_covariance[3] *= 1.0 - k_sigma_y;
+
+        // Clamp σ_y to reasonable bounds
+        self.state[3] = self.state[3].max(5.0).min(200.0);
+    }
+
+    /// Calculate overall confidence from error covariance
+    ///
+    /// Returns the minimum confidence across all four parameters.
+    /// This gives a conservative estimate of overall certainty.
+    ///
+    /// # Returns
+    /// Confidence percentage (0-100)
+    pub fn calculate_confidence(&self) -> f64 {
+        let min_p = 50.0;
+        let max_p = 1000.0;
+
+        let confidences: Vec<f64> = self.error_covariance.iter().map(|&p| {
+            if p <= min_p {
+                100.0
+            } else if p >= max_p {
+                0.0
+            } else {
+                let normalized = (p / min_p).ln() / (max_p / min_p).ln();
+                100.0 * (1.0 - normalized)
+            }
+        }).collect();
+
+        // Return minimum confidence (most conservative)
+        confidences.iter().cloned().fold(f64::INFINITY, f64::min)
+    }
+
+    /// Get bias magnitude (Euclidean distance from origin)
+    ///
+    /// # Returns
+    /// Bias magnitude in feet: sqrt(μ_x² + μ_y²)
+    pub fn bias_magnitude(&self) -> f64 {
+        (self.state[0].powi(2) + self.state[1].powi(2)).sqrt()
+    }
+
+    /// Get bias direction in degrees (0° = right, 90° = long, 180° = left, 270° = short)
+    ///
+    /// # Returns
+    /// Angle in degrees (0-360)
+    pub fn bias_direction_degrees(&self) -> f64 {
+        let angle_rad = self.state[1].atan2(self.state[0]);
+        let angle_deg = angle_rad.to_degrees();
+
+        // Convert to 0-360 range
+        if angle_deg < 0.0 {
+            angle_deg + 360.0
+        } else {
+            angle_deg
+        }
+    }
+
+    /// Get precision ratio (σ_x / σ_y)
+    ///
+    /// Indicates whether player is more precise laterally or in distance.
+    ///
+    /// # Returns
+    /// Ratio > 1.0: worse lateral control than distance
+    /// Ratio < 1.0: better lateral control than distance
+    /// Ratio ≈ 1.0: equal precision (like Rayleigh)
+    pub fn precision_ratio(&self) -> f64 {
+        self.state[2] / self.state[3]
+    }
+
+    /// Reset filter to initial state
+    pub fn reset(&mut self) {
+        self.state = self.initial_state;
+        self.error_covariance = [1000.0, 1000.0, 1000.0, 1000.0];
+    }
+
+    /// Get standard errors of all estimates
+    ///
+    /// # Returns
+    /// [SE_μx, SE_μy, SE_σx, SE_σy]
+    pub fn standard_errors(&self) -> [f64; 4] {
+        [
+            self.error_covariance[0].sqrt(),
+            self.error_covariance[1].sqrt(),
+            self.error_covariance[2].sqrt(),
+            self.error_covariance[3].sqrt(),
+        ]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -337,5 +603,121 @@ mod tests {
         kalman.reset();
         assert_eq!(kalman.estimate, 30.0);
         assert_eq!(kalman.error_covariance, 1000.0);
+    }
+
+    // ========================================================================
+    // 4D KALMAN FILTER TESTS
+    // ========================================================================
+
+    #[test]
+    fn test_kalman_4d_initialization() {
+        let kalman = KalmanState4D::new(0.0, 0.0, 30.0, 25.0, [0.1, 0.1, 0.5, 0.5]);
+
+        assert_eq!(kalman.mu_x(), 0.0);
+        assert_eq!(kalman.mu_y(), 0.0);
+        assert_eq!(kalman.sigma_x(), 30.0);
+        assert_eq!(kalman.sigma_y(), 25.0);
+        assert_eq!(kalman.calculate_confidence(), 0.0); // High initial uncertainty
+    }
+
+    #[test]
+    fn test_kalman_4d_bias_convergence() {
+        let mut kalman = KalmanState4D::new(0.0, 0.0, 30.0, 30.0, [0.1, 0.1, 0.3, 0.3]);
+
+        // Simulate player who consistently misses 5ft right, 2ft long
+        let true_mu_x = 5.0;
+        let true_mu_y = 2.0;
+
+        for _ in 0..100 {
+            kalman.predict();
+            // Add noise around true bias
+            let x = true_mu_x + (rand::random::<f64>() - 0.5) * 10.0;
+            let y = true_mu_y + (rand::random::<f64>() - 0.5) * 10.0;
+            kalman.update(x, y, [50.0, 50.0, 100.0, 100.0]);
+        }
+
+        // Should converge to true bias
+        assert_relative_eq!(kalman.mu_x(), true_mu_x, epsilon = 2.0);
+        assert_relative_eq!(kalman.mu_y(), true_mu_y, epsilon = 2.0);
+
+        // Confidence should increase
+        assert!(kalman.calculate_confidence() > 50.0);
+    }
+
+    #[test]
+    fn test_kalman_4d_dispersion_convergence() {
+        let mut kalman = KalmanState4D::new(0.0, 0.0, 30.0, 30.0, [0.1, 0.1, 0.3, 0.3]);
+
+        // Simulate shots with known dispersion (no bias)
+        // σ_x = 20, σ_y = 15
+        use crate::math::distributions::bvn_random;
+
+        for _ in 0..200 {
+            kalman.predict();
+            let (x, y) = bvn_random(0.0, 0.0, 20.0, 15.0);
+            kalman.update(x, y, [50.0, 50.0, 100.0, 100.0]);
+        }
+
+        // Should converge toward true dispersions
+        // (less precise than bias due to single-sample variance estimation)
+        assert!(kalman.sigma_x() > 10.0 && kalman.sigma_x() < 40.0);
+        assert!(kalman.sigma_y() > 8.0 && kalman.sigma_y() < 30.0);
+
+        // Bias should stay relatively near zero (with some drift due to noisy variance estimation)
+        assert!(kalman.mu_x().abs() < 8.0);
+        assert!(kalman.mu_y().abs() < 8.0);
+    }
+
+    #[test]
+    fn test_kalman_4d_bias_metrics() {
+        let kalman = KalmanState4D::new(3.0, 4.0, 30.0, 30.0, [0.1, 0.1, 0.5, 0.5]);
+
+        // Bias magnitude: sqrt(3² + 4²) = 5
+        assert_relative_eq!(kalman.bias_magnitude(), 5.0, epsilon = 0.01);
+
+        // Bias direction: atan2(4, 3) ≈ 53.13°
+        assert_relative_eq!(kalman.bias_direction_degrees(), 53.13, epsilon = 0.1);
+    }
+
+    #[test]
+    fn test_kalman_4d_precision_ratio() {
+        let kalman_equal = KalmanState4D::new(0.0, 0.0, 20.0, 20.0, [0.1, 0.1, 0.5, 0.5]);
+        assert_relative_eq!(kalman_equal.precision_ratio(), 1.0, epsilon = 0.01);
+
+        let kalman_worse_lateral = KalmanState4D::new(0.0, 0.0, 30.0, 10.0, [0.1, 0.1, 0.5, 0.5]);
+        assert_relative_eq!(kalman_worse_lateral.precision_ratio(), 3.0, epsilon = 0.01);
+    }
+
+    #[test]
+    fn test_kalman_4d_reset() {
+        let mut kalman = KalmanState4D::new(0.0, 0.0, 30.0, 25.0, [0.1, 0.1, 0.5, 0.5]);
+
+        // Make some updates
+        for _ in 0..20 {
+            kalman.update(5.0, 2.0, [50.0, 50.0, 100.0, 100.0]);
+        }
+
+        assert_ne!(kalman.mu_x(), 0.0);
+        assert_ne!(kalman.mu_y(), 0.0);
+
+        // Reset should restore initial state
+        kalman.reset();
+        assert_eq!(kalman.mu_x(), 0.0);
+        assert_eq!(kalman.mu_y(), 0.0);
+        assert_eq!(kalman.sigma_x(), 30.0);
+        assert_eq!(kalman.sigma_y(), 25.0);
+        assert_eq!(kalman.calculate_confidence(), 0.0);
+    }
+
+    #[test]
+    fn test_kalman_4d_clamping() {
+        let mut kalman = KalmanState4D::new(0.0, 0.0, 30.0, 30.0, [0.1, 0.1, 0.5, 0.5]);
+
+        // Try to update with extreme measurement that would push σ too low
+        kalman.update(0.1, 0.1, [10.0, 10.0, 10.0, 10.0]);
+
+        // σ values should be clamped to minimum 5.0
+        assert!(kalman.sigma_x() >= 5.0);
+        assert!(kalman.sigma_y() >= 5.0);
     }
 }
