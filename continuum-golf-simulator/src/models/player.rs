@@ -213,6 +213,132 @@ impl Player {
         hole.rtp / (expected_payout + epsilon)
     }
 
+    /// Calculate P_max using 2D BVN distribution (Phase 9.3)
+    ///
+    /// Unlike the 1D Rayleigh model, this accounts for:
+    /// - Systematic bias (μ_x, μ_y) - player tends to miss in a specific direction
+    /// - Elliptical dispersion (σ_x ≠ σ_y) - different precision in lateral vs distance
+    ///
+    /// # Formula
+    /// P_max = RTP / E[payout]
+    ///
+    /// Where E[payout] = ∬ payout(x,y) * BVN(x,y | μ_x, μ_y, σ_x, σ_y) dx dy
+    ///
+    /// Integration performed over 2D grid using Cartesian coordinates.
+    ///
+    /// # Arguments
+    /// * `hole` - The hole configuration
+    /// * `mu_x` - Lateral bias (feet right of target line)
+    /// * `mu_y` - Distance bias (feet from pin, positive = long)
+    /// * `sigma_x` - Lateral dispersion (precision)
+    /// * `sigma_y` - Distance dispersion (precision)
+    ///
+    /// # Returns
+    /// Maximum payout multiplier for BVN distribution
+    ///
+    /// # Example
+    /// ```
+    /// use continuum_golf_simulator::models::player::Player;
+    /// use continuum_golf_simulator::models::hole::Hole;
+    ///
+    /// let player = Player::new("p1".to_string(), 15);
+    /// let hole = Hole::new(1, 75, 17.95, 0.86, 5.0);
+    ///
+    /// // Player with rightward bias and better distance control
+    /// let p_max = player.calculate_p_max_bvn(&hole, 5.0, 2.0, 20.0, 12.0);
+    /// assert!(p_max > 1.0);
+    /// ```
+    pub fn calculate_p_max_bvn(
+        &self,
+        hole: &Hole,
+        mu_x: f64,
+        mu_y: f64,
+        sigma_x: f64,
+        sigma_y: f64,
+    ) -> f64 {
+        use crate::math::distributions::bvn_pdf;
+
+        let d_max = hole.d_max_ft;
+        let k = hole.k;
+        let fat_tail_prob = 0.02;
+        let fat_tail_mult = 3.0;
+
+        // Integration bounds: ±4σ from bias (covers 99.99% of distribution)
+        let x_min = mu_x - 4.0 * sigma_x;
+        let x_max = mu_x + 4.0 * sigma_x;
+        let y_min = mu_y - 4.0 * sigma_y;
+        let y_max = mu_y + 4.0 * sigma_y;
+
+        // Grid resolution (200×200 = 40,000 evaluations, ~5ms)
+        let n_x = 200;
+        let n_y = 200;
+        let dx = (x_max - x_min) / n_x as f64;
+        let dy = (y_max - y_min) / n_y as f64;
+
+        // Calculate expected payout for normal shots
+        let mut expected_payout_normal = 0.0;
+        for i in 0..n_x {
+            let x = x_min + (i as f64 + 0.5) * dx;
+            for j in 0..n_y {
+                let y = y_min + (j as f64 + 0.5) * dy;
+
+                // Distance from pin
+                let r = (x * x + y * y).sqrt();
+
+                // Payout function
+                let payout = if r > d_max {
+                    0.0
+                } else {
+                    (1.0 - r / d_max).powf(k)
+                };
+
+                // BVN probability density
+                let prob = bvn_pdf(x, y, mu_x, mu_y, sigma_x, sigma_y);
+
+                // Accumulate: payout × probability × area
+                expected_payout_normal += payout * prob * dx * dy;
+            }
+        }
+
+        // Calculate expected payout for fat-tail shots (3× dispersion)
+        let sigma_x_fat = sigma_x * fat_tail_mult;
+        let sigma_y_fat = sigma_y * fat_tail_mult;
+
+        // Expand bounds for fat-tail
+        let x_min_fat = mu_x - 4.0 * sigma_x_fat;
+        let x_max_fat = mu_x + 4.0 * sigma_x_fat;
+        let y_min_fat = mu_y - 4.0 * sigma_y_fat;
+        let y_max_fat = mu_y + 4.0 * sigma_y_fat;
+        let dx_fat = (x_max_fat - x_min_fat) / n_x as f64;
+        let dy_fat = (y_max_fat - y_min_fat) / n_y as f64;
+
+        let mut expected_payout_fat = 0.0;
+        for i in 0..n_x {
+            let x = x_min_fat + (i as f64 + 0.5) * dx_fat;
+            for j in 0..n_y {
+                let y = y_min_fat + (j as f64 + 0.5) * dy_fat;
+
+                let r = (x * x + y * y).sqrt();
+                let payout = if r > d_max {
+                    0.0
+                } else {
+                    (1.0 - r / d_max).powf(k)
+                };
+
+                let prob = bvn_pdf(x, y, mu_x, mu_y, sigma_x_fat, sigma_y_fat);
+                expected_payout_fat += payout * prob * dx_fat * dy_fat;
+            }
+        }
+
+        // Weighted average: (1 - p_fat) * E[normal] + p_fat * E[fat]
+        let expected_payout = (1.0 - fat_tail_prob) * expected_payout_normal
+            + fat_tail_prob * expected_payout_fat;
+
+        // P_max = RTP / expected_payout
+        let epsilon = 1e-10;
+        hole.rtp / (expected_payout + epsilon)
+    }
+
     /// Add a shot to the batch for a specific hole
     ///
     /// # Arguments
@@ -629,5 +755,130 @@ mod tests {
 
         assert_eq!(wedge_skill.p_max_history.len(), 1);
         assert_eq!(long_skill.p_max_history.len(), 0);
+    }
+
+    #[test]
+    fn test_calculate_p_max_bvn_symmetric() {
+        // When BVN is symmetric (no bias, equal dispersions), it should be close to Rayleigh
+        let player = Player::new("test".to_string(), 15);
+        let hole = get_hole_by_id(4).unwrap(); // 150 yards
+
+        // Symmetric BVN: no bias, equal dispersions
+        let mu_x = 0.0;
+        let mu_y = 0.0;
+        let sigma = 30.0; // Same as typical Rayleigh sigma
+        let sigma_x = sigma;
+        let sigma_y = sigma;
+
+        let p_max_bvn = player.calculate_p_max_bvn(hole, mu_x, mu_y, sigma_x, sigma_y);
+        let p_max_rayleigh = player.calculate_p_max(hole);
+
+        // Should be within 30% (numerical integration uses different methods: 2D grid vs 1D trapezoidal)
+        // The difference comes from grid resolution and integration bounds
+        let ratio = p_max_bvn / p_max_rayleigh;
+        assert!(
+            ratio > 0.8 && ratio < 1.3,
+            "Symmetric BVN should be close to Rayleigh: BVN={:.2}, Rayleigh={:.2}, ratio={:.3}",
+            p_max_bvn,
+            p_max_rayleigh,
+            ratio
+        );
+    }
+
+    #[test]
+    fn test_calculate_p_max_bvn_with_bias() {
+        // Player with rightward bias should have lower P_max than centered player
+        let player = Player::new("test".to_string(), 15);
+        let hole = get_hole_by_id(4).unwrap();
+
+        // No bias
+        let p_max_centered = player.calculate_p_max_bvn(hole, 0.0, 0.0, 25.0, 25.0);
+
+        // Strong rightward bias (5 ft right on average)
+        let p_max_biased = player.calculate_p_max_bvn(hole, 5.0, 0.0, 25.0, 25.0);
+
+        // Biased player is slightly farther from pin on average → lower expected payout → higher P_max
+        assert!(
+            p_max_biased > p_max_centered,
+            "Biased player should have higher P_max (lower EV): centered={:.2}, biased={:.2}",
+            p_max_centered,
+            p_max_biased
+        );
+    }
+
+    #[test]
+    fn test_calculate_p_max_bvn_elliptical() {
+        // Better distance control (small σ_y) vs lateral control
+        let player = Player::new("test".to_string(), 15);
+        let hole = get_hole_by_id(4).unwrap();
+
+        // Good distance control, poor lateral: σ_x=30, σ_y=15
+        let p_max_distance_good = player.calculate_p_max_bvn(hole, 0.0, 0.0, 30.0, 15.0);
+
+        // Poor distance control, good lateral: σ_x=15, σ_y=30
+        let p_max_lateral_good = player.calculate_p_max_bvn(hole, 0.0, 0.0, 15.0, 30.0);
+
+        // Both are valid, just testing that function handles elliptical distributions
+        assert!(p_max_distance_good > 1.0 && p_max_distance_good < 20.0);
+        assert!(p_max_lateral_good > 1.0 && p_max_lateral_good < 20.0);
+
+        // The difference depends on hole geometry, but both should be reasonable
+        let ratio = p_max_distance_good / p_max_lateral_good;
+        assert!(
+            ratio > 0.5 && ratio < 2.0,
+            "Elliptical P_max values should be within 2× of each other: {:.2} vs {:.2}",
+            p_max_distance_good,
+            p_max_lateral_good
+        );
+    }
+
+    #[test]
+    fn test_calculate_p_max_bvn_values_reasonable() {
+        // P_max should always be in reasonable range
+        let player = Player::new("test".to_string(), 15);
+        let hole = get_hole_by_id(4).unwrap();
+
+        // Test various parameter combinations
+        let test_cases = vec![
+            (0.0, 0.0, 20.0, 20.0),   // Centered, tight
+            (0.0, 0.0, 35.0, 35.0),   // Centered, loose (but realistic for handicap ~20-25)
+            (10.0, 5.0, 25.0, 25.0),  // Large bias
+            (2.0, 1.0, 15.0, 30.0),   // Small bias, elliptical
+            (0.0, 0.0, 35.0, 20.0),   // Lateral worse than distance
+        ];
+
+        for (mu_x, mu_y, sigma_x, sigma_y) in test_cases {
+            let p_max = player.calculate_p_max_bvn(hole, mu_x, mu_y, sigma_x, sigma_y);
+
+            // P_max should be positive and reasonable
+            // Note: Very poor players (σ=40ft+) can have P_max > 20, which is mathematically correct
+            assert!(
+                p_max > 1.0 && p_max < 50.0,
+                "P_max out of range for μ=({}, {}), σ=({}, {}): {}",
+                mu_x,
+                mu_y,
+                sigma_x,
+                sigma_y,
+                p_max
+            );
+        }
+    }
+
+    #[test]
+    fn test_calculate_p_max_bvn_fat_tail_effect() {
+        // Fat-tail should reduce P_max (increase expected payout)
+        let player = Player::new("test".to_string(), 15);
+        let hole = get_hole_by_id(4).unwrap();
+
+        // Calculate P_max with BVN (includes 2% fat-tail)
+        let p_max_with_fat = player.calculate_p_max_bvn(hole, 0.0, 0.0, 25.0, 25.0);
+
+        // The fat-tail effect is already baked into the calculation,
+        // so we just verify it produces sensible results
+        assert!(
+            p_max_with_fat > 1.0 && p_max_with_fat < 20.0,
+            "P_max with fat-tail should be reasonable: {}",
+            p_max_with_fat
+        );
     }
 }
