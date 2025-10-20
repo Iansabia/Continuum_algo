@@ -248,7 +248,7 @@ fn validate_breakeven_radius_formula() {
     println!("\n=== Validation: Breakeven Radius Formula ===");
 
     for hole in HOLE_CONFIGURATIONS.iter() {
-        let mut player = Player::new(format!("player_{}", 15), 15);
+        let player = Player::new(format!("player_{}", 15), 15);
         let p_max = player.calculate_p_max(hole);
         let d_break = hole.calculate_breakeven_radius(p_max);
 
@@ -337,7 +337,7 @@ fn validate_high_stakes_logic() {
     println!("\n=== Validation: High-Stakes Update Logic ===");
 
     let mut player = Player::new(format!("player_{}", 15), 15);
-    let hole = get_hole_by_id(4).unwrap();
+    let _hole = get_hole_by_id(4).unwrap();
 
     // Run normal shots
     let normal_config = SessionConfig {
@@ -447,7 +447,7 @@ fn validate_kalman_convergence_properties() {
     let mut player = Player::new(format!("player_{}", 15), 15);
     let hole = get_hole_by_id(4).unwrap();
 
-    let mut previous_confidence = 0.0;
+    let _previous_confidence = 0.0;
     let mut confidence_increased = 0;
 
     for batch_num in 0..NUM_BATCHES {

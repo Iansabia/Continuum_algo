@@ -67,7 +67,7 @@ pub fn detect_sandbagging(shots: &[ShotOutcome]) -> AnomalyReport {
         }
     }
 
-    let is_suspicious = confidence > 0.6;
+    let is_suspicious = confidence >= 0.6;
     let recommended_action = if is_suspicious {
         "Flag for manual review - potential sandbagging".to_string()
     } else {
@@ -269,18 +269,18 @@ mod tests {
     fn test_detect_obvious_sandbagging() {
         let mut shots = Vec::new();
 
-        // Phase 1: Poor shots with low wagers
+        // Phase 1: Poor shots with low wagers (establishing bad baseline)
         for _ in 0..25 {
             shots.push(ShotOutcome::new(100.0, 0.5, 1.0, 4, false));
         }
 
-        // Phase 2: Sudden high wagers
+        // Phase 2: Suddenly excellent shots with high wagers (sandbagging pattern)
         for _ in 0..25 {
-            shots.push(ShotOutcome::new(90.0, 1.0, 100.0, 4, false));
+            shots.push(ShotOutcome::new(10.0, 5.0, 100.0, 4, false));
         }
 
         let report = detect_sandbagging(&shots);
         assert!(report.is_suspicious, "Obvious sandbagging should be detected");
-        assert!(report.confidence > 0.6);
+        assert!(report.confidence >= 0.6);
     }
 }

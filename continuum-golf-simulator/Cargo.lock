@@ -209,14 +209,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "console_error_panic_hook"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
+dependencies = [
+ "cfg-if",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "continuum-golf-simulator"
 version = "0.1.0"
 dependencies = [
  "approx",
  "clap",
  "colored",
+ "console_error_panic_hook",
  "criterion",
  "csv",
+ "getrandom",
  "indicatif",
  "nalgebra 0.33.2",
  "prettytable-rs",
@@ -224,8 +236,10 @@ dependencies = [
  "rand_distr",
  "rayon",
  "serde",
+ "serde-wasm-bindgen",
  "serde_json",
  "statrs",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -356,8 +370,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "335ff9f135e4384c8150d6f27c6daed433577f86b4750418338c01a1a2528592"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -831,6 +847,17 @@ checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 dependencies = [
  "serde_core",
  "serde_derive",
+]
+
+[[package]]
+name = "serde-wasm-bindgen"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8302e169f0eddcc139c70f139d19d6467353af16f9fce27e8c30158036a1e16b"
+dependencies = [
+ "js-sys",
+ "serde",
+ "wasm-bindgen",
 ]
 
 [[package]]

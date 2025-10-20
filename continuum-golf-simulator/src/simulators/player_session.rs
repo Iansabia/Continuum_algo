@@ -16,6 +16,18 @@ use crate::anti_cheat::{detect_cherry_picking, detect_sandbagging, AnomalyReport
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::env;
+
+/// Errors that can occur during session configuration validation
+#[derive(Debug, Clone, PartialEq)]
+pub enum SessionConfigError {
+    /// Developer mode attempted in production environment
+    DeveloperModeInProduction,
+    /// Invalid wager range
+    InvalidWagerRange(String),
+    /// Invalid configuration
+    InvalidConfig(String),
+}
 
 /// Configuration for a player gaming session
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,6 +59,103 @@ impl Default for SessionConfig {
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
         }
+    }
+}
+
+impl SessionConfig {
+    /// Check if we're running in production mode
+    ///
+    /// Returns true if CONTINUUM_ENV=production or CONTINUUM_PRODUCTION=true
+    pub fn is_production() -> bool {
+        env::var("CONTINUUM_ENV")
+            .map(|v| v.to_lowercase() == "production")
+            .unwrap_or(false)
+        || env::var("CONTINUUM_PRODUCTION")
+            .map(|v| v.to_lowercase() == "true" || v == "1")
+            .unwrap_or(false)
+    }
+
+    /// Validate configuration for production deployment
+    ///
+    /// # Errors
+    ///
+    /// Returns `SessionConfigError` if:
+    /// - Developer mode is enabled in production environment
+    /// - Wager range is invalid (min > max or negative values)
+    /// - Other configuration issues detected
+    ///
+    /// # Production Safety
+    ///
+    /// This function prevents the critical security vulnerability where developer
+    /// mode with manual miss distances allows trivial exploitation. Production
+    /// environments MUST reject any configuration with developer_mode set.
+    pub fn validate(&self) -> Result<(), SessionConfigError> {
+        // CRITICAL: Block developer mode in production
+        if Self::is_production() && self.developer_mode.is_some() {
+            return Err(SessionConfigError::DeveloperModeInProduction);
+        }
+
+        // Validate wager range
+        if self.wager_min < 0.0 || self.wager_max < 0.0 {
+            return Err(SessionConfigError::InvalidWagerRange(
+                "Wagers cannot be negative".to_string()
+            ));
+        }
+
+        if self.wager_min > self.wager_max {
+            return Err(SessionConfigError::InvalidWagerRange(
+                format!("Min wager (${:.2}) exceeds max wager (${:.2})",
+                        self.wager_min, self.wager_max)
+            ));
+        }
+
+        // Validate shot count
+        if self.num_shots == 0 {
+            return Err(SessionConfigError::InvalidConfig(
+                "Number of shots must be greater than 0".to_string()
+            ));
+        }
+
+        // Validate fat-tail parameters
+        if self.fat_tail_prob < 0.0 || self.fat_tail_prob > 1.0 {
+            return Err(SessionConfigError::InvalidConfig(
+                format!("Fat-tail probability must be between 0.0 and 1.0, got {}",
+                        self.fat_tail_prob)
+            ));
+        }
+
+        if self.fat_tail_mult <= 0.0 {
+            return Err(SessionConfigError::InvalidConfig(
+                format!("Fat-tail multiplier must be positive, got {}",
+                        self.fat_tail_mult)
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Validate and log any developer mode usage attempt
+    ///
+    /// This method both validates the configuration AND logs suspicious activity.
+    /// In production, it logs any attempt to use developer mode for security monitoring.
+    pub fn validate_with_logging(&self, player_id: &str) -> Result<(), SessionConfigError> {
+        // Check if developer mode is attempted
+        if self.developer_mode.is_some() {
+            let is_prod = Self::is_production();
+
+            // Log the attempt (in production, this should trigger an alert)
+            eprintln!(
+                "⚠️  SECURITY ALERT: Developer mode attempted by player '{}' (production={})",
+                player_id, is_prod
+            );
+
+            if is_prod {
+                eprintln!("❌ BLOCKED: Developer mode is disabled in production");
+            }
+        }
+
+        // Run standard validation
+        self.validate()
     }
 }
 
@@ -127,6 +236,108 @@ impl SessionResult {
         }
         let wins = self.shots.iter().filter(|s| s.payout > 0.0).count();
         (wins as f64 / self.shots.len() as f64) * 100.0
+    }
+
+    /// Determine if account should be flagged based on anti-cheat reports
+    ///
+    /// Returns true if any anti-cheat report has confidence >= threshold (default 0.7)
+    pub fn should_flag_account(&self, confidence_threshold: f64) -> bool {
+        if let Some(ref report) = self.cherry_picking_report {
+            if report.confidence >= confidence_threshold {
+                return true;
+            }
+        }
+
+        if let Some(ref report) = self.sandbagging_report {
+            if report.confidence >= confidence_threshold {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Get recommended action based on anti-cheat analysis
+    ///
+    /// # Returns
+    ///
+    /// - `None` if no suspicious activity detected
+    /// - `Some(action)` with recommended action string if suspicious
+    ///
+    /// # Threshold Levels
+    ///
+    /// - 0.7-0.8: "Monitor closely for continued pattern"
+    /// - 0.8-0.9: "Flag for manual review"
+    /// - 0.9+: "Immediate suspension pending investigation"
+    pub fn get_recommended_action(&self) -> Option<String> {
+        let mut max_confidence = 0.0;
+        let mut max_action = String::new();
+
+        if let Some(ref report) = self.cherry_picking_report {
+            if report.confidence > max_confidence {
+                max_confidence = report.confidence;
+                max_action = report.recommended_action.clone();
+            }
+        }
+
+        if let Some(ref report) = self.sandbagging_report {
+            if report.confidence > max_confidence {
+                max_confidence = report.confidence;
+                max_action = report.recommended_action.clone();
+            }
+        }
+
+        if max_confidence >= 0.7 {
+            Some(if max_confidence >= 0.9 {
+                "URGENT: Immediate suspension pending investigation".to_string()
+            } else if max_confidence >= 0.8 {
+                format!("Flag for manual review - {}", max_action)
+            } else {
+                format!("Monitor closely - {}", max_action)
+            })
+        } else {
+            None
+        }
+    }
+
+    /// Generate a security alert for logging/monitoring systems
+    ///
+    /// Returns a formatted alert message if account should be flagged
+    pub fn generate_security_alert(&self, player_id: &str) -> Option<String> {
+        if !self.should_flag_account(0.7) {
+            return None;
+        }
+
+        let action = self.get_recommended_action().unwrap_or_default();
+        let mut alerts = Vec::new();
+
+        if let Some(ref report) = self.cherry_picking_report {
+            if report.is_suspicious {
+                alerts.push(format!(
+                    "Cherry-picking (confidence: {:.1}%): {}",
+                    report.confidence * 100.0,
+                    report.detected_patterns.join(", ")
+                ));
+            }
+        }
+
+        if let Some(ref report) = self.sandbagging_report {
+            if report.is_suspicious {
+                alerts.push(format!(
+                    "Sandbagging (confidence: {:.1}%): {}",
+                    report.confidence * 100.0,
+                    report.detected_patterns.join(", ")
+                ));
+            }
+        }
+
+        Some(format!(
+            "🚨 SECURITY ALERT - Player: {}\nAction: {}\nDetected: {}\nSession RTP: {:.1}% (target: 85%)",
+            player_id,
+            action,
+            alerts.join("; "),
+            (self.total_won / self.total_wagered) * 100.0
+        ))
     }
 }
 
@@ -486,5 +697,255 @@ mod tests {
         // Should have at least some Kalman updates
         assert!(result.num_kalman_updates > 0,
             "Expected Kalman updates, got {}", result.num_kalman_updates);
+    }
+
+    #[test]
+    fn test_config_validation_normal() {
+        let config = SessionConfig::default();
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_config_validation_invalid_wager_range() {
+        let config = SessionConfig {
+            wager_min: 100.0,
+            wager_max: 10.0, // min > max
+            ..Default::default()
+        };
+
+        match config.validate() {
+            Err(SessionConfigError::InvalidWagerRange(_)) => {},
+            _ => panic!("Expected InvalidWagerRange error"),
+        }
+    }
+
+    #[test]
+    fn test_config_validation_negative_wager() {
+        let config = SessionConfig {
+            wager_min: -5.0,
+            wager_max: 10.0,
+            ..Default::default()
+        };
+
+        match config.validate() {
+            Err(SessionConfigError::InvalidWagerRange(_)) => {},
+            _ => panic!("Expected InvalidWagerRange error"),
+        }
+    }
+
+    #[test]
+    fn test_config_validation_zero_shots() {
+        let config = SessionConfig {
+            num_shots: 0,
+            ..Default::default()
+        };
+
+        match config.validate() {
+            Err(SessionConfigError::InvalidConfig(_)) => {},
+            _ => panic!("Expected InvalidConfig error"),
+        }
+    }
+
+    #[test]
+    fn test_config_validation_invalid_fat_tail_prob() {
+        let config = SessionConfig {
+            fat_tail_prob: 1.5, // > 1.0
+            ..Default::default()
+        };
+
+        match config.validate() {
+            Err(SessionConfigError::InvalidConfig(_)) => {},
+            _ => panic!("Expected InvalidConfig error"),
+        }
+    }
+
+    #[test]
+    fn test_config_validation_dev_mode_without_production() {
+        // Without production env var, developer mode should be allowed
+        std::env::remove_var("CONTINUUM_ENV");
+        std::env::remove_var("CONTINUUM_PRODUCTION");
+
+        let config = SessionConfig {
+            developer_mode: Some(DeveloperMode {
+                manual_miss_distance: Some(20.0),
+                disable_kalman: false,
+            }),
+            ..Default::default()
+        };
+
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_config_validation_dev_mode_in_production() {
+        // Set production environment
+        std::env::set_var("CONTINUUM_ENV", "production");
+
+        let config = SessionConfig {
+            developer_mode: Some(DeveloperMode {
+                manual_miss_distance: Some(20.0),
+                disable_kalman: false,
+            }),
+            ..Default::default()
+        };
+
+        match config.validate() {
+            Err(SessionConfigError::DeveloperModeInProduction) => {},
+            _ => panic!("Expected DeveloperModeInProduction error"),
+        }
+
+        // Clean up
+        std::env::remove_var("CONTINUUM_ENV");
+    }
+
+    #[test]
+    fn test_is_production_detection() {
+        // Test CONTINUUM_ENV
+        std::env::set_var("CONTINUUM_ENV", "production");
+        assert!(SessionConfig::is_production());
+        std::env::set_var("CONTINUUM_ENV", "PRODUCTION");
+        assert!(SessionConfig::is_production());
+        std::env::set_var("CONTINUUM_ENV", "development");
+        assert!(!SessionConfig::is_production());
+        std::env::remove_var("CONTINUUM_ENV");
+
+        // Test CONTINUUM_PRODUCTION
+        std::env::set_var("CONTINUUM_PRODUCTION", "true");
+        assert!(SessionConfig::is_production());
+        std::env::set_var("CONTINUUM_PRODUCTION", "TRUE");
+        assert!(SessionConfig::is_production());
+        std::env::set_var("CONTINUUM_PRODUCTION", "1");
+        assert!(SessionConfig::is_production());
+        std::env::set_var("CONTINUUM_PRODUCTION", "false");
+        assert!(!SessionConfig::is_production());
+        std::env::remove_var("CONTINUUM_PRODUCTION");
+
+        // Test both unset
+        assert!(!SessionConfig::is_production());
+    }
+
+    #[test]
+    fn test_account_flagging_no_suspicious_activity() {
+        use crate::anti_cheat::AnomalyReport;
+
+        let result = SessionResult {
+            total_wagered: 100.0,
+            total_won: 85.0,
+            net_gain_loss: -15.0,
+            shots: vec![],
+            final_skill_profiles: HashMap::new(),
+            session_house_edge: 0.15,
+            num_kalman_updates: 5,
+            num_high_stakes_shots: 0,
+            cherry_picking_report: Some(AnomalyReport {
+                is_suspicious: false,
+                confidence: 0.2,
+                detected_patterns: vec![],
+                recommended_action: "Continue monitoring".to_string(),
+            }),
+            sandbagging_report: None,
+        };
+
+        assert!(!result.should_flag_account(0.7));
+        assert!(result.get_recommended_action().is_none());
+        assert!(result.generate_security_alert("test_player").is_none());
+    }
+
+    #[test]
+    fn test_account_flagging_cherry_picking_detected() {
+        use crate::anti_cheat::AnomalyReport;
+
+        let result = SessionResult {
+            total_wagered: 100.0,
+            total_won: 109.0,
+            net_gain_loss: 9.0,
+            shots: vec![],
+            final_skill_profiles: HashMap::new(),
+            session_house_edge: -0.09,
+            num_kalman_updates: 3,
+            num_high_stakes_shots: 5,
+            cherry_picking_report: Some(AnomalyReport {
+                is_suspicious: true,
+                confidence: 0.85,
+                detected_patterns: vec![
+                    "Strong positive correlation: high wagers on good shots".to_string()
+                ],
+                recommended_action: "Limit max wager variance per session".to_string(),
+            }),
+            sandbagging_report: None,
+        };
+
+        assert!(result.should_flag_account(0.7));
+        assert!(result.get_recommended_action().is_some());
+
+        let action = result.get_recommended_action().unwrap();
+        assert!(action.contains("Flag for manual review"));
+
+        let alert = result.generate_security_alert("test_player").unwrap();
+        assert!(alert.contains("SECURITY ALERT"));
+        assert!(alert.contains("test_player"));
+        assert!(alert.contains("Cherry-picking"));
+    }
+
+    #[test]
+    fn test_account_flagging_high_confidence_threshold() {
+        use crate::anti_cheat::AnomalyReport;
+
+        let result = SessionResult {
+            total_wagered: 100.0,
+            total_won: 150.0,
+            net_gain_loss: 50.0,
+            shots: vec![],
+            final_skill_profiles: HashMap::new(),
+            session_house_edge: -0.50,
+            num_kalman_updates: 2,
+            num_high_stakes_shots: 10,
+            cherry_picking_report: Some(AnomalyReport {
+                is_suspicious: true,
+                confidence: 0.95,
+                detected_patterns: vec![
+                    "Extreme exploitation detected".to_string()
+                ],
+                recommended_action: "Immediate suspension".to_string(),
+            }),
+            sandbagging_report: None,
+        };
+
+        assert!(result.should_flag_account(0.7));
+
+        let action = result.get_recommended_action().unwrap();
+        assert!(action.contains("URGENT"));
+        assert!(action.contains("Immediate suspension"));
+    }
+
+    #[test]
+    fn test_account_flagging_custom_threshold() {
+        use crate::anti_cheat::AnomalyReport;
+
+        let result = SessionResult {
+            total_wagered: 100.0,
+            total_won: 92.0,
+            net_gain_loss: -8.0,
+            shots: vec![],
+            final_skill_profiles: HashMap::new(),
+            session_house_edge: 0.08,
+            num_kalman_updates: 4,
+            num_high_stakes_shots: 1,
+            sandbagging_report: Some(AnomalyReport {
+                is_suspicious: true,
+                confidence: 0.65, // Below default 0.7 threshold
+                detected_patterns: vec![
+                    "Moderate variance pattern".to_string()
+                ],
+                recommended_action: "Monitor".to_string(),
+            }),
+            cherry_picking_report: None,
+        };
+
+        // Should not flag with default threshold
+        assert!(!result.should_flag_account(0.7));
+
+        // Should flag with lower threshold
+        assert!(result.should_flag_account(0.6));
     }
 }

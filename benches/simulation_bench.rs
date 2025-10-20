@@ -6,7 +6,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use continuum_golf_simulator::math::distributions::*;
 use continuum_golf_simulator::math::integration::*;
-use continuum_golf_simulator::math::kalman::*;
+use continuum_golf_simulator::math::kalman::{*,  KalmanState4D};
 use continuum_golf_simulator::models::hole::*;
 use continuum_golf_simulator::models::player::*;
 use continuum_golf_simulator::models::shot::*;
@@ -403,6 +403,109 @@ fn benchmark_heatmap_generation(c: &mut Criterion) {
     });
 }
 
+/// Benchmark: BVN (Bivariate Normal) distribution operations
+///
+/// Target: <200ns per sample, <100ns per PDF evaluation
+fn benchmark_bvn_operations(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bvn_operations");
+
+    group.bench_function("bvn_random", |b| {
+        b.iter(|| {
+            black_box(bvn_random(0.0, 0.0, 25.0, 25.0))
+        });
+    });
+
+    group.bench_function("bvn_pdf", |b| {
+        b.iter(|| {
+            black_box(bvn_pdf(10.0, 15.0, 0.0, 0.0, 25.0, 25.0))
+        });
+    });
+
+    group.finish();
+}
+
+/// Benchmark: 4D Kalman filter operations
+///
+/// Target: <2μs per batch update, <500ns per predict
+fn benchmark_kalman_4d_operations(c: &mut Criterion) {
+    let mut group = c.benchmark_group("kalman_4d_operations");
+
+    group.bench_function("kalman_4d_predict", |b| {
+        let mut kalman = KalmanState4D::new(0.0, 0.0, 30.0, 30.0, [0.1, 0.1, 0.5, 0.5]);
+        b.iter(|| {
+            black_box(kalman.predict())
+        });
+    });
+
+    group.bench_function("kalman_4d_update_with_batch", |b| {
+        let mut kalman = KalmanState4D::new(0.0, 0.0, 30.0, 30.0, [0.1, 0.1, 0.5, 0.5]);
+        b.iter(|| {
+            kalman.update_with_batch(
+                black_box(5.0),
+                black_box(2.0),
+                black_box(20.0),
+                black_box(25.0),
+                [1.0, 1.0, 2.0, 2.0],
+            );
+        });
+    });
+
+    group.finish();
+}
+
+/// Benchmark: BVN P_max calculation (2D numerical integration)
+///
+/// Target: <500μs per calculation
+fn benchmark_p_max_bvn(c: &mut Criterion) {
+    let mut group = c.benchmark_group("p_max_bvn");
+
+    // Test across different holes
+    for hole_id in [1, 4, 8].iter() {
+        let hole = get_hole_by_id(*hole_id).unwrap();
+        let mut player = Player::new(format!("bench_player_{}", hole_id), 15);
+        player.enable_bvn_mode_all(30.0);
+
+        group.bench_with_input(
+            BenchmarkId::new("hole", hole_id),
+            hole_id,
+            |b, _| {
+                b.iter(|| {
+                    black_box(player.calculate_p_max_bvn(hole, 0.0, 0.0, 25.0, 25.0))
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+/// Benchmark: BVN venue simulation vs 1D Rayleigh
+///
+/// Target: <2× slower than 1D mode
+fn benchmark_bvn_venue_comparison(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bvn_venue_comparison");
+    group.sample_size(10); // Smaller sample for long benchmarks
+
+    // 1D Rayleigh baseline
+    group.bench_function("venue_1d_rayleigh", |b| {
+        b.iter(|| {
+            let config = VenueConfig {
+                num_bays: 5,
+                hours: 1.0,
+                shots_per_hour: 100,
+                player_archetype: PlayerArchetype::Uniform,
+                wager_range: (5.0, 15.0),
+            };
+            black_box(run_venue_simulation(config))
+        });
+    });
+
+    // Note: BVN venue simulation would require modifications to run_venue_simulation
+    // to enable BVN mode for all players. For now, we benchmark the components.
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     benchmark_single_shot,
@@ -418,6 +521,10 @@ criterion_group!(
     benchmark_complete_workflow,
     benchmark_player_generation,
     benchmark_heatmap_generation,
+    benchmark_bvn_operations,
+    benchmark_kalman_4d_operations,
+    benchmark_p_max_bvn,
+    benchmark_bvn_venue_comparison,
 );
 
 criterion_main!(benches);

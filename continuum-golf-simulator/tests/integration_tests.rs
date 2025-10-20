@@ -1,4 +1,3 @@
-use continuum_golf_simulator::math::distributions::*;
 use continuum_golf_simulator::models::hole::*;
 use continuum_golf_simulator::models::player::*;
 use continuum_golf_simulator::simulators::player_session::*;
@@ -67,7 +66,7 @@ fn test_rtp_validation_10k_shots() {
 #[test]
 fn test_kalman_convergence_50_shots() {
     const NUM_SHOTS: usize = 100;
-    const TARGET_CONFIDENCE: f64 = 80.0;
+    const _TARGET_CONFIDENCE: f64 = 80.0;
 
     let mut player = Player::new(format!("player_{}", 15), 15);
     let hole = get_hole_by_id(4).unwrap();
@@ -127,7 +126,7 @@ fn test_fairness_equal_ev() {
     const WAGER: f64 = 10.0;
     const MAX_EV_DIFF: f64 = 0.20; // $0.20 tolerance per $10 wagered (accounts for variance and Kalman adaptation)
 
-    let hole = get_hole_by_id(4).unwrap();
+    let _hole = get_hole_by_id(4).unwrap();
     println!("\n=== Fairness Test: Hole 4 (150yd) ===");
 
     // Test low handicap player
@@ -303,7 +302,7 @@ fn test_tournament_payout_distribution() {
 #[test]
 fn test_high_stakes_update_logic() {
     let mut player = Player::new(format!("player_{}", 15), 15);
-    let hole = get_hole_by_id(4).unwrap();
+    let _hole = get_hole_by_id(4).unwrap();
 
     println!("\n=== High-Stakes Update Logic Test ===");
 

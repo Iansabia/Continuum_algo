@@ -15,6 +15,10 @@ pub mod analytics;
 pub mod anti_cheat;
 pub mod config;
 
+// WASM module for browser integration
+#[cfg(target_arch = "wasm32")]
+pub mod wasm;
+
 // Re-export commonly used types
 pub use math::{distributions, integration, kalman};
 pub use models::{hole, player, shot};

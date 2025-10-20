@@ -6,6 +6,9 @@ authors = ["Ian Sabia"]
 description = "Continuum Golf wagering simulator in Rust - models odds engine, Kalman filter skill adaptation, and venue economics"
 license = "MIT"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [[bin]]
 name = "continuum-golf-simulator"
 path = "src/main.rs"
@@ -23,6 +26,10 @@ rayon = "1.10"
 colored = "2.1"
 indicatif = "0.17"
 prettytable-rs = "0.10"
+wasm-bindgen = "0.2"
+serde-wasm-bindgen = "0.6"
+getrandom = { version = "0.2", features = ["js"] }
+console_error_panic_hook = "0.1"
 
 [dev-dependencies]
 criterion = "0.5"
