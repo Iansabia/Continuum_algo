@@ -355,21 +355,22 @@ impl KalmanState4D {
         }
     }
 
-    /// Update step: incorporate (x, y) measurement
+    /// Update step: incorporate (x, y) measurement with σ estimates
     ///
-    /// Uses a shot's (x, y) landing position to update all four parameters.
-    /// This is a simplified update that treats each dimension independently.
+    /// Uses batch statistics to update all four parameters.
     ///
     /// # Arguments
-    /// * `measured_x` - Lateral position of shot (feet right of target line)
-    /// * `measured_y` - Distance position of shot (feet from pin)
+    /// * `measured_x` - Batch mean lateral position (feet right of target line)
+    /// * `measured_y` - Batch mean distance position (feet from pin)
+    /// * `measured_sigma_x` - Sample std dev of lateral positions from batch
+    /// * `measured_sigma_y` - Sample std dev of distance positions from batch
     /// * `measurement_noise` - Measurement uncertainty [R_x, R_y, R_σx, R_σy]
     ///
     /// # Update Strategy
-    /// 1. Update μ_x using measured_x
-    /// 2. Update μ_y using measured_y
-    /// 3. Update σ_x using |measured_x - μ_x| (residual-based)
-    /// 4. Update σ_y using |measured_y - μ_y| (residual-based)
+    /// 1. Update μ_x using batch mean x
+    /// 2. Update μ_y using batch mean y
+    /// 3. Update σ_x using batch sample std dev
+    /// 4. Update σ_y using batch sample std dev
     ///
     /// # Example
     /// ```
@@ -377,50 +378,72 @@ impl KalmanState4D {
     ///
     /// let mut kalman = KalmanState4D::new(0.0, 0.0, 30.0, 30.0, [0.1, 0.1, 0.5, 0.5]);
     ///
-    /// // Shot landed 5ft right, 2ft long
-    /// kalman.update(5.0, 2.0, [50.0, 50.0, 100.0, 100.0]);
+    /// // Batch: mean=(5.0, 2.0), std_dev=(20.0, 25.0)
+    /// kalman.update_with_batch(5.0, 2.0, 20.0, 25.0, [50.0, 50.0, 100.0, 100.0]);
     ///
-    /// // μ_x should move toward 5.0, μ_y toward 2.0
+    /// // μ should move toward batch mean, σ toward batch std dev
     /// assert!(kalman.mu_x() > 0.0);
-    /// assert!(kalman.mu_y() > 0.0);
+    /// assert!(kalman.sigma_x() < 30.0 && kalman.sigma_x() > 15.0);
     /// ```
-    pub fn update(&mut self, measured_x: f64, measured_y: f64, measurement_noise: [f64; 4]) {
-        // Update μ_x using measured_x
+    pub fn update_with_batch(
+        &mut self,
+        measured_x: f64,
+        measured_y: f64,
+        measured_sigma_x: f64,
+        measured_sigma_y: f64,
+        measurement_noise: [f64; 4],
+    ) {
+        // Update μ_x using measured batch mean
         let k_mu_x = self.error_covariance[0] / (self.error_covariance[0] + measurement_noise[0]);
         let innovation_mu_x = measured_x - self.state[0];
         self.state[0] += k_mu_x * innovation_mu_x;
         self.error_covariance[0] *= 1.0 - k_mu_x;
 
-        // Update μ_y using measured_y
+        // Update μ_y using measured batch mean
         let k_mu_y = self.error_covariance[1] / (self.error_covariance[1] + measurement_noise[1]);
         let innovation_mu_y = measured_y - self.state[1];
         self.state[1] += k_mu_y * innovation_mu_y;
         self.error_covariance[1] *= 1.0 - k_mu_y;
 
-        // Update σ_x using residual-based estimate
-        // The squared residual (x - μ_x)² is a noisy estimate of σ_x²
-        let residual_x = measured_x - self.state[0];
-        let sigma_x_measurement = residual_x.abs(); // Simplified: use |residual| as estimate
-
+        // Update σ_x using measured batch std dev
         let k_sigma_x = self.error_covariance[2] / (self.error_covariance[2] + measurement_noise[2]);
-        let innovation_sigma_x = sigma_x_measurement - self.state[2];
+        let innovation_sigma_x = measured_sigma_x - self.state[2];
         self.state[2] += k_sigma_x * innovation_sigma_x;
         self.error_covariance[2] *= 1.0 - k_sigma_x;
 
-        // Clamp σ_x to reasonable bounds
-        self.state[2] = self.state[2].max(5.0).min(200.0);
+        // Clamp σ_x to reasonable bounds (minimum 10ft to prevent underestimation)
+        self.state[2] = self.state[2].max(10.0).min(200.0);
 
-        // Update σ_y using residual-based estimate
-        let residual_y = measured_y - self.state[1];
-        let sigma_y_measurement = residual_y.abs();
-
+        // Update σ_y using measured batch std dev
         let k_sigma_y = self.error_covariance[3] / (self.error_covariance[3] + measurement_noise[3]);
-        let innovation_sigma_y = sigma_y_measurement - self.state[3];
+        let innovation_sigma_y = measured_sigma_y - self.state[3];
         self.state[3] += k_sigma_y * innovation_sigma_y;
         self.error_covariance[3] *= 1.0 - k_sigma_y;
 
-        // Clamp σ_y to reasonable bounds
-        self.state[3] = self.state[3].max(5.0).min(200.0);
+        // Clamp σ_y to reasonable bounds (minimum 10ft to prevent underestimation)
+        self.state[3] = self.state[3].max(10.0).min(200.0);
+    }
+
+    /// Legacy update method (deprecated - kept for compatibility)
+    ///
+    /// **WARNING**: This method uses single-shot residuals to estimate σ,
+    /// which severely underestimates true dispersion. Use `update_with_batch()` instead.
+    #[deprecated(note = "Use update_with_batch() which properly estimates σ from batch statistics")]
+    pub fn update(&mut self, measured_x: f64, measured_y: f64, measurement_noise: [f64; 4]) {
+        // Only update bias (μ), not dispersion (σ)
+        // Dispersion requires multiple shots to estimate
+
+        // Update μ_x
+        let k_mu_x = self.error_covariance[0] / (self.error_covariance[0] + measurement_noise[0]);
+        self.state[0] += k_mu_x * (measured_x - self.state[0]);
+        self.error_covariance[0] *= 1.0 - k_mu_x;
+
+        // Update μ_y
+        let k_mu_y = self.error_covariance[1] / (self.error_covariance[1] + measurement_noise[1]);
+        self.state[1] += k_mu_y * (measured_y - self.state[1]);
+        self.error_covariance[1] *= 1.0 - k_mu_y;
+
+        // Don't update σ from single shot - too noisy!
     }
 
     /// Calculate overall confidence from error covariance
@@ -627,13 +650,47 @@ mod tests {
         // Simulate player who consistently misses 5ft right, 2ft long
         let true_mu_x = 5.0;
         let true_mu_y = 2.0;
+        let true_sigma_x = 10.0;
+        let true_sigma_y = 10.0;
 
-        for _ in 0..100 {
+        // Process in batches of 10 shots
+        for _ in 0..10 {
             kalman.predict();
-            // Add noise around true bias
-            let x = true_mu_x + (rand::random::<f64>() - 0.5) * 10.0;
-            let y = true_mu_y + (rand::random::<f64>() - 0.5) * 10.0;
-            kalman.update(x, y, [50.0, 50.0, 100.0, 100.0]);
+
+            // Generate batch of 10 shots
+            let mut x_coords = Vec::new();
+            let mut y_coords = Vec::new();
+            for _ in 0..10 {
+                let x = true_mu_x + (rand::random::<f64>() - 0.5) * true_sigma_x * 2.0;
+                let y = true_mu_y + (rand::random::<f64>() - 0.5) * true_sigma_y * 2.0;
+                x_coords.push(x);
+                y_coords.push(y);
+            }
+
+            // Calculate batch mean
+            let mean_x = x_coords.iter().sum::<f64>() / 10.0;
+            let mean_y = y_coords.iter().sum::<f64>() / 10.0;
+
+            // Calculate batch std dev
+            let n = 10.0;
+            let var_x: f64 = x_coords.iter().map(|x| (x - mean_x).powi(2)).sum::<f64>() / (n - 1.0);
+            let var_y: f64 = y_coords.iter().map(|y| (y - mean_y).powi(2)).sum::<f64>() / (n - 1.0);
+            let sigma_x_measured = var_x.sqrt().max(10.0);
+            let sigma_y_measured = var_y.sqrt().max(10.0);
+
+            // Measurement noise (standard error)
+            let noise_x = (sigma_x_measured / n.sqrt()).max(1.0);
+            let noise_y = (sigma_y_measured / n.sqrt()).max(1.0);
+            let noise_sigma_x = (sigma_x_measured / (2.0 * n).sqrt()).max(1.0);
+            let noise_sigma_y = (sigma_y_measured / (2.0 * n).sqrt()).max(1.0);
+
+            kalman.update_with_batch(
+                mean_x,
+                mean_y,
+                sigma_x_measured,
+                sigma_y_measured,
+                [noise_x, noise_y, noise_sigma_x, noise_sigma_y],
+            );
         }
 
         // Should converge to true bias
@@ -652,20 +709,56 @@ mod tests {
         // σ_x = 20, σ_y = 15
         use crate::math::distributions::bvn_random;
 
-        for _ in 0..200 {
+        let true_sigma_x = 20.0;
+        let true_sigma_y = 15.0;
+
+        // Process in batches of 10 shots
+        for _ in 0..20 {
             kalman.predict();
-            let (x, y) = bvn_random(0.0, 0.0, 20.0, 15.0);
-            kalman.update(x, y, [50.0, 50.0, 100.0, 100.0]);
+
+            // Generate batch of 10 shots
+            let mut x_coords = Vec::new();
+            let mut y_coords = Vec::new();
+            for _ in 0..10 {
+                let (x, y) = bvn_random(0.0, 0.0, true_sigma_x, true_sigma_y);
+                x_coords.push(x);
+                y_coords.push(y);
+            }
+
+            // Calculate batch mean
+            let mean_x = x_coords.iter().sum::<f64>() / 10.0;
+            let mean_y = y_coords.iter().sum::<f64>() / 10.0;
+
+            // Calculate batch std dev
+            let n = 10.0;
+            let var_x: f64 = x_coords.iter().map(|x| (x - mean_x).powi(2)).sum::<f64>() / (n - 1.0);
+            let var_y: f64 = y_coords.iter().map(|y| (y - mean_y).powi(2)).sum::<f64>() / (n - 1.0);
+            let sigma_x_measured = var_x.sqrt().max(10.0);
+            let sigma_y_measured = var_y.sqrt().max(10.0);
+
+            // Measurement noise (standard error)
+            let noise_x = (sigma_x_measured / n.sqrt()).max(1.0);
+            let noise_y = (sigma_y_measured / n.sqrt()).max(1.0);
+            let noise_sigma_x = (sigma_x_measured / (2.0 * n).sqrt()).max(1.0);
+            let noise_sigma_y = (sigma_y_measured / (2.0 * n).sqrt()).max(1.0);
+
+            kalman.update_with_batch(
+                mean_x,
+                mean_y,
+                sigma_x_measured,
+                sigma_y_measured,
+                [noise_x, noise_y, noise_sigma_x, noise_sigma_y],
+            );
         }
 
         // Should converge toward true dispersions
-        // (less precise than bias due to single-sample variance estimation)
-        assert!(kalman.sigma_x() > 10.0 && kalman.sigma_x() < 40.0);
-        assert!(kalman.sigma_y() > 8.0 && kalman.sigma_y() < 30.0);
+        // With batch statistics, should be closer to true values
+        assert!(kalman.sigma_x() > 12.0 && kalman.sigma_x() < 30.0);
+        assert!(kalman.sigma_y() > 10.0 && kalman.sigma_y() < 25.0);
 
-        // Bias should stay relatively near zero (with some drift due to noisy variance estimation)
-        assert!(kalman.mu_x().abs() < 8.0);
-        assert!(kalman.mu_y().abs() < 8.0);
+        // Bias should stay near zero (no systematic bias in data)
+        assert!(kalman.mu_x().abs() < 5.0);
+        assert!(kalman.mu_y().abs() < 5.0);
     }
 
     #[test]
@@ -692,9 +785,11 @@ mod tests {
     fn test_kalman_4d_reset() {
         let mut kalman = KalmanState4D::new(0.0, 0.0, 30.0, 25.0, [0.1, 0.1, 0.5, 0.5]);
 
-        // Make some updates
-        for _ in 0..20 {
-            kalman.update(5.0, 2.0, [50.0, 50.0, 100.0, 100.0]);
+        // Make some updates with batch statistics
+        for _ in 0..5 {
+            kalman.predict();
+            // Simulate batch measurements with consistent bias
+            kalman.update_with_batch(5.0, 2.0, 15.0, 12.0, [2.0, 2.0, 3.0, 3.0]);
         }
 
         assert_ne!(kalman.mu_x(), 0.0);
@@ -713,11 +808,14 @@ mod tests {
     fn test_kalman_4d_clamping() {
         let mut kalman = KalmanState4D::new(0.0, 0.0, 30.0, 30.0, [0.1, 0.1, 0.5, 0.5]);
 
-        // Try to update with extreme measurement that would push σ too low
-        kalman.update(0.1, 0.1, [10.0, 10.0, 10.0, 10.0]);
+        kalman.predict();
 
-        // σ values should be clamped to minimum 5.0
-        assert!(kalman.sigma_x() >= 5.0);
-        assert!(kalman.sigma_y() >= 5.0);
+        // Try to update with extremely tight dispersion that would push σ too low
+        // Simulate batch with very tight clustering (σ ≈ 1.0)
+        kalman.update_with_batch(0.0, 0.0, 1.0, 1.0, [0.5, 0.5, 0.5, 0.5]);
+
+        // σ values should be clamped to minimum 10.0
+        assert!(kalman.sigma_x() >= 10.0);
+        assert!(kalman.sigma_y() >= 10.0);
     }
 }

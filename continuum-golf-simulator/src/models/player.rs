@@ -678,13 +678,14 @@ impl Player {
             .sum::<f64>()
             / total_wager;
 
-        // Estimate variances from residuals (simplified - not wager-weighted for now)
+        // Calculate sample standard deviations (proper σ estimation)
+        let n = x_coords.len() as f64;
         let var_x: f64 = x_coords.iter().map(|x| (x - mean_x).powi(2)).sum::<f64>()
-            / x_coords.len() as f64;
+            / (n - 1.0).max(1.0); // Use (n-1) for unbiased estimate
         let var_y: f64 = y_coords.iter().map(|y| (y - mean_y).powi(2)).sum::<f64>()
-            / y_coords.len() as f64;
-        let sigma_x_est = var_x.sqrt();
-        let sigma_y_est = var_y.sqrt();
+            / (n - 1.0).max(1.0);
+        let sigma_x_measured = var_x.sqrt().max(10.0); // Floor at 10ft minimum
+        let sigma_y_measured = var_y.sqrt().max(10.0);
 
         // Now perform Kalman update and P_max calculation
         let skill = self.get_skill_for_hole_mut(hole);
@@ -693,21 +694,22 @@ impl Player {
         if let Some(ref mut kf4d) = skill.kalman_filter_4d {
             kf4d.predict();
 
-            // Measurement noise for bias estimates (x,y position)
-            // Higher variance in batch = higher measurement noise
-            let noise_x = var_x.max(10.0);
-            let noise_y = var_y.max(10.0);
+            // Measurement noise for bias estimates (batch mean)
+            // Standard error of the mean: σ / sqrt(n)
+            let noise_x = (sigma_x_measured / n.sqrt()).max(5.0);
+            let noise_y = (sigma_y_measured / n.sqrt()).max(5.0);
 
-            // Measurement noise for dispersion estimates (σ_x, σ_y)
-            // These are derived from residuals, so inherently noisier
-            let noise_sigma_x = (sigma_x_est * 0.5).max(5.0);
-            let noise_sigma_y = (sigma_y_est * 0.5).max(5.0);
+            // Measurement noise for dispersion estimates (batch std dev)
+            // Standard error of std dev: σ / sqrt(2n) approximately
+            let noise_sigma_x = (sigma_x_measured / (2.0 * n).sqrt()).max(5.0);
+            let noise_sigma_y = (sigma_y_measured / (2.0 * n).sqrt()).max(5.0);
 
-            // Update with wager-weighted centroid
-            // Note: KalmanState4D.update uses (x, y) to internally estimate σ via residuals
-            kf4d.update(
+            // Update with batch statistics (mean and std dev)
+            kf4d.update_with_batch(
                 mean_x,
                 mean_y,
+                sigma_x_measured,
+                sigma_y_measured,
                 [noise_x, noise_y, noise_sigma_x, noise_sigma_y],
             );
 
