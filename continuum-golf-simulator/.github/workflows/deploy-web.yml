@@ -1,0 +1,51 @@
+name: Deploy Web Demo
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'continuum-golf-simulator/web/**'
+      - 'continuum-golf-simulator/src/**'
+      - 'continuum-golf-simulator/Cargo.toml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+
+      - name: Build WASM module
+        working-directory: continuum-golf-simulator
+        run: wasm-pack build --target web --out-dir web/src/wasm
+
+      - name: Install web dependencies
+        working-directory: continuum-golf-simulator/web
+        run: npm install
+
+      - name: Build web app
+        working-directory: continuum-golf-simulator/web
+        run: npm run build
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./continuum-golf-simulator/web/dist

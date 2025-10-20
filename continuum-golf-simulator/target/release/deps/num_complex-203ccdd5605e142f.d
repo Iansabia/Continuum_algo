@@ -1,0 +1,10 @@
+/Users/iansabia/projects/OOCProjects/Continuum_algo/continuum-golf-simulator/target/release/deps/num_complex-203ccdd5605e142f.d: /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-complex-0.4.6/src/lib.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-complex-0.4.6/src/cast.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-complex-0.4.6/src/pow.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-complex-0.4.6/src/complex_float.rs
+
+/Users/iansabia/projects/OOCProjects/Continuum_algo/continuum-golf-simulator/target/release/deps/libnum_complex-203ccdd5605e142f.rlib: /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-complex-0.4.6/src/lib.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-complex-0.4.6/src/cast.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-complex-0.4.6/src/pow.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-complex-0.4.6/src/complex_float.rs
+
+/Users/iansabia/projects/OOCProjects/Continuum_algo/continuum-golf-simulator/target/release/deps/libnum_complex-203ccdd5605e142f.rmeta: /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-complex-0.4.6/src/lib.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-complex-0.4.6/src/cast.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-complex-0.4.6/src/pow.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-complex-0.4.6/src/complex_float.rs
+
+/Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-complex-0.4.6/src/lib.rs:
+/Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-complex-0.4.6/src/cast.rs:
+/Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-complex-0.4.6/src/pow.rs:
+/Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-complex-0.4.6/src/complex_float.rs:
