@@ -68,17 +68,45 @@ interface KalmanState {
   measurementCount: number;
 }
 
+// Calculate initial P_max from handicap
+// Uses a stable formula based on expected dispersion
+const calculateInitialPmax = (handicap: number): number => {
+  // Handicap to sigma mapping (rough approximation)
+  // Handicap 0 ≈ 3y, Handicap 10 ≈ 7y, Handicap 20 ≈ 12y, Handicap 30 ≈ 18y
+  const sigma = 3 + (handicap * 0.5); // Linear mapping
+  const sigmaFt = sigma * 3; // Convert to feet
+
+  // Using default d_max of 30 feet and RTP of 0.85
+  const dMaxFt = 30;
+  const rtp = 0.85;
+
+  // Expected payout approximation for Rayleigh distribution
+  // Better players (low sigma) → higher E[payout] → lower P_max
+  // Worse players (high sigma) → lower E[payout] → higher P_max
+  const normalizedSigma = sigmaFt / dMaxFt; // 0 to ~1
+  const expectedPayout = Math.max(0.02, 0.4 * (1 - Math.min(0.9, normalizedSigma)));
+  const pmax = rtp / expectedPayout;
+
+  // Clamp to reasonable range: 5 to 50x
+  return Math.max(5, Math.min(50, pmax));
+};
+
 export function useSimulator(initialHandicap: number = 10) {
   const [wasmReady, setWasmReady] = useState(false);
   const [shots, setShots] = useState<Shot[]>([]);
+
+  // Calculate initial sigma and P_max from handicap
+  const initialSigma = 3 + (initialHandicap * 0.5);
+  const initialPmax = calculateInitialPmax(initialHandicap);
+
   const [skillEstimate, setSkillEstimate] = useState<SkillEstimate>({
-    sigma: 10, // Initial guess based on handicap
+    sigma: initialSigma,
     confidence: 0,
-    pmax: 1.176, // Initial P_max for sigma=10
+    pmax: initialPmax,
   });
   const [pmaxHistory, setPmaxHistory] = useState<PmaxDataPoint[]>([]);
   const [kalmanState, setKalmanState] = useState<KalmanState>({
-    mean: 10,
+    mean: initialSigma,
     variance: 100,
     measurementCount: 0,
   });
@@ -97,14 +125,45 @@ export function useSimulator(initialHandicap: number = 10) {
   }, []);
 
   // Calculate breakeven radius from P_max
-  const calculateBreakevenRadius = (pmax: number, sigma: number): number => {
-    return sigma * Math.sqrt(-2 * Math.log(1 / pmax));
+  // Note: d_max is the maximum target radius (where payout = 0)
+  // For now, we use a default d_max of 30 feet (10 yards) as an approximation
+  const calculateBreakevenRadius = (pmax: number, sigma: number, dMaxFt: number = 30): number => {
+    if (!pmax || pmax <= 0 || isNaN(pmax)) {
+      console.warn('⚠️ Invalid P_max for breakeven calculation:', pmax);
+      return sigma; // Fallback: return sigma as approximation
+    }
+
+    // Simplified formula: r_breakeven ≈ d_max * sqrt(1 - (1/P_max)^(1/k))
+    // Using k = 5 (curve steepness from Rust)
+    const k = 5.0;
+    const breakevenFt = dMaxFt * Math.sqrt(Math.max(0, 1 - Math.pow(1 / pmax, 1 / k)));
+
+    // Convert back to yards for display
+    return breakevenFt / 3;
   };
 
   // Calculate payout multiplier from distance
-  const calculatePayoutMultiplier = (distance: number, pmax: number): number => {
-    const rMax = Math.sqrt(-2 * Math.log(1 / pmax)); // Normalized to sigma=1
-    return Math.max(0, pmax * Math.exp(-Math.pow(distance, 2) / (2 * Math.pow(rMax, 2))));
+  // Uses the Rust formula: payout_factor = (1 - d/d_max)^k
+  const calculatePayoutMultiplier = (distanceYards: number, pmax: number, dMaxFt: number = 30): number => {
+    if (!pmax || pmax <= 0 || isNaN(pmax)) {
+      console.warn('⚠️ Invalid P_max for payout calculation:', pmax);
+      return 0;
+    }
+
+    // Convert distance from yards to feet
+    const distanceFt = distanceYards * 3;
+
+    // If beyond target radius, no payout
+    if (distanceFt >= dMaxFt) {
+      return 0;
+    }
+
+    // Rust formula: P_max * (1 - d/d_max)^k
+    const k = 5.0;
+    const payoutFactor = Math.pow(1 - distanceFt / dMaxFt, k);
+    const multiplier = pmax * payoutFactor;
+
+    return Math.max(0, multiplier);
   };
 
   // WASM wrapper: simulates a single shot using Rust implementation
@@ -126,6 +185,16 @@ export function useSimulator(initialHandicap: number = 10) {
 
         const wasmShot = result.shots[0];
 
+        // Debug: Log WASM return values
+        console.log('🔍 WASM Shot Result:', {
+          hole_id: wasmShot.hole_id,
+          miss_distance_ft: wasmShot.miss_distance_ft,
+          multiplier: wasmShot.multiplier,
+          payout: wasmShot.payout,
+          p_max: wasmShot.p_max,
+          is_fat_tail: wasmShot.is_fat_tail,
+        });
+
         // Map WASM result to UI Shot interface
         const shot: Shot = {
           distance: wasmShot.miss_distance_ft / 3, // Convert feet to yards
@@ -140,6 +209,18 @@ export function useSimulator(initialHandicap: number = 10) {
         const skillProfile = result.final_skills && result.final_skills.length > 0
           ? result.final_skills[0]
           : null;
+
+        // Debug: Log skill profile
+        if (skillProfile) {
+          console.log('🔍 WASM Skill Profile:', {
+            category: skillProfile.category,
+            sigma: skillProfile.sigma,
+            confidence: skillProfile.confidence,
+            p_max_current: skillProfile.p_max_current,
+          });
+        } else {
+          console.warn('⚠️ WASM returned no skill profile');
+        }
 
         return { shot, skillProfile };
       } catch (error) {
@@ -242,18 +323,39 @@ export function useSimulator(initialHandicap: number = 10) {
       // Calculate confidence (0-100%) based on variance and sample size
       const confidence = Math.min(100, (newCount / (newCount + 10)) * 100 * (1 - Math.min(1, newVariance / 100)));
 
-      // Calculate new P_max from estimated sigma
-      // P_max = exp(1/2) for optimized pricing (from Phase 6)
-      const pmax = Math.exp(0.5);
+      // Estimate P_max using simplified formula
+      // P_max ≈ RTP / E[payout]
+      // For a Rayleigh distribution with sigma and target d_max:
+      // E[payout] ≈ 0.5 * (1 - sigma_ft / d_max_ft) for rough approximation
+      // Using d_max = 30 feet and RTP = 0.85 (15% house edge)
+      const sigmaFt = newMean * 3; // Convert sigma from yards to feet
+      const dMaxFt = 30; // Default target radius
+      const rtp = 0.85; // 15% house edge
+
+      // Simplified expected payout calculation
+      // Better players (lower sigma) → higher E[payout] → lower P_max
+      // Worse players (higher sigma) → lower E[payout] → higher P_max
+      const expectedPayout = Math.max(0.01, 0.5 * (1 - Math.min(0.95, sigmaFt / dMaxFt)));
+      const pmax = rtp / expectedPayout;
+
+      // Sanity check: P_max should be in reasonable range (5 to 100)
+      const clampedPmax = Math.max(5, Math.min(100, pmax));
+
+      console.log('📊 Kalman Update (Fallback):', {
+        sigma: newMean.toFixed(2),
+        confidence: confidence.toFixed(1) + '%',
+        estimatedPmax: pmax.toFixed(2),
+        clampedPmax: clampedPmax.toFixed(2),
+      });
 
       setKalmanState(state);
       setSkillEstimate({
         sigma: newMean,
         confidence,
-        pmax,
+        pmax: clampedPmax,
       });
 
-      return { sigma: newMean, confidence, pmax };
+      return { sigma: newMean, confidence, pmax: clampedPmax };
     },
     [kalmanState]
   );
@@ -265,51 +367,104 @@ export function useSimulator(initialHandicap: number = 10) {
       const newShots = [...shots, shot];
       setShots(newShots);
 
-      // Determine if we should update Kalman filter
+      // Determine if we should update skill estimate
+      // Update every 10 shots OR on first shot OR on high-stakes wager
       const shouldUpdate =
-        newShots.length % 5 === 0 || // Every 5 shots
-        (shots.length > 0 && wager >= shots.reduce((sum, s) => sum + s.wager, 0) / shots.length * 10); // High-stakes (10x avg)
+        newShots.length === 1 ||
+        newShots.length % 10 === 0 ||
+        (shots.length > 0 && wager >= shots.reduce((sum, s) => sum + s.wager, 0) / shots.length * 10);
 
-      if (shouldUpdate || newShots.length === 1) {
-        let updated: SkillEstimate;
+      let updated: SkillEstimate = { ...skillEstimate };
 
-        // Use WASM skill profile if available
-        if (skillProfile) {
+      // Only update skill estimate periodically
+      if (shouldUpdate) {
+        // Use WASM skill profile if available AND VALID
+        if (
+          skillProfile &&
+          skillProfile.p_max_current > 0 &&
+          !isNaN(skillProfile.p_max_current) &&
+          skillProfile.sigma > 0 &&
+          !isNaN(skillProfile.sigma)
+        ) {
+          // WASM returned valid data - smooth it with existing estimates
+          const smoothingFactor = 0.3; // 30% new data, 70% old data (slow adaptation)
+
+          // Smooth sigma
+          const newSigma = skillEstimate.sigma * (1 - smoothingFactor) + skillProfile.sigma * smoothingFactor;
+
+          // Confidence should only increase (never decrease)
+          const newConfidence = Math.max(
+            skillEstimate.confidence,
+            Math.max(0, Math.min(100, skillProfile.confidence))
+          );
+
+          // Smooth P_max (critical for financial stability)
+          const newPmax = skillEstimate.pmax * (1 - smoothingFactor) + skillProfile.p_max_current * smoothingFactor;
+
           updated = {
-            sigma: skillProfile.sigma,
-            confidence: skillProfile.confidence,
-            pmax: skillProfile.p_max_current,
+            sigma: Math.max(1, newSigma),
+            confidence: newConfidence,
+            pmax: Math.max(5, Math.min(50, newPmax)), // Clamp to safe range
           };
+
+          console.log('✅ WASM Update (Smoothed):', {
+            oldPmax: skillEstimate.pmax.toFixed(2),
+            wasmPmax: skillProfile.p_max_current.toFixed(2),
+            newPmax: updated.pmax.toFixed(2),
+            confidence: updated.confidence.toFixed(1) + '%',
+            shots: newShots.length,
+          });
+
           setSkillEstimate(updated);
 
-          // Also update Kalman state to match
+          // Update Kalman state
           setKalmanState({
-            mean: skillProfile.sigma,
-            variance: 100 * (1 - skillProfile.confidence / 100), // Approximate variance from confidence
+            mean: updated.sigma,
+            variance: 100 * (1 - updated.confidence / 100),
             measurementCount: newShots.length,
           });
         } else {
-          // Fall back to placeholder Kalman update
-          const recentShots = newShots.slice(-5);
-          const measurements = recentShots.map((s) => s.distance);
-          updated = updateKalman(measurements);
-        }
+          // WASM failed or returned bad data - use fallback Kalman
+          if (skillProfile) {
+            console.warn('⚠️ WASM skill profile invalid, skipping update:', {
+              sigma: skillProfile.sigma,
+              p_max_current: skillProfile.p_max_current,
+              confidence: skillProfile.confidence,
+            });
+          } else {
+            // No WASM profile - use placeholder Kalman
+            const recentShots = newShots.slice(-10);
+            const measurements = recentShots.map((s) => s.distance);
+            const kalmanResult = updateKalman(measurements);
 
-        // Add to P_max history
-        setPmaxHistory((prev) => [
-          ...prev,
-          {
-            shotNumber: newShots.length,
-            pmax: updated.pmax,
-            confidence: updated.confidence,
-            sigma: updated.sigma,
-          },
-        ]);
+            // Smooth the fallback result too
+            const smoothingFactor = 0.2; // Even slower for fallback
+
+            updated = {
+              sigma: skillEstimate.sigma * (1 - smoothingFactor) + kalmanResult.sigma * smoothingFactor,
+              confidence: Math.max(skillEstimate.confidence, kalmanResult.confidence), // Never decrease
+              pmax: skillEstimate.pmax * (1 - smoothingFactor) + kalmanResult.pmax * smoothingFactor,
+            };
+
+            setSkillEstimate(updated);
+          }
+        }
       }
+
+      // Always add current state to P_max history for charting
+      setPmaxHistory((prev) => [
+        ...prev,
+        {
+          shotNumber: newShots.length,
+          pmax: updated.pmax,
+          confidence: updated.confidence,
+          sigma: updated.sigma,
+        },
+      ]);
 
       return shot;
     },
-    [shots, simulateShot, updateKalman]
+    [shots, simulateShot, updateKalman, skillEstimate]
   );
 
   // Calculate session stats
@@ -335,18 +490,29 @@ export function useSimulator(initialHandicap: number = 10) {
   // Reset session
   const reset = useCallback(() => {
     setShots([]);
+
+    // Recalculate initial values from handicap
+    const resetSigma = 3 + (initialHandicap * 0.5);
+    const resetPmax = calculateInitialPmax(initialHandicap);
+
     setSkillEstimate({
-      sigma: 10,
+      sigma: resetSigma,
       confidence: 0,
-      pmax: 1.176,
+      pmax: resetPmax,
     });
     setPmaxHistory([]);
     setKalmanState({
-      mean: 10,
+      mean: resetSigma,
       variance: 100,
       measurementCount: 0,
     });
-  }, []);
+
+    console.log('🔄 Session Reset:', {
+      handicap: initialHandicap,
+      initialSigma: resetSigma.toFixed(2),
+      initialPmax: resetPmax.toFixed(2),
+    });
+  }, [initialHandicap]);
 
   return {
     shots,

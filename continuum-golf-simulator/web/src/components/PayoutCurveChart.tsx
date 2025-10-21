@@ -13,17 +13,32 @@ export default function PayoutCurveChart({
   lastShotDistance,
   lastShotMultiplier,
 }: PayoutCurveChartProps) {
+  // Validate P_max before rendering
+  const isValidPmax = pmax > 0 && !isNaN(pmax) && isFinite(pmax);
+
+  if (!isValidPmax) {
+    return (
+      <div className="bg-gray-800 p-4 rounded-lg border-2 border-brand-deep-purple">
+        <h3 className="text-lg font-semibold text-brand-tan mb-4">Payout Curve</h3>
+        <div className="h-64 flex items-center justify-center text-gray-500">
+          <p>⚠️ Invalid P_max value. Take some shots to see the payout curve!</p>
+        </div>
+      </div>
+    );
+  }
+
   // Generate payout curve data
   const generateCurveData = () => {
     const data = [];
-    const maxDistance = 50; // yards
+    const dMaxFt = 30; // Maximum target radius in feet
+    const maxDistanceYards = dMaxFt / 3; // Convert to yards for display
     const steps = 100;
 
     for (let i = 0; i <= steps; i++) {
-      const d = (i / steps) * maxDistance;
-      const multiplier = calculatePayoutMultiplier(d);
+      const distanceYards = (i / steps) * maxDistanceYards;
+      const multiplier = calculatePayoutMultiplier(distanceYards);
       data.push({
-        distance: d,
+        distance: distanceYards,
         multiplier: multiplier,
         breakeven: 1.0,
       });
@@ -32,10 +47,22 @@ export default function PayoutCurveChart({
     return data;
   };
 
-  // Payout formula: P_max * exp(-d^2 / (2 * r_max^2))
-  const calculatePayoutMultiplier = (distance: number) => {
-    const rMax = Math.sqrt(-2 * Math.log(1 / pmax)); // Normalize to sigma = 1
-    const multiplier = pmax * Math.exp(-Math.pow(distance, 2) / (2 * Math.pow(rMax, 2)));
+  // Payout formula: P_max * (1 - d/d_max)^k
+  // This matches the Rust implementation
+  const calculatePayoutMultiplier = (distanceYards: number) => {
+    const dMaxFt = 30; // Maximum target radius in feet
+    const k = 5.0; // Curve steepness
+    const distanceFt = distanceYards * 3; // Convert to feet
+
+    // If beyond target radius, no payout
+    if (distanceFt >= dMaxFt) {
+      return 0;
+    }
+
+    // Rust formula: P_max * (1 - d/d_max)^k
+    const payoutFactor = Math.pow(1 - distanceFt / dMaxFt, k);
+    const multiplier = pmax * payoutFactor;
+
     return Math.max(0, multiplier);
   };
 
@@ -55,7 +82,7 @@ export default function PayoutCurveChart({
           <YAxis
             stroke="#9CA3AF"
             label={{ value: 'Payout Multiplier', angle: -90, position: 'insideLeft', fill: '#9CA3AF' }}
-            domain={[0, pmax * 1.1]}
+            domain={[0, Math.max(2, pmax * 1.1)]}
           />
           <Tooltip
             contentStyle={{

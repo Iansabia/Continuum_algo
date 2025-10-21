@@ -73,13 +73,31 @@ export default function SessionTracker({ stats }: SessionTrackerProps) {
             </span>
           </div>
           <div className="mt-2 text-xs text-gray-500 italic">
-            {Math.abs(stats.actualHouseEdge - stats.theoreticalHouseEdge) < 2 ? (
-              <p>✓ Within expected variance</p>
-            ) : stats.shotsTaken < 20 ? (
-              <p>ℹ️ Need more shots for convergence</p>
-            ) : (
-              <p>⚠️ Unusual variance detected</p>
-            )}
+            {(() => {
+              const deviation = Math.abs(stats.actualHouseEdge - stats.theoreticalHouseEdge);
+              const varianceThreshold = 5; // Allow 5% deviation (±5%)
+              const minShotsForConvergence = 50; // Need 50+ shots for meaningful statistics
+
+              if (deviation < varianceThreshold) {
+                return (
+                  <p className="text-green-400">
+                    ✓ Within expected variance (±{deviation.toFixed(1)}%)
+                  </p>
+                );
+              } else if (stats.shotsTaken < minShotsForConvergence) {
+                return (
+                  <p className="text-blue-400">
+                    ℹ️ Need {minShotsForConvergence - stats.shotsTaken} more shots for convergence
+                  </p>
+                );
+              } else {
+                return (
+                  <p className="text-yellow-400">
+                    ⚠️ High variance: {deviation.toFixed(1)}% deviation
+                  </p>
+                );
+              }
+            })()}
           </div>
         </div>
       </div>
