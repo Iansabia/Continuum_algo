@@ -4,10 +4,10 @@
 use wasm_bindgen::prelude::*;
 use serde::{Serialize, Deserialize};
 use crate::models::player::Player;
-use crate::models::hole::HOLE_CONFIGURATIONS;
+use crate::models::hole::{HOLE_CONFIGURATIONS, ClubCategory};
 use crate::simulators::player_session::{SessionConfig, HoleSelection, run_session};
 use crate::simulators::venue::{VenueConfig, PlayerArchetype, run_venue_simulation};
-use crate::analytics::metrics::{calculate_expected_value, validate_rtp_across_skills, calculate_fairness_metric};
+use crate::analytics::metrics::{calculate_expected_value, calculate_fairness_metric};
 
 #[wasm_bindgen]
 extern "C" {
@@ -106,7 +106,7 @@ pub fn simulate_player_session(
 ) -> Result<JsValue, JsValue> {
     console_log!("Starting player session: handicap={}, shots={}", handicap, num_shots);
 
-    let mut player = Player::new(handicap);
+    let mut player = Player::new(format!("wasm_player_{}", handicap), handicap);
 
     let hole_selection = match hole_id {
         Some(id) => HoleSelection::Fixed(id),
@@ -115,9 +115,12 @@ pub fn simulate_player_session(
 
     let config = SessionConfig {
         num_shots,
-        wager_range: (wager_min, wager_max),
+        wager_min,
+        wager_max,
         hole_selection,
         developer_mode: None,
+        fat_tail_prob: 0.02,  // 2% chance of fat-tail event
+        fat_tail_mult: 3.0,   // 3x worse dispersion
     };
 
     let result = run_session(&mut player, config);
@@ -142,32 +145,42 @@ pub fn simulate_player_session(
         }
     }).collect();
 
+    // Extract skill profiles from the player directly
     let wasm_skills: Vec<WasmSkillProfile> = vec![
         WasmSkillProfile {
             category: "Wedge".to_string(),
-            sigma: result.final_skill_profiles.get(&crate::models::hole::ClubCategory::Wedge)
+            sigma: player.skill_profiles.get(&ClubCategory::Wedge)
                 .map(|s| s.kalman_filter.estimate).unwrap_or(0.0),
-            confidence: result.final_skill_profiles.get(&crate::models::hole::ClubCategory::Wedge)
-                .map(|s| s.kalman_filter.calculate_confidence()).unwrap_or(0.0),
-            p_max_current: result.final_skill_profiles.get(&crate::models::hole::ClubCategory::Wedge)
+            confidence: player.skill_profiles.get(&ClubCategory::Wedge)
+                .map(|s| {
+                    let shots_count = s.shot_batch.shots.len();
+                    if shots_count == 0 { 0.0 } else { (shots_count as f64 / 20.0 * 100.0).min(100.0) }
+                }).unwrap_or(0.0),
+            p_max_current: player.skill_profiles.get(&ClubCategory::Wedge)
                 .and_then(|s| s.p_max_history.last().copied()).unwrap_or(0.0),
         },
         WasmSkillProfile {
             category: "MidIron".to_string(),
-            sigma: result.final_skill_profiles.get(&crate::models::hole::ClubCategory::MidIron)
+            sigma: player.skill_profiles.get(&ClubCategory::MidIron)
                 .map(|s| s.kalman_filter.estimate).unwrap_or(0.0),
-            confidence: result.final_skill_profiles.get(&crate::models::hole::ClubCategory::MidIron)
-                .map(|s| s.kalman_filter.calculate_confidence()).unwrap_or(0.0),
-            p_max_current: result.final_skill_profiles.get(&crate::models::hole::ClubCategory::MidIron)
+            confidence: player.skill_profiles.get(&ClubCategory::MidIron)
+                .map(|s| {
+                    let shots_count = s.shot_batch.shots.len();
+                    if shots_count == 0 { 0.0 } else { (shots_count as f64 / 20.0 * 100.0).min(100.0) }
+                }).unwrap_or(0.0),
+            p_max_current: player.skill_profiles.get(&ClubCategory::MidIron)
                 .and_then(|s| s.p_max_history.last().copied()).unwrap_or(0.0),
         },
         WasmSkillProfile {
             category: "LongIron".to_string(),
-            sigma: result.final_skill_profiles.get(&crate::models::hole::ClubCategory::LongIron)
+            sigma: player.skill_profiles.get(&ClubCategory::LongIron)
                 .map(|s| s.kalman_filter.estimate).unwrap_or(0.0),
-            confidence: result.final_skill_profiles.get(&crate::models::hole::ClubCategory::LongIron)
-                .map(|s| s.kalman_filter.calculate_confidence()).unwrap_or(0.0),
-            p_max_current: result.final_skill_profiles.get(&crate::models::hole::ClubCategory::LongIron)
+            confidence: player.skill_profiles.get(&ClubCategory::LongIron)
+                .map(|s| {
+                    let shots_count = s.shot_batch.shots.len();
+                    if shots_count == 0 { 0.0 } else { (shots_count as f64 / 20.0 * 100.0).min(100.0) }
+                }).unwrap_or(0.0),
+            p_max_current: player.skill_profiles.get(&ClubCategory::LongIron)
                 .and_then(|s| s.p_max_history.last().copied()).unwrap_or(0.0),
         },
     ];
@@ -232,12 +245,14 @@ pub fn validate_fairness(hole_id: u8) -> Result<JsValue, JsValue> {
         .find(|h| h.id == hole_id)
         .ok_or_else(|| JsValue::from_str("Invalid hole ID"))?;
 
-    let fairness_report = calculate_fairness_metric(hole);
+    // Call fairness metric with required arguments
+    let handicaps_to_test = vec![0, 10, 20, 30];
+    let trials_per_handicap = 1000;
+    let fairness_report = calculate_fairness_metric(hole, handicaps_to_test.clone(), trials_per_handicap);
 
-    let handicap_results: Vec<WasmHandicapEV> = vec![0, 10, 20, 30].iter().map(|&hc| {
-        let player = Player::new(hc);
+    let handicap_results: Vec<WasmHandicapEV> = handicaps_to_test.iter().map(|&hc| {
+        let player = Player::new(format!("test_player_{}", hc), hc);
         let ev = calculate_expected_value(&player, hole, 10.0, 1000);
-        let skill_profile = player.get_skill_for_hole(hole);
         let p_max = player.calculate_p_max(hole);
 
         WasmHandicapEV {
@@ -250,7 +265,7 @@ pub fn validate_fairness(hole_id: u8) -> Result<JsValue, JsValue> {
     let wasm_result = WasmFairnessResult {
         hole_id,
         handicap_results,
-        max_ev_difference: fairness_report.max_ev_difference_percent,
+        max_ev_difference: fairness_report.max_ev_difference,
         is_fair: fairness_report.is_fair,
     };
 
