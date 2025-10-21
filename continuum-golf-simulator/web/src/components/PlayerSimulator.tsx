@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useSimulator } from '../hooks/useSimulator';
 import TargetVisualizer from './TargetVisualizer';
+import BVNHeatmap3D from './BVNHeatmap3D';
 import PayoutCurveChart from './PayoutCurveChart';
 import PmaxHistoryChart from './PmaxHistoryChart';
 import SkillConfidenceBar from './SkillConfidenceBar';
@@ -10,6 +11,7 @@ export default function PlayerSimulator() {
   const [handicap, setHandicap] = useState(10);
   const [wager, setWager] = useState(10);
   const [devMode, setDevMode] = useState(false);
+  const [view3D, setView3D] = useState(false);
   const [manualDistance, setManualDistance] = useState(5);
   const [isShooting, setIsShooting] = useState(false);
 
@@ -51,21 +53,41 @@ export default function PlayerSimulator() {
           Continuum™ Player Simulator
         </h2>
 
-        {/* Developer Mode Toggle */}
-        <div className="flex items-center gap-3">
-          <label className="text-sm text-gray-400">Developer Mode</label>
-          <button
-            onClick={() => setDevMode(!devMode)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              devMode ? 'bg-brand-bright-purple' : 'bg-gray-600'
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                devMode ? 'translate-x-6' : 'translate-x-1'
+        {/* Toggle Controls */}
+        <div className="flex items-center gap-6">
+          {/* 3D View Toggle */}
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-gray-400">3D View</label>
+            <button
+              onClick={() => setView3D(!view3D)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                view3D ? 'bg-brand-rose-copper' : 'bg-gray-600'
               }`}
-            />
-          </button>
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  view3D ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Developer Mode Toggle */}
+          <div className="flex items-center gap-3">
+            <label className="text-sm text-gray-400">Developer Mode</label>
+            <button
+              onClick={() => setDevMode(!devMode)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                devMode ? 'bg-brand-bright-purple' : 'bg-gray-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  devMode ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -160,16 +182,24 @@ export default function PlayerSimulator() {
           </button>
         </div>
 
-        {/* Center Column: Target Visualizer */}
-        <div>
-          <TargetVisualizer
-            sigma={skillEstimate.sigma}
-            breakevenRadius={breakevenRadius}
-            shots={shots}
-            currentShot={isShooting ? lastShot : null}
-            width={400}
-            height={400}
-          />
+        {/* Center Column: Target Visualizer / 3D Heatmap */}
+        <div className="flex items-center justify-center">
+          {view3D ? (
+            <BVNHeatmap3D
+              sigmaX={skillEstimate.sigma}
+              sigmaY={skillEstimate.sigma}
+              currentPmax={skillEstimate.pmax}
+            />
+          ) : (
+            <TargetVisualizer
+              sigma={skillEstimate.sigma}
+              breakevenRadius={breakevenRadius}
+              shots={shots}
+              currentShot={isShooting ? lastShot : null}
+              width={400}
+              height={400}
+            />
+          )}
         </div>
 
         {/* Right Column: Session Info */}
