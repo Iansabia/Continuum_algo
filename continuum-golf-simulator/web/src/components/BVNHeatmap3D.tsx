@@ -172,7 +172,7 @@ function AxisLabels() {
   );
 }
 
-function CurrentPositionMarker({ sigmaX, sigmaY, pmax }: { sigmaX: number; sigmaY: number; pmax: number }) {
+function CurrentPositionMarker({ pmax }: { sigmaX: number; sigmaY: number; pmax: number }) {
   const markerRef = useRef<THREE.Mesh>(null);
 
   useFrame((state) => {
@@ -193,8 +193,6 @@ export default function BVNHeatmap3D({
   sigmaX,
   sigmaY,
   currentPmax,
-  width = 600,
-  height = 500,
 }: BVNHeatmap3DProps) {
   return (
     <div className="bg-gray-800 p-4 rounded-lg border-2 border-brand-deep-purple">
