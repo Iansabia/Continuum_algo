@@ -13,6 +13,7 @@ interface Shot {
 interface TargetVisualizerProps {
   sigma: number;
   breakevenRadius: number;
+  targetRadius: number; // Current hole's target radius in yards (d_max)
   shots: Shot[];
   currentShot?: Shot | null;
   width?: number;
@@ -22,6 +23,7 @@ interface TargetVisualizerProps {
 export default function TargetVisualizer({
   sigma,
   breakevenRadius,
+  targetRadius,
   shots,
   currentShot,
   width = 400,
@@ -30,10 +32,15 @@ export default function TargetVisualizer({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [animationFrame, setAnimationFrame] = useState(0);
 
-  // Convert yards to pixels (scale for visualization)
-  const SCALE = 5; // 5 pixels per yard
   const centerX = width / 2;
   const centerY = height / 2;
+
+  // Fixed scale: Show a consistent viewport of 50 yards radius for all holes
+  // The target edge line represents the absolute boundary (50 yards)
+  // Individual holes have smaller effective target radii shown separately
+  const MAX_DISPLAY_RADIUS = 50; // yards - absolute maximum boundary
+  const availableRadius = Math.min(width, height) / 2 - 40; // Leave 40px padding
+  const SCALE = availableRadius / MAX_DISPLAY_RADIUS; // pixels per yard
 
   const yardsToPixels = (yards: number) => yards * SCALE;
 
@@ -49,6 +56,12 @@ export default function TargetVisualizer({
 
     // Draw grid (optional, for scale reference)
     drawGrid(ctx);
+
+    // Draw fixed target boundary (absolute maximum)
+    drawFixedTargetBoundary(ctx);
+
+    // Draw current hole's effective target radius
+    drawCurrentHoleTarget(ctx);
 
     // Draw probability density rings (3σ, 2σ, 1σ)
     drawProbabilityRings(ctx);
@@ -68,7 +81,7 @@ export default function TargetVisualizer({
     if (currentShot) {
       drawShot(ctx, currentShot, true);
     }
-  }, [sigma, breakevenRadius, shots, currentShot, animationFrame]);
+  }, [sigma, breakevenRadius, targetRadius, shots, currentShot, animationFrame]);
 
   // Animate current shot
   useEffect(() => {
@@ -107,6 +120,53 @@ export default function TargetVisualizer({
       ctx.moveTo(0, py);
       ctx.lineTo(width, py);
       ctx.stroke();
+    }
+  };
+
+  const drawFixedTargetBoundary = (ctx: CanvasRenderingContext2D) => {
+    // Fixed boundary at MAX_DISPLAY_RADIUS (50 yards) - this NEVER moves
+    const radius = yardsToPixels(MAX_DISPLAY_RADIUS);
+
+    // Fill area inside target with subtle background
+    ctx.fillStyle = '#1a1a2e20';
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw fixed target boundary - this represents the absolute edge
+    ctx.strokeStyle = '#D4AF37';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Label
+    ctx.fillStyle = '#D4AF37';
+    ctx.font = 'bold 14px Inter';
+    ctx.fillText('Target Edge', centerX + radius - 65, centerY - 10);
+    ctx.font = '12px Inter';
+    ctx.fillText(`${MAX_DISPLAY_RADIUS.toFixed(1)}y`, centerX + radius - 35, centerY + 5);
+  };
+
+  const drawCurrentHoleTarget = (ctx: CanvasRenderingContext2D) => {
+    // Current hole's effective target radius (varies by hole)
+    const radius = yardsToPixels(targetRadius);
+
+    // Only draw if different from max boundary
+    if (Math.abs(targetRadius - MAX_DISPLAY_RADIUS) > 0.5) {
+      // Draw dashed circle for current hole's effective target
+      ctx.strokeStyle = '#FFD700';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 4]);
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Label
+      ctx.fillStyle = '#FFD700';
+      ctx.font = '12px Inter';
+      ctx.fillText(`Hole ${targetRadius.toFixed(1)}y`, centerX + radius + 5, centerY);
     }
   };
 
@@ -234,7 +294,7 @@ export default function TargetVisualizer({
         className="bg-gray-900 rounded-lg shadow-lg border-2 border-brand-deep-purple"
       />
       <div className="mt-4 text-center text-sm text-gray-400">
-        <p>σ = {sigma.toFixed(2)} yards | Breakeven = {breakevenRadius.toFixed(2)} yards</p>
+        <p>Target Radius: {targetRadius.toFixed(2)}y | σ = {sigma.toFixed(2)}y | Breakeven = {breakevenRadius.toFixed(2)}y</p>
       </div>
     </div>
   );

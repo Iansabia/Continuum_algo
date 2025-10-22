@@ -1,4 +1,4 @@
-import { Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, ComposedChart } from 'recharts';
+import { Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, ComposedChart } from 'recharts';
 
 interface PmaxDataPoint {
   shotNumber: number;
@@ -14,45 +14,49 @@ interface PmaxHistoryChartProps {
 export default function PmaxHistoryChart({ history }: PmaxHistoryChartProps) {
   if (history.length === 0) {
     return (
-      <div className="bg-gray-800 p-4 rounded-lg border-2 border-brand-deep-purple">
-        <h3 className="text-lg font-semibold text-brand-tan mb-4">P_max Evolution</h3>
-        <div className="h-64 flex items-center justify-center text-gray-500">
-          <p>No data yet. Take some shots to see skill evolution!</p>
+      <div className="bg-gradient-to-br from-[#604c9c]/10 to-[#493b7c]/10 backdrop-blur-xl p-3 rounded-xl border border-[#9e8cb4]/30 shadow-lg h-full flex flex-col">
+        <h3 className="text-xs font-medium text-[#9e8cb4] mb-2">P_max Evolution</h3>
+        <div className="flex-1 flex items-center justify-center text-[#9e8cb4]/60 text-xs">
+          <p>Take shots to see evolution</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-800 p-4 rounded-lg border-2 border-brand-deep-purple">
-      <h3 className="text-lg font-semibold text-brand-tan mb-4">P_max Evolution</h3>
-      <ResponsiveContainer width="100%" height={300}>
-        <ComposedChart data={history} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+    <div className="bg-gradient-to-br from-[#604c9c]/10 to-[#493b7c]/10 backdrop-blur-xl p-3 rounded-xl border border-[#9e8cb4]/30 shadow-lg h-full flex flex-col">
+      <h3 className="text-xs font-medium text-[#9e8cb4] mb-2">P_max Evolution</h3>
+      <div className="flex-1 min-h-0">
+        <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={history} margin={{ top: 5, right: 15, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(158,140,180,0.1)" />
           <XAxis
             dataKey="shotNumber"
-            stroke="#9CA3AF"
-            label={{ value: 'Shot Number', position: 'insideBottom', offset: -5, fill: '#9CA3AF' }}
+            stroke="rgba(158,140,180,0.5)"
+            tick={{ fontSize: 10, fill: 'rgba(158,140,180,0.7)' }}
+            label={{ value: 'Shot #', position: 'insideBottom', offset: -3, fill: 'rgba(158,140,180,0.7)', fontSize: 10 }}
           />
           <YAxis
             yAxisId="left"
             stroke="#604c9c"
-            label={{ value: 'P_max', angle: -90, position: 'insideLeft', fill: '#604c9c' }}
+            tick={{ fontSize: 10, fill: 'rgba(158,140,180,0.7)' }}
+            label={{ value: 'P_max', angle: -90, position: 'insideLeft', fill: '#604c9c', fontSize: 10 }}
             domain={[1, 'auto']}
           />
           <YAxis
             yAxisId="right"
             orientation="right"
             stroke="#9e8cb4"
-            label={{ value: 'Confidence (%)', angle: 90, position: 'insideRight', fill: '#9e8cb4' }}
+            tick={{ fontSize: 10, fill: 'rgba(158,140,180,0.7)' }}
+            label={{ value: 'Conf%', angle: 90, position: 'insideRight', fill: '#9e8cb4', fontSize: 10 }}
             domain={[0, 100]}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: '#1F2937',
-              border: '1px solid #604c9c',
+              backgroundColor: 'rgba(73,59,124,0.9)',
+              border: '1px solid rgba(158,140,180,0.3)',
               borderRadius: '8px',
-              color: '#dfc9ad',
+              color: 'rgba(223,201,173,1)',
             }}
             formatter={(value: number, name: string) => {
               if (name === 'pmax') return [`${value.toFixed(3)}`, 'P_max'];
@@ -61,22 +65,13 @@ export default function PmaxHistoryChart({ history }: PmaxHistoryChartProps) {
               return [value, name];
             }}
           />
-          <Legend
-            wrapperStyle={{ paddingTop: '10px' }}
-            formatter={(value) => {
-              if (value === 'pmax') return 'P_max';
-              if (value === 'confidence') return 'Confidence';
-              return value;
-            }}
-          />
-
           {/* Confidence area (background) */}
           <Area
             yAxisId="right"
             type="monotone"
             dataKey="confidence"
             fill="#9e8cb4"
-            fillOpacity={0.2}
+            fillOpacity={0.15}
             stroke="none"
           />
 
@@ -86,9 +81,9 @@ export default function PmaxHistoryChart({ history }: PmaxHistoryChartProps) {
             type="monotone"
             dataKey="pmax"
             stroke="#604c9c"
-            strokeWidth={3}
-            dot={{ fill: '#604c9c', r: 4 }}
-            activeDot={{ r: 6 }}
+            strokeWidth={2}
+            dot={{ fill: '#604c9c', r: 2 }}
+            activeDot={{ r: 4, fill: '#604c9c' }}
           />
 
           {/* Confidence line */}
@@ -97,34 +92,12 @@ export default function PmaxHistoryChart({ history }: PmaxHistoryChartProps) {
             type="monotone"
             dataKey="confidence"
             stroke="#9e8cb4"
-            strokeWidth={2}
-            dot={{ fill: '#9e8cb4', r: 3 }}
-            activeDot={{ r: 5 }}
-            strokeDasharray="5 5"
+            strokeWidth={1.5}
+            dot={false}
+            strokeDasharray="3 3"
           />
         </ComposedChart>
       </ResponsiveContainer>
-
-      {/* Stats summary */}
-      <div className="mt-4 grid grid-cols-3 gap-4 text-center text-sm">
-        <div>
-          <p className="text-gray-500">Current P_max</p>
-          <p className="text-brand-bright-purple font-semibold text-lg">
-            {history[history.length - 1]?.pmax.toFixed(3) || 'N/A'}
-          </p>
-        </div>
-        <div>
-          <p className="text-gray-500">Confidence</p>
-          <p className="text-brand-lavender font-semibold text-lg">
-            {history[history.length - 1]?.confidence.toFixed(1) || 'N/A'}%
-          </p>
-        </div>
-        <div>
-          <p className="text-gray-500">Sigma (σ)</p>
-          <p className="text-brand-tan font-semibold text-lg">
-            {history[history.length - 1]?.sigma.toFixed(2) || 'N/A'}y
-          </p>
-        </div>
       </div>
     </div>
   );

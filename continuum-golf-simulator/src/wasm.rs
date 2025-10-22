@@ -141,7 +141,7 @@ pub fn simulate_player_session(
             payout: shot.payout,
             cumulative_net,
             is_fat_tail: shot.is_fat_tail,
-            p_max: 0.0, // Will be filled below
+            p_max: shot.p_max, // P_max stored in the shot outcome
         }
     }).collect();
 

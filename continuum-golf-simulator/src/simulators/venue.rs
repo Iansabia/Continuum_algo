@@ -379,9 +379,9 @@ mod tests {
         use crate::models::shot::ShotOutcome;
 
         let shots = vec![
-            ShotOutcome::new(5.0, 0.0, 10.0, 1, false),
-            ShotOutcome::new(2.0, 5.5, 10.0, 1, false),
-            ShotOutcome::new(1.0, 12.0, 10.0, 1, false),
+            ShotOutcome::new(5.0, 0.0, 10.0, 1, false, 10.0),
+            ShotOutcome::new(2.0, 5.5, 10.0, 1, false, 10.0),
+            ShotOutcome::new(1.0, 12.0, 10.0, 1, false, 10.0),
         ];
 
         let dist = build_payout_distribution(&shots);

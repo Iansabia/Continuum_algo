@@ -28,6 +28,8 @@ pub struct ShotOutcome {
     pub x_ft: Option<f64>,
     /// Y coordinate (distance position, feet from pin, positive = long, optional for BVN)
     pub y_ft: Option<f64>,
+    /// P_max value at the time of this shot (for tracking skill evolution)
+    pub p_max: f64,
 }
 
 impl ShotOutcome {
@@ -39,6 +41,7 @@ impl ShotOutcome {
     /// * `wager` - Wager amount
     /// * `hole_id` - Hole number (1-8)
     /// * `is_fat_tail` - Whether this was a fat-tail event
+    /// * `p_max` - P_max value at the time of this shot
     ///
     /// # Returns
     /// New ShotOutcome with calculated payout (no x,y coordinates)
@@ -48,6 +51,7 @@ impl ShotOutcome {
         wager: f64,
         hole_id: u8,
         is_fat_tail: bool,
+        p_max: f64,
     ) -> Self {
         let payout = multiplier * wager;
         ShotOutcome {
@@ -59,6 +63,7 @@ impl ShotOutcome {
             is_fat_tail,
             x_ft: None,
             y_ft: None,
+            p_max,
         }
     }
 
@@ -71,6 +76,7 @@ impl ShotOutcome {
     /// * `wager` - Wager amount
     /// * `hole_id` - Hole number (1-8)
     /// * `is_fat_tail` - Whether this was a fat-tail event
+    /// * `p_max` - P_max value at the time of this shot
     ///
     /// # Returns
     /// New ShotOutcome with calculated payout and (x,y) coordinates
@@ -81,6 +87,7 @@ impl ShotOutcome {
         wager: f64,
         hole_id: u8,
         is_fat_tail: bool,
+        p_max: f64,
     ) -> Self {
         let miss_distance_ft = (x_ft * x_ft + y_ft * y_ft).sqrt();
         let payout = multiplier * wager;
@@ -93,6 +100,7 @@ impl ShotOutcome {
             is_fat_tail,
             x_ft: Some(x_ft),
             y_ft: Some(y_ft),
+            p_max,
         }
     }
 

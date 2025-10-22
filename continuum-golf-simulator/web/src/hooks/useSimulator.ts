@@ -1,6 +1,18 @@
 import { useState, useCallback, useEffect } from 'react';
 import init, { simulate_player_session } from '../wasm/continuum_golf_simulator';
 
+// Hole configurations matching Rust HOLE_CONFIGURATIONS
+const HOLE_CONFIGS = [
+  { id: 1, distance_yds: 75, d_max_ft: 17.95, rtp: 0.85, k: 5.0 },
+  { id: 2, distance_yds: 100, d_max_ft: 25.69, rtp: 0.85, k: 5.0 },
+  { id: 3, distance_yds: 125, d_max_ft: 36.71, rtp: 0.85, k: 5.5 },
+  { id: 4, distance_yds: 150, d_max_ft: 47.58, rtp: 0.85, k: 6.0 },
+  { id: 5, distance_yds: 175, d_max_ft: 59.09, rtp: 0.85, k: 6.0 },
+  { id: 6, distance_yds: 200, d_max_ft: 73.58, rtp: 0.85, k: 6.5 },
+  { id: 7, distance_yds: 225, d_max_ft: 84.84, rtp: 0.85, k: 6.5 },
+  { id: 8, distance_yds: 250, d_max_ft: 101.14, rtp: 0.85, k: 6.5 },
+];
+
 // WASM result types
 interface WasmShotOutcome {
   shot_number: number;
@@ -91,9 +103,10 @@ const calculateInitialPmax = (handicap: number): number => {
   return Math.max(5, Math.min(50, pmax));
 };
 
-export function useSimulator(initialHandicap: number = 10) {
+export function useSimulator(initialHandicap: number = 10, selectedHoleId: number = 1) {
   const [wasmReady, setWasmReady] = useState(false);
   const [shots, setShots] = useState<Shot[]>([]);
+  const [currentHoleId, setCurrentHoleId] = useState<number>(selectedHoleId); // Track which hole was used for last shot
 
   // Calculate initial sigma and P_max from handicap
   const initialSigma = 3 + (initialHandicap * 0.5);
@@ -124,31 +137,54 @@ export function useSimulator(initialHandicap: number = 10) {
       });
   }, []);
 
-  // Calculate breakeven radius from P_max
-  // Note: d_max is the maximum target radius (where payout = 0)
-  // For now, we use a default d_max of 30 feet (10 yards) as an approximation
-  const calculateBreakevenRadius = (pmax: number, sigma: number, dMaxFt: number = 30): number => {
+  // Clear shots when hole changes
+  useEffect(() => {
+    if (currentHoleId !== selectedHoleId) {
+      console.log(`🔄 Hole changed from ${currentHoleId} to ${selectedHoleId}, clearing shots`);
+      setShots([]);
+      setPmaxHistory([]);
+      setCurrentHoleId(selectedHoleId);
+    }
+  }, [selectedHoleId, currentHoleId]);
+
+  // Get hole configuration by ID
+  const getHoleConfig = (holeId: number) => {
+    const config = HOLE_CONFIGS.find(h => h.id === holeId);
+    if (!config) {
+      console.warn(`⚠️ Invalid hole ID ${holeId}, falling back to hole 1`);
+      return HOLE_CONFIGS[0];
+    }
+    return config;
+  };
+
+  // Calculate breakeven radius from P_max for a specific hole
+  const calculateBreakevenRadius = (pmax: number, holeId: number): number => {
     if (!pmax || pmax <= 0 || isNaN(pmax)) {
       console.warn('⚠️ Invalid P_max for breakeven calculation:', pmax);
-      return sigma; // Fallback: return sigma as approximation
+      return 0;
     }
 
-    // Simplified formula: r_breakeven ≈ d_max * sqrt(1 - (1/P_max)^(1/k))
-    // Using k = 5 (curve steepness from Rust)
-    const k = 5.0;
-    const breakevenFt = dMaxFt * Math.sqrt(Math.max(0, 1 - Math.pow(1 / pmax, 1 / k)));
+    const hole = getHoleConfig(holeId);
+    const dMaxFt = hole.d_max_ft;
+    const k = hole.k;
+
+    // Formula: d_break = d_max * (1 - P_max^(-1/k))
+    const breakevenFt = dMaxFt * (1 - Math.pow(pmax, -1 / k));
 
     // Convert back to yards for display
     return breakevenFt / 3;
   };
 
-  // Calculate payout multiplier from distance
-  // Uses the Rust formula: payout_factor = (1 - d/d_max)^k
-  const calculatePayoutMultiplier = (distanceYards: number, pmax: number, dMaxFt: number = 30): number => {
+  // Calculate payout multiplier from distance for a specific hole
+  const calculatePayoutMultiplier = (distanceYards: number, pmax: number, holeId: number): number => {
     if (!pmax || pmax <= 0 || isNaN(pmax)) {
       console.warn('⚠️ Invalid P_max for payout calculation:', pmax);
       return 0;
     }
+
+    const hole = getHoleConfig(holeId);
+    const dMaxFt = hole.d_max_ft;
+    const k = hole.k;
 
     // Convert distance from yards to feet
     const distanceFt = distanceYards * 3;
@@ -159,7 +195,6 @@ export function useSimulator(initialHandicap: number = 10) {
     }
 
     // Rust formula: P_max * (1 - d/d_max)^k
-    const k = 5.0;
     const payoutFactor = Math.pow(1 - distanceFt / dMaxFt, k);
     const multiplier = pmax * payoutFactor;
 
@@ -168,7 +203,7 @@ export function useSimulator(initialHandicap: number = 10) {
 
   // WASM wrapper: simulates a single shot using Rust implementation
   const simulateShotWasm = useCallback(
-    (handicap: number, wager: number): { shot: Shot; skillProfile: WasmSkillProfile | null } => {
+    (handicap: number, wager: number, holeId: number): { shot: Shot; skillProfile: WasmSkillProfile | null; holeId: number } => {
       try {
         // Call WASM with num_shots=1
         const result: WasmSessionResult = simulate_player_session(
@@ -176,7 +211,7 @@ export function useSimulator(initialHandicap: number = 10) {
           1, // Single shot
           wager,
           wager,
-          null // No specific hole (random selection)
+          holeId // Pass selected hole ID
         );
 
         if (!result.shots || result.shots.length === 0) {
@@ -194,6 +229,9 @@ export function useSimulator(initialHandicap: number = 10) {
           p_max: wasmShot.p_max,
           is_fat_tail: wasmShot.is_fat_tail,
         });
+
+        // Store the hole ID that was used
+        const usedHoleId = wasmShot.hole_id;
 
         // Map WASM result to UI Shot interface
         const shot: Shot = {
@@ -222,7 +260,7 @@ export function useSimulator(initialHandicap: number = 10) {
           console.warn('⚠️ WASM returned no skill profile');
         }
 
-        return { shot, skillProfile };
+        return { shot, skillProfile, holeId: usedHoleId };
       } catch (error) {
         console.error('WASM simulation error:', error);
         throw error;
@@ -233,12 +271,15 @@ export function useSimulator(initialHandicap: number = 10) {
 
   // Simulate a single shot
   const simulateShot = useCallback(
-    (wager: number, manualDistance?: number): { shot: Shot; skillProfile: WasmSkillProfile | null } => {
+    (wager: number, manualDistance?: number): { shot: Shot; skillProfile: WasmSkillProfile | null; holeId: number } => {
+      // Use the selected hole ID
+      const holeId = selectedHoleId;
+
       // Developer mode: use manual distance with placeholder simulation
       if (manualDistance !== undefined) {
         const distance = manualDistance;
         const angle = Math.random() * 2 * Math.PI;
-        const multiplier = calculatePayoutMultiplier(distance, skillEstimate.pmax);
+        const multiplier = calculatePayoutMultiplier(distance, skillEstimate.pmax, holeId);
         const payout = wager * multiplier;
         const profit = payout - wager;
 
@@ -252,13 +293,14 @@ export function useSimulator(initialHandicap: number = 10) {
             multiplier,
           },
           skillProfile: null, // No skill update in manual mode
+          holeId,
         };
       }
 
       // Use WASM if ready, otherwise fall back to placeholder
       if (wasmReady) {
         try {
-          return simulateShotWasm(initialHandicap, wager);
+          return simulateShotWasm(initialHandicap, wager, holeId);
         } catch (error) {
           console.warn('⚠️ WASM simulation failed, using placeholder:', error);
           // Fall through to placeholder
@@ -275,7 +317,7 @@ export function useSimulator(initialHandicap: number = 10) {
       }
 
       const angle = Math.random() * 2 * Math.PI;
-      const multiplier = calculatePayoutMultiplier(distance, skillEstimate.pmax);
+      const multiplier = calculatePayoutMultiplier(distance, skillEstimate.pmax, holeId);
       const payout = wager * multiplier;
       const profit = payout - wager;
 
@@ -289,9 +331,10 @@ export function useSimulator(initialHandicap: number = 10) {
           multiplier,
         },
         skillProfile: null,
+        holeId,
       };
     },
-    [wasmReady, initialHandicap, skillEstimate, simulateShotWasm]
+    [wasmReady, initialHandicap, selectedHoleId, skillEstimate, simulateShotWasm]
   );
 
   // Update Kalman filter with new measurement
@@ -360,24 +403,130 @@ export function useSimulator(initialHandicap: number = 10) {
     [kalmanState]
   );
 
+  // Shoot batch using WASM
+  const shootBatch = useCallback(
+    (wager: number, numShots: number) => {
+      if (numShots <= 0) return [];
+
+      const holeId = selectedHoleId;
+
+      try {
+        // Call WASM with batch of shots
+        const result: WasmSessionResult = simulate_player_session(
+          initialHandicap,
+          numShots,
+          wager,
+          wager,
+          holeId
+        );
+
+        if (!result.shots || result.shots.length === 0) {
+          throw new Error('WASM returned no shots');
+        }
+
+        console.log(`🎯 Batch WASM Result: ${result.shots.length} shots simulated`);
+
+        // Map all WASM shots to UI format and create P_max history entries
+        const batchShots: Shot[] = result.shots.map((wasmShot) => ({
+          distance: wasmShot.miss_distance_ft / 3, // Convert feet to yards
+          angle: Math.random() * 2 * Math.PI, // Random angle
+          wager: wasmShot.wager,
+          payout: wasmShot.payout,
+          profit: wasmShot.payout - wasmShot.wager,
+          multiplier: wasmShot.multiplier,
+        }));
+
+        const newShots = [...shots, ...batchShots];
+        setShots(newShots);
+        setCurrentHoleId(holeId);
+
+        // Create P_max history entries for each shot in the batch
+        // WASM returns p_max per shot, showing the evolution through the batch
+        // Use current confidence for intermediate points to avoid chart scaling issues
+        const currentConfidence = skillEstimate.confidence;
+        const batchPmaxHistory: PmaxDataPoint[] = result.shots.map((wasmShot, index) => ({
+          shotNumber: shots.length + index + 1,
+          pmax: wasmShot.p_max,
+          confidence: currentConfidence, // Use current confidence to maintain chart scale
+          sigma: skillEstimate.sigma, // Intermediate sigma not available per-shot
+        }));
+
+        // Get final skill profile
+        const skillProfile = result.final_skills && result.final_skills.length > 0
+          ? result.final_skills[0]
+          : null;
+
+        if (skillProfile && skillProfile.p_max_current > 0 && !isNaN(skillProfile.p_max_current)) {
+          const updated: SkillEstimate = {
+            sigma: Math.max(1, skillProfile.sigma),
+            confidence: Math.max(skillEstimate.confidence, Math.max(0, Math.min(100, skillProfile.confidence))),
+            pmax: skillProfile.p_max_current,
+          };
+
+          console.log('✅ Batch WASM Update:', {
+            sigma: updated.sigma.toFixed(2),
+            pmax: updated.pmax.toFixed(2),
+            confidence: updated.confidence.toFixed(1) + '%',
+            totalShots: newShots.length,
+            batchSize: numShots,
+            pmaxDataPoints: batchPmaxHistory.length,
+          });
+
+          setSkillEstimate(updated);
+          setKalmanState({
+            mean: updated.sigma,
+            variance: 100 * (1 - updated.confidence / 100),
+            measurementCount: newShots.length,
+          });
+
+          // Update the last entry with final confidence and sigma
+          if (batchPmaxHistory.length > 0) {
+            batchPmaxHistory[batchPmaxHistory.length - 1].confidence = updated.confidence;
+            batchPmaxHistory[batchPmaxHistory.length - 1].sigma = updated.sigma;
+          }
+
+          // Add all P_max history entries from the batch
+          setPmaxHistory((prev) => [...prev, ...batchPmaxHistory]);
+        }
+
+        return batchShots;
+      } catch (error) {
+        console.error('❌ Batch WASM simulation failed:', error);
+        return [];
+      }
+    },
+    [shots, wasmReady, initialHandicap, selectedHoleId, skillEstimate]
+  );
+
   // Shoot once
   const shootOnce = useCallback(
     (wager: number, manualDistance?: number) => {
-      const { shot, skillProfile } = simulateShot(wager, manualDistance);
+      const { shot, skillProfile, holeId } = simulateShot(wager, manualDistance);
       const newShots = [...shots, shot];
       setShots(newShots);
+      setCurrentHoleId(holeId); // Track which hole was used
 
       // Determine if we should update skill estimate
-      // Update every 10 shots OR on first shot OR on high-stakes wager
+      // Adaptive update frequency to match Rust's smoothing:
+      // - Shots 1-30: Update every shot (aggressive anti-sandbagging)
+      // - Shots 31-100: Update every 5 shots (balanced transition)
+      // - Shots 100+: Update every 10 shots (conservative stability)
       const shouldUpdate =
-        newShots.length === 1 ||
-        newShots.length % 10 === 0 ||
-        (shots.length > 0 && wager >= shots.reduce((sum, s) => sum + s.wager, 0) / shots.length * 10);
+        newShots.length <= 30 || // Early phase: every shot
+        (newShots.length <= 100 && newShots.length % 5 === 0) || // Transition: every 5
+        (newShots.length > 100 && newShots.length % 10 === 0) || // Mature: every 10
+        (shots.length > 0 && wager >= shots.reduce((sum, s) => sum + s.wager, 0) / shots.length * 10); // High stakes
 
       let updated: SkillEstimate = { ...skillEstimate };
 
       // Only update skill estimate periodically
       if (shouldUpdate) {
+        console.log('🔄 Update triggered at shot', newShots.length, {
+          hasSkillProfile: !!skillProfile,
+          manualMode: manualDistance !== undefined,
+          wasmReady,
+        });
+
         // Use WASM skill profile if available AND VALID
         if (
           skillProfile &&
@@ -386,31 +535,61 @@ export function useSimulator(initialHandicap: number = 10) {
           skillProfile.sigma > 0 &&
           !isNaN(skillProfile.sigma)
         ) {
-          // WASM returned valid data - smooth it with existing estimates
-          const smoothingFactor = 0.3; // 30% new data, 70% old data (slow adaptation)
+          // WASM returns calculated P_max, but we need UI-side rate limiting
+          // because WASM creates a new player for each shot (no state persistence)
 
-          // Smooth sigma
-          const newSigma = skillEstimate.sigma * (1 - smoothingFactor) + skillProfile.sigma * smoothingFactor;
+          // WAGER-BASED RATE LIMITING:
+          // Philosophy: Big bets = high confidence in true skill = allow more P_max adaptation
+          // Small bets = testing/uncertain = conservative P_max changes
+          let pmaxToUse = skillProfile.p_max_current;
+          const currentPmax = skillEstimate.pmax;
 
-          // Confidence should only increase (never decrease)
-          const newConfidence = Math.max(
-            skillEstimate.confidence,
-            Math.max(0, Math.min(100, skillProfile.confidence))
-          );
+          if (currentPmax > 0 && newShots.length > 1) {
+            // Calculate average wager from shot history
+            const avgWager = newShots.reduce((sum, s) => sum + s.wager, 0) / newShots.length;
+            const wagerRatio = avgWager > 0 ? wager / avgWager : 1.0;
 
-          // Smooth P_max (critical for financial stability)
-          const newPmax = skillEstimate.pmax * (1 - smoothingFactor) + skillProfile.p_max_current * smoothingFactor;
+            // HYBRID MODEL: Base rate + wager bonus
+            const baseMaxChange = 0.15; // 15% base protection for all players
+            const wagerBonus = Math.min(0.15, Math.max(0, (wagerRatio - 1.0) * 0.05)); // +5% per 1x wager increase, capped at +15%
+            const totalMaxChange = baseMaxChange + wagerBonus; // Max 30% total
+
+            const maxIncreaseRatio = 1.0 + totalMaxChange;
+            const maxDecreaseRatio = 1.0 - totalMaxChange;
+
+            const pmaxClamped = Math.min(
+              currentPmax * maxIncreaseRatio,
+              Math.max(currentPmax * maxDecreaseRatio, pmaxToUse)
+            );
+
+            const wasClamped = Math.abs(pmaxToUse - pmaxClamped) > 0.01;
+
+            if (wasClamped || wagerRatio > 1.5) {
+              console.log('⚠️ Wager-based P_max rate limiting:', {
+                wager: `$${wager.toFixed(2)}`,
+                avgWager: `$${avgWager.toFixed(2)}`,
+                wagerRatio: wagerRatio.toFixed(2) + 'x',
+                allowedChange: `±${(totalMaxChange * 100).toFixed(1)}%`,
+                breakdown: `base ${(baseMaxChange * 100).toFixed(0)}% + bonus ${(wagerBonus * 100).toFixed(0)}%`,
+                from: currentPmax.toFixed(2) + 'x',
+                calculated: pmaxToUse.toFixed(2) + 'x',
+                final: pmaxClamped.toFixed(2) + 'x',
+                clamped: wasClamped ? 'YES' : 'NO',
+              });
+            }
+
+            pmaxToUse = pmaxClamped;
+          }
 
           updated = {
-            sigma: Math.max(1, newSigma),
-            confidence: newConfidence,
-            pmax: Math.max(5, Math.min(50, newPmax)), // Clamp to safe range
+            sigma: Math.max(1, skillProfile.sigma),
+            confidence: Math.max(skillEstimate.confidence, Math.max(0, Math.min(100, skillProfile.confidence))), // Never decrease
+            pmax: pmaxToUse,
           };
 
-          console.log('✅ WASM Update (Smoothed):', {
-            oldPmax: skillEstimate.pmax.toFixed(2),
-            wasmPmax: skillProfile.p_max_current.toFixed(2),
-            newPmax: updated.pmax.toFixed(2),
+          console.log('✅ WASM Update (UI rate-limited):', {
+            sigma: updated.sigma.toFixed(2),
+            pmax: updated.pmax.toFixed(2),
             confidence: updated.confidence.toFixed(1) + '%',
             shots: newShots.length,
           });
@@ -426,28 +605,34 @@ export function useSimulator(initialHandicap: number = 10) {
         } else {
           // WASM failed or returned bad data - use fallback Kalman
           if (skillProfile) {
-            console.warn('⚠️ WASM skill profile invalid, skipping update:', {
+            console.warn('⚠️ WASM skill profile invalid, using fallback Kalman:', {
               sigma: skillProfile.sigma,
               p_max_current: skillProfile.p_max_current,
               confidence: skillProfile.confidence,
             });
           } else {
-            // No WASM profile - use placeholder Kalman
-            const recentShots = newShots.slice(-10);
-            const measurements = recentShots.map((s) => s.distance);
-            const kalmanResult = updateKalman(measurements);
-
-            // Smooth the fallback result too
-            const smoothingFactor = 0.2; // Even slower for fallback
-
-            updated = {
-              sigma: skillEstimate.sigma * (1 - smoothingFactor) + kalmanResult.sigma * smoothingFactor,
-              confidence: Math.max(skillEstimate.confidence, kalmanResult.confidence), // Never decrease
-              pmax: skillEstimate.pmax * (1 - smoothingFactor) + kalmanResult.pmax * smoothingFactor,
-            };
-
-            setSkillEstimate(updated);
+            console.log('📊 No WASM profile (manual mode or WASM not ready), using fallback Kalman');
           }
+
+          // Use placeholder Kalman for all non-WASM cases
+          const recentShots = newShots.slice(-10);
+          const measurements = recentShots.map((s) => s.distance);
+          const kalmanResult = updateKalman(measurements);
+
+          updated = {
+            sigma: kalmanResult.sigma,
+            confidence: Math.max(skillEstimate.confidence, kalmanResult.confidence), // Never decrease
+            pmax: kalmanResult.pmax,
+          };
+
+          console.log('✅ Fallback Kalman Update:', {
+            sigma: updated.sigma.toFixed(2),
+            pmax: updated.pmax.toFixed(2),
+            confidence: updated.confidence.toFixed(1) + '%',
+            shots: newShots.length,
+          });
+
+          setSkillEstimate(updated);
         }
       }
 
@@ -514,13 +699,23 @@ export function useSimulator(initialHandicap: number = 10) {
     });
   }, [initialHandicap]);
 
+  // Get current hole configuration
+  const currentHole = getHoleConfig(currentHoleId);
+
   return {
     shots,
     skillEstimate,
     pmaxHistory,
     sessionStats: getSessionStats(),
-    breakevenRadius: calculateBreakevenRadius(skillEstimate.pmax, skillEstimate.sigma),
+    breakevenRadius: calculateBreakevenRadius(skillEstimate.pmax, currentHoleId),
+    currentHole: {
+      id: currentHole.id,
+      distance: currentHole.distance_yds,
+      targetRadius: currentHole.d_max_ft / 3, // Convert feet to yards for display
+      k: currentHole.k, // Curve steepness
+    },
     shootOnce,
+    shootBatch,
     reset,
   };
 }

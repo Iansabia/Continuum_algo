@@ -1,8 +1,10 @@
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 interface PayoutCurveChartProps {
   pmax: number;
   breakevenRadius: number;
+  targetRadius: number; // d_max in yards
+  k: number; // Curve steepness
   lastShotDistance?: number;
   lastShotMultiplier?: number;
 }
@@ -10,49 +12,38 @@ interface PayoutCurveChartProps {
 export default function PayoutCurveChart({
   pmax,
   breakevenRadius,
+  targetRadius,
+  k,
   lastShotDistance,
   lastShotMultiplier,
 }: PayoutCurveChartProps) {
   // Validate P_max before rendering
   const isValidPmax = pmax > 0 && !isNaN(pmax) && isFinite(pmax);
 
+  // Debug last shot values
+  console.log('📍 PayoutCurveChart last shot:', {
+    distance: lastShotDistance,
+    multiplier: lastShotMultiplier,
+    hasDistance: lastShotDistance !== undefined,
+    hasMultiplier: lastShotMultiplier !== undefined,
+  });
+
   if (!isValidPmax) {
     return (
-      <div className="bg-gray-800 p-4 rounded-lg border-2 border-brand-deep-purple">
-        <h3 className="text-lg font-semibold text-brand-tan mb-4">Payout Curve</h3>
-        <div className="h-64 flex items-center justify-center text-gray-500">
-          <p>⚠️ Invalid P_max value. Take some shots to see the payout curve!</p>
+      <div className="bg-gradient-to-br from-[#604c9c]/10 to-[#493b7c]/10 backdrop-blur-xl p-3 rounded-xl border border-[#9e8cb4]/30 shadow-lg h-full flex flex-col">
+        <h3 className="text-xs font-medium text-[#9e8cb4] mb-2">Payout Curve</h3>
+        <div className="flex-1 flex items-center justify-center text-[#9e8cb4]/60 text-xs">
+          <p>⚠️ Take shots to see curve</p>
         </div>
       </div>
     );
   }
 
-  // Generate payout curve data
-  const generateCurveData = () => {
-    const data = [];
-    const dMaxFt = 30; // Maximum target radius in feet
-    const maxDistanceYards = dMaxFt / 3; // Convert to yards for display
-    const steps = 100;
-
-    for (let i = 0; i <= steps; i++) {
-      const distanceYards = (i / steps) * maxDistanceYards;
-      const multiplier = calculatePayoutMultiplier(distanceYards);
-      data.push({
-        distance: distanceYards,
-        multiplier: multiplier,
-        breakeven: 1.0,
-      });
-    }
-
-    return data;
-  };
-
   // Payout formula: P_max * (1 - d/d_max)^k
   // This matches the Rust implementation
   const calculatePayoutMultiplier = (distanceYards: number) => {
-    const dMaxFt = 30; // Maximum target radius in feet
-    const k = 5.0; // Curve steepness
-    const distanceFt = distanceYards * 3; // Convert to feet
+    const dMaxFt = targetRadius * 3; // Convert target radius from yards to feet
+    const distanceFt = distanceYards * 3; // Convert distance to feet
 
     // If beyond target radius, no payout
     if (distanceFt >= dMaxFt) {
@@ -66,30 +57,68 @@ export default function PayoutCurveChart({
     return Math.max(0, multiplier);
   };
 
+  // Generate payout curve data
+  const generateCurveData = () => {
+    const data = [];
+    const steps = 100;
+
+    for (let i = 0; i <= steps; i++) {
+      const distanceYards = (i / steps) * targetRadius;
+      const multiplier = calculatePayoutMultiplier(distanceYards);
+      data.push({
+        distance: distanceYards,
+        multiplier: multiplier,
+        breakeven: 1.0,
+        isLastShot: false,
+      });
+    }
+
+    // Add last shot point to the curve data if available
+    if (lastShotDistance !== undefined && lastShotMultiplier !== undefined) {
+      // Find the closest data point and mark it (or insert it)
+      const closestIndex = Math.round((lastShotDistance / targetRadius) * steps);
+
+      // Insert the actual shot data at the correct position
+      if (closestIndex >= 0 && closestIndex <= steps) {
+        data.splice(closestIndex, 0, {
+          distance: lastShotDistance,
+          multiplier: lastShotMultiplier,
+          breakeven: 1.0,
+          isLastShot: true,
+        });
+      }
+    }
+
+    return data;
+  };
+
   const data = generateCurveData();
 
   return (
-    <div className="bg-gray-800 p-4 rounded-lg border-2 border-brand-deep-purple">
-      <h3 className="text-lg font-semibold text-brand-tan mb-4">Payout Curve</h3>
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+    <div className="bg-gradient-to-br from-[#604c9c]/10 to-[#493b7c]/10 backdrop-blur-xl p-3 rounded-xl border border-[#9e8cb4]/30 shadow-lg h-full flex flex-col">
+      <h3 className="text-xs font-medium text-[#9e8cb4] mb-2">Payout Curve</h3>
+      <div className="flex-1 min-h-0">
+        <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(158,140,180,0.1)" />
           <XAxis
             dataKey="distance"
-            stroke="#9CA3AF"
-            label={{ value: 'Miss Distance (yards)', position: 'insideBottom', offset: -5, fill: '#9CA3AF' }}
+            stroke="rgba(158,140,180,0.5)"
+            tick={{ fontSize: 10, fill: 'rgba(158,140,180,0.7)' }}
+            label={{ value: 'Distance (y)', position: 'insideBottom', offset: -3, fill: 'rgba(158,140,180,0.7)', fontSize: 10 }}
           />
           <YAxis
-            stroke="#9CA3AF"
-            label={{ value: 'Payout Multiplier', angle: -90, position: 'insideLeft', fill: '#9CA3AF' }}
+            stroke="rgba(158,140,180,0.5)"
+            tick={{ fontSize: 10, fill: 'rgba(158,140,180,0.7)' }}
+            label={{ value: 'Mult', angle: -90, position: 'insideLeft', fill: 'rgba(158,140,180,0.7)', fontSize: 10 }}
             domain={[0, Math.max(2, pmax * 1.1)]}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: '#1F2937',
-              border: '1px solid #604c9c',
+              backgroundColor: 'rgba(73,59,124,0.9)',
+              border: '1px solid rgba(158,140,180,0.3)',
               borderRadius: '8px',
-              color: '#dfc9ad',
+              color: 'rgba(223,201,173,1)',
             }}
             formatter={(value: number, name: string) => {
               if (name === 'multiplier') return [`${value.toFixed(2)}x`, 'Payout'];
@@ -101,19 +130,19 @@ export default function PayoutCurveChart({
           {/* Breakeven line */}
           <ReferenceLine
             y={1.0}
-            stroke="#7e6649"
+            stroke="rgba(158,140,180,0.5)"
             strokeDasharray="5 5"
-            strokeWidth={2}
-            label={{ value: 'Breakeven', position: 'right', fill: '#7e6649' }}
+            strokeWidth={1.5}
+            label={{ value: 'Breakeven', position: 'right', fill: 'rgba(158,140,180,0.7)' }}
           />
 
           {/* Breakeven radius vertical line */}
           <ReferenceLine
             x={breakevenRadius}
-            stroke="#7e6649"
+            stroke="rgba(158,140,180,0.3)"
             strokeDasharray="3 3"
             strokeWidth={1}
-            label={{ value: `${breakevenRadius.toFixed(1)}y`, position: 'top', fill: '#7e6649' }}
+            label={{ value: `${breakevenRadius.toFixed(1)}y`, position: 'top', fill: 'rgba(158,140,180,0.7)' }}
           />
 
           {/* Payout curve */}
@@ -121,41 +150,12 @@ export default function PayoutCurveChart({
             type="monotone"
             dataKey="multiplier"
             stroke="#604c9c"
-            strokeWidth={3}
+            strokeWidth={2}
             dot={false}
-            activeDot={{ r: 6 }}
+            activeDot={{ r: 4, fill: '#604c9c' }}
           />
-
-          {/* Last shot marker */}
-          {lastShotDistance !== undefined && lastShotMultiplier !== undefined && (
-            <ReferenceDot
-              x={lastShotDistance}
-              y={lastShotMultiplier}
-              r={8}
-              fill={lastShotMultiplier >= 1.0 ? '#10B981' : '#EF4444'}
-              stroke="#ffffff"
-              strokeWidth={2}
-            />
-          )}
         </LineChart>
       </ResponsiveContainer>
-
-      {/* Legend */}
-      <div className="mt-4 flex justify-center gap-6 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-1 bg-brand-bright-purple"></div>
-          <span className="text-gray-400">Payout Multiplier</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-1 bg-brand-dark-gold border-dashed"></div>
-          <span className="text-gray-400">Breakeven (1.0x)</span>
-        </div>
-        {lastShotDistance !== undefined && (
-          <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${lastShotMultiplier && lastShotMultiplier >= 1.0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className="text-gray-400">Last Shot</span>
-          </div>
-        )}
       </div>
     </div>
   );

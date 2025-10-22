@@ -6,8 +6,12 @@ export default defineConfig({
   plugins: [react(), wasm()],
   build: {
     target: 'esnext',
+    commonjsOptions: {
+      include: [/recharts/, /node_modules/],
+    },
   },
   optimizeDeps: {
     exclude: ['continuum-golf-simulator'],
+    include: ['recharts'],
   },
 });

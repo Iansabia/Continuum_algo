@@ -1,84 +1,79 @@
-import { useRef, useMemo, useState } from 'react';
+import { useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Text, Grid } from '@react-three/drei';
 import * as THREE from 'three';
+
+interface Shot {
+  distance: number;
+  angle: number;
+  wager: number;
+  payout: number;
+  profit: number;
+  x?: number;
+  y?: number;
+}
 
 interface BVNHeatmap3DProps {
   sigmaX: number;
   sigmaY: number;
   currentPmax: number;
+  shots: Shot[];
   width?: number;
   height?: number;
 }
 
-// Generate P_max surface data over (σ_x, σ_y) space
-function generatePmaxSurface(centerX: number, centerY: number): {
+// Generate BVN probability density surface
+function generateBVNSurface(sigmaX: number, sigmaY: number): {
   vertices: Float32Array;
   colors: Float32Array;
   indices: Uint16Array;
 } {
-  const resolution = 50; // 50x50 grid
-  const rangeX = [Math.max(1, centerX - 10), centerX + 10]; // ±10 yards from center
-  const rangeY = [Math.max(1, centerY - 10), centerY + 10];
+  const resolution = 60; // Higher resolution for smoother surface
+  const range = 3; // Show ±3σ range
+  const maxX = sigmaX * range;
+  const maxY = sigmaY * range;
 
   const vertices: number[] = [];
   const colors: number[] = [];
   const indices: number[] = [];
 
-  // Calculate P_max for each (σ_x, σ_y) point
-  const calculatePmax = (sigX: number, sigY: number): number => {
-    // P_max formula: exp(0.5) ≈ 1.649 for optimal pricing
-    // But we can show variation based on dispersion
-    const avgSigma = Math.sqrt(sigX * sigX + sigY * sigY) / Math.SQRT2;
-    const baselineDispersion = 10; // yards
-    const ratio = baselineDispersion / avgSigma;
-    return Math.exp(0.5) * Math.max(0.5, Math.min(2.0, ratio));
+  // Bivariate Normal PDF
+  const bvnPDF = (x: number, y: number): number => {
+    const exponent = -0.5 * ((x * x) / (sigmaX * sigmaX) + (y * y) / (sigmaY * sigmaY));
+    return Math.exp(exponent) / (2 * Math.PI * sigmaX * sigmaY);
   };
 
-  // Color mapping: P_max to RGB (red → yellow → green)
-  const pmaxToColor = (pmax: number): [number, number, number] => {
-    // Normalize P_max to 0-1 range (assuming P_max is between 0.5 and 3.0)
-    const normalized = (pmax - 0.5) / 2.5;
-
-    if (normalized < 0.5) {
-      // Red to Yellow
-      const t = normalized * 2;
-      return [1, t, 0];
-    } else {
-      // Yellow to Green
-      const t = (normalized - 0.5) * 2;
-      return [1 - t, 1, 0];
-    }
-  };
+  let maxDensity = bvnPDF(0, 0);
 
   // Generate grid points
   for (let i = 0; i <= resolution; i++) {
     for (let j = 0; j <= resolution; j++) {
-      const sigX = rangeX[0] + (rangeX[1] - rangeX[0]) * (i / resolution);
-      const sigY = rangeY[0] + (rangeY[1] - rangeY[0]) * (j / resolution);
-      const pmax = calculatePmax(sigX, sigY);
+      // Position in yards
+      const x = -maxX + (2 * maxX * i) / resolution;
+      const y = -maxY + (2 * maxY * j) / resolution;
 
-      // Vertex position (normalized to -5 to +5 range for better visualization)
-      const x = (i / resolution - 0.5) * 10;
-      const z = (j / resolution - 0.5) * 10;
-      const y = (pmax - 1.0) * 5; // Scale P_max for visibility
+      const density = bvnPDF(x, y);
+      const normalizedDensity = density / maxDensity;
 
-      vertices.push(x, y, z);
+      // Scale for 3D visualization
+      const xScaled = (x / maxX) * 5;
+      const zScaled = (y / maxY) * 5;
+      const yScaled = normalizedDensity * 3; // Height represents probability density
 
-      // Color based on P_max
-      const [r, g, b] = pmaxToColor(pmax);
+      vertices.push(xScaled, yScaled, zScaled);
+
+      // Color based on density (blue to red heatmap)
+      const [r, g, b] = densityToColor(normalizedDensity);
       colors.push(r, g, b);
 
-      // Generate triangle indices (two triangles per quad)
+      // Generate triangle indices
       if (i < resolution && j < resolution) {
         const topLeft = i * (resolution + 1) + j;
         const topRight = topLeft + 1;
         const bottomLeft = (i + 1) * (resolution + 1) + j;
         const bottomRight = bottomLeft + 1;
 
-        // First triangle
         indices.push(topLeft, bottomLeft, topRight);
-        // Second triangle
         indices.push(topRight, bottomLeft, bottomRight);
       }
     }
@@ -91,28 +86,35 @@ function generatePmaxSurface(centerX: number, centerY: number): {
   };
 }
 
-function Surface({ sigmaX, sigmaY }: { sigmaX: number; sigmaY: number }) {
+// Color mapping for probability density
+function densityToColor(normalized: number): [number, number, number] {
+  // Blue (low) -> Cyan -> Green -> Yellow -> Red (high)
+  if (normalized < 0.25) {
+    const t = normalized * 4;
+    return [0, t, 1]; // Blue to Cyan
+  } else if (normalized < 0.5) {
+    const t = (normalized - 0.25) * 4;
+    return [0, 1, 1 - t]; // Cyan to Green
+  } else if (normalized < 0.75) {
+    const t = (normalized - 0.5) * 4;
+    return [t, 1, 0]; // Green to Yellow
+  } else {
+    const t = (normalized - 0.75) * 4;
+    return [1, 1 - t, 0]; // Yellow to Red
+  }
+}
+
+// BVN Density Surface Component
+function BVNSurface({ sigmaX, sigmaY }: { sigmaX: number; sigmaY: number }) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const [hovered, setHovered] = useState(false);
 
   const { vertices, colors, indices } = useMemo(
-    () => generatePmaxSurface(sigmaX, sigmaY),
+    () => generateBVNSurface(sigmaX, sigmaY),
     [sigmaX, sigmaY]
   );
 
-  // Gentle rotation animation
-  useFrame((state) => {
-    if (meshRef.current && !hovered) {
-      meshRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.2) * 0.1;
-    }
-  });
-
   return (
-    <mesh
-      ref={meshRef}
-      onPointerEnter={() => setHovered(true)}
-      onPointerLeave={() => setHovered(false)}
-    >
+    <mesh ref={meshRef}>
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
@@ -128,63 +130,145 @@ function Surface({ sigmaX, sigmaY }: { sigmaX: number; sigmaY: number }) {
         />
         <bufferAttribute attach="index" count={indices.length} array={indices} itemSize={1} />
       </bufferGeometry>
-      <meshStandardMaterial vertexColors side={THREE.DoubleSide} />
+      <meshStandardMaterial vertexColors side={THREE.DoubleSide} transparent opacity={0.8} />
     </mesh>
   );
 }
 
-function AxisLabels() {
+// Scatter plot of actual shots projected onto the ground plane
+function ShotScatterPlot({ shots, sigmaX, sigmaY }: { shots: Shot[]; sigmaX: number; sigmaY: number }) {
+  const range = 3;
+  const maxX = sigmaX * range;
+  const maxY = sigmaY * range;
+
+  return (
+    <group>
+      {shots.map((shot, idx) => {
+        // Calculate x, y position from distance and angle
+        const x = shot.distance * Math.cos(shot.angle);
+        const y = shot.distance * Math.sin(shot.angle);
+
+        // Scale to 3D space
+        const xScaled = (x / maxX) * 5;
+        const zScaled = (y / maxY) * 5;
+
+        // Clamp to visible range
+        if (Math.abs(xScaled) > 5 || Math.abs(zScaled) > 5) return null;
+
+        // Color based on profit/loss
+        const color = shot.profit >= 0 ? '#10B981' : '#EF4444';
+
+        return (
+          <group key={idx}>
+            {/* Dot on ground plane */}
+            <mesh position={[xScaled, 0, zScaled]}>
+              <sphereGeometry args={[0.08, 8, 8]} />
+              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} />
+            </mesh>
+            {/* Vertical line from ground to density surface */}
+            <mesh position={[xScaled, 0.5, zScaled]}>
+              <cylinderGeometry args={[0.02, 0.02, 1, 8]} />
+              <meshStandardMaterial color={color} transparent opacity={0.3} />
+            </mesh>
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+// Contour circles on ground plane showing 1σ, 2σ, 3σ
+function GroundContours({ sigmaX }: { sigmaX: number; sigmaY: number }) {
+  const range = 3;
+  const maxX = sigmaX * range;
+
+  const sigmaLevels = [
+    { sigma: 1, color: '#604c9c', opacity: 0.6 },
+    { sigma: 2, color: '#493b7c', opacity: 0.4 },
+    { sigma: 3, color: '#3a2f5f', opacity: 0.3 },
+  ];
+
+  return (
+    <group>
+      {sigmaLevels.map(({ sigma, color, opacity }) => {
+        const radius = (sigmaX * sigma / maxX) * 5;
+
+        return (
+          <mesh key={sigma} position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[radius - 0.05, radius + 0.05, 64]} />
+            <meshBasicMaterial color={color} transparent opacity={opacity} />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
+// Axis labels for the 3D view
+function AxisLabels({ sigmaX, sigmaY }: { sigmaX: number; sigmaY: number }) {
   return (
     <>
-      {/* X-axis label (σ_x) */}
+      {/* X-axis label */}
       <Text
-        position={[6, -3, 0]}
-        fontSize={0.5}
+        position={[6, 0, 0]}
+        fontSize={0.4}
         color="#dfc9ad"
         anchorX="center"
         anchorY="middle"
       >
-        σ_x (yards)
+        X (yards)
       </Text>
 
-      {/* Y-axis label (P_max) */}
+      {/* Y-axis label (height = probability density) */}
       <Text
-        position={[0, 5, 0]}
-        fontSize={0.5}
+        position={[0, 4, 0]}
+        fontSize={0.4}
         color="#dfc9ad"
         anchorX="center"
         anchorY="middle"
       >
-        P_max
+        Probability Density
       </Text>
 
-      {/* Z-axis label (σ_y) */}
+      {/* Z-axis label */}
       <Text
-        position={[0, -3, 6]}
-        fontSize={0.5}
+        position={[0, 0, 6]}
+        fontSize={0.4}
         color="#dfc9ad"
         anchorX="center"
         anchorY="middle"
       >
-        σ_y (yards)
+        Y (yards)
+      </Text>
+
+      {/* Sigma annotations */}
+      <Text
+        position={[0, 3.5, 0]}
+        fontSize={0.3}
+        color="#9e8cb4"
+        anchorX="center"
+        anchorY="middle"
+      >
+        σ_x = {sigmaX.toFixed(1)}y, σ_y = {sigmaY.toFixed(1)}y
       </Text>
     </>
   );
 }
 
-function CurrentPositionMarker({ pmax }: { sigmaX: number; sigmaY: number; pmax: number }) {
+// Center marker (target hole)
+function CenterMarker() {
   const markerRef = useRef<THREE.Mesh>(null);
 
   useFrame((state) => {
     if (markerRef.current) {
-      markerRef.current.position.y = (pmax - 1.0) * 5 + 0.3 + Math.sin(state.clock.elapsedTime * 2) * 0.1;
+      markerRef.current.position.y = 0.2 + Math.sin(state.clock.elapsedTime * 2) * 0.1;
     }
   });
 
   return (
-    <mesh ref={markerRef} position={[0, (pmax - 1.0) * 5 + 0.3, 0]}>
-      <sphereGeometry args={[0.2, 16, 16]} />
-      <meshStandardMaterial color="#D4AF37" emissive="#D4AF37" emissiveIntensity={0.5} />
+    <mesh ref={markerRef} position={[0, 0.2, 0]}>
+      <cylinderGeometry args={[0.1, 0.05, 0.4, 16]} />
+      <meshStandardMaterial color="#D4AF37" emissive="#D4AF37" emissiveIntensity={0.8} />
     </mesh>
   );
 }
@@ -192,80 +276,91 @@ function CurrentPositionMarker({ pmax }: { sigmaX: number; sigmaY: number; pmax:
 export default function BVNHeatmap3D({
   sigmaX,
   sigmaY,
-  currentPmax,
+  shots,
 }: BVNHeatmap3DProps) {
   return (
-    <div className="bg-gray-800 p-4 rounded-lg border-2 border-brand-deep-purple">
-      <h3 className="text-lg font-semibold text-brand-tan mb-4">
-        3D P_max Surface (BVN Distribution)
-      </h3>
+    <div className="w-full h-full flex flex-col">
+      <div className="bg-gradient-to-br from-[#604c9c]/10 to-[#493b7c]/10 backdrop-blur-xl p-3 rounded-xl border border-[#9e8cb4]/30 shadow-lg flex-1 flex flex-col">
+        <h3 className="text-xs font-medium text-[#9e8cb4] mb-2">
+          3D Distribution
+        </h3>
 
-      <div className="w-full aspect-[6/5] max-w-[600px] mx-auto">
-        <Canvas camera={{ position: [8, 6, 8], fov: 50 }}>
-          {/* Lighting */}
-          <ambientLight intensity={0.5} />
-          <directionalLight position={[10, 10, 5]} intensity={1} />
-          <pointLight position={[-10, -10, -5]} intensity={0.5} />
+        <div className="flex-1 min-h-0">
+          <Canvas camera={{ position: [8, 5, 8], fov: 50 }}>
+            {/* Lighting */}
+            <ambientLight intensity={0.6} />
+            <directionalLight position={[10, 10, 5]} intensity={0.8} />
+            <pointLight position={[-10, 5, -5]} intensity={0.4} />
 
-          {/* 3D Surface */}
-          <Surface sigmaX={sigmaX} sigmaY={sigmaY} />
+            {/* BVN Probability Density Surface */}
+            <BVNSurface sigmaX={sigmaX} sigmaY={sigmaY} />
 
-          {/* Current position marker */}
-          <CurrentPositionMarker sigmaX={sigmaX} sigmaY={sigmaY} pmax={currentPmax} />
+            {/* Ground contours (1σ, 2σ, 3σ circles) */}
+            <GroundContours sigmaX={sigmaX} sigmaY={sigmaY} />
 
-          {/* Grid on base plane */}
-          <Grid
-            args={[10, 10]}
-            cellSize={1}
-            cellThickness={0.5}
-            cellColor="#604c9c"
-            sectionSize={5}
-            sectionThickness={1}
-            sectionColor="#493b7c"
-            fadeDistance={30}
-            fadeStrength={1}
-            followCamera={false}
-            position={[0, -3, 0]}
-          />
+            {/* Shot scatter plot on ground */}
+            <ShotScatterPlot shots={shots} sigmaX={sigmaX} sigmaY={sigmaY} />
 
-          {/* Axis labels */}
-          <AxisLabels />
+            {/* Center marker (target hole) */}
+            <CenterMarker />
 
-          {/* Interactive controls */}
-          <OrbitControls
-            enablePan={true}
-            enableZoom={true}
-            enableRotate={true}
-            minDistance={5}
-            maxDistance={20}
-          />
-        </Canvas>
-      </div>
+            {/* Grid on base plane */}
+            <Grid
+              args={[10, 10]}
+              cellSize={0.5}
+              cellThickness={0.5}
+              cellColor="#2a2a4a"
+              sectionSize={2.5}
+              sectionThickness={1}
+              sectionColor="#3a3a6a"
+              fadeDistance={30}
+              fadeStrength={1}
+              followCamera={false}
+              position={[0, 0, 0]}
+            />
 
-      {/* Legend */}
-      <div className="mt-4 flex justify-center gap-6 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-red-500"></div>
-          <span className="text-gray-400">Low P_max</span>
+            {/* Axis labels */}
+            <AxisLabels sigmaX={sigmaX} sigmaY={sigmaY} />
+
+            {/* Interactive controls */}
+            <OrbitControls
+              enablePan={true}
+              enableZoom={true}
+              enableRotate={true}
+              minDistance={6}
+              maxDistance={20}
+            />
+          </Canvas>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-yellow-500"></div>
-          <span className="text-gray-400">Medium P_max</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-green-500"></div>
-          <span className="text-gray-400">High P_max</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-golf-gold"></div>
-          <span className="text-gray-400">Current Position</span>
-        </div>
-      </div>
 
-      {/* Info text */}
-      <div className="mt-4 text-xs text-gray-500 text-center">
-        <p>Interactive 3D visualization of P_max across (σ_x, σ_y) space</p>
-        <p>Drag to rotate • Scroll to zoom • Right-click to pan</p>
+        {/* Legend */}
+        <div className="mt-2 flex flex-wrap justify-center gap-2 text-[10px]">
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-blue-500 rounded-sm"></div>
+            <span className="text-[#9e8cb4]/70">Low</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-yellow-500 rounded-sm"></div>
+            <span className="text-[#9e8cb4]/70">Med</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-red-500 rounded-sm"></div>
+            <span className="text-[#9e8cb4]/70">High</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 rounded-full bg-green-500"></div>
+            <span className="text-[#9e8cb4]/70">Win</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 rounded-full bg-red-500"></div>
+            <span className="text-[#9e8cb4]/70">Loss</span>
+          </div>
+        </div>
+
+        {/* Info text */}
+        <div className="mt-1.5 text-[10px] text-[#9e8cb4]/50 text-center">
+          <p>Drag to rotate • Scroll to zoom • Right-click to pan</p>
+        </div>
       </div>
     </div>
   );
