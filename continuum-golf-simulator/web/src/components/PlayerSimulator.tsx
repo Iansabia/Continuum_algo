@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useSimulator } from '../hooks/useSimulator';
+import { useExportPDF } from '../hooks/useExportPDF';
 import TargetVisualizer from './TargetVisualizer';
 import BVNHeatmap3D from './BVNHeatmap3D';
 import PayoutCurveChart from './PayoutCurveChart';
 import PmaxHistoryChart from './PmaxHistoryChart';
 import SkillConfidenceBar from './SkillConfidenceBar';
 import SessionTracker from './SessionTracker';
+import ProfitabilityHeatmap from './ProfitabilityHeatmap';
 
 const HOLES = [
   { id: 1, distance: 75, name: 'Hole 1 (75y)' },
@@ -39,6 +41,8 @@ export default function PlayerSimulator() {
     reset,
   } = useSimulator(handicap, selectedHoleId);
 
+  const { exportToPDF } = useExportPDF();
+
   const handleShoot = () => {
     setIsShooting(true);
 
@@ -68,6 +72,16 @@ export default function PlayerSimulator() {
     if (confirm('Reset session? This will clear all shot data.')) {
       reset();
     }
+  };
+
+  const handleExport = () => {
+    exportToPDF({
+      handicap,
+      sessionStats,
+      skillEstimate,
+      currentHole,
+      breakevenRadius,
+    });
   };
 
   const lastShot = shots.length > 0 ? shots[shots.length - 1] : null;
@@ -251,6 +265,15 @@ export default function PlayerSimulator() {
             </button>
 
             <button
+              onClick={handleExport}
+              disabled={shots.length === 0}
+              className="w-full bg-gradient-to-r from-[#D4AF37] to-[#C5A028] hover:from-[#D4AF37]/90 hover:to-[#C5A028]/90 text-[#1A1D29] font-medium py-2 px-4 rounded-lg
+                         transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm shadow-lg"
+            >
+              Export PDF
+            </button>
+
+            <button
               onClick={handleReset}
               className="w-full bg-[#493b7c]/20 hover:bg-[#493b7c]/30 text-[#9e8cb4] font-medium py-1.5 px-4 rounded-lg
                          transition-all text-xs border border-[#9e8cb4]/30"
@@ -300,6 +323,9 @@ export default function PlayerSimulator() {
           </div>
           <div className="flex-1 min-h-[200px] lg:min-h-0">
             <PmaxHistoryChart history={pmaxHistory} />
+          </div>
+          <div className="flex-1 min-h-[200px] lg:min-h-0">
+            <ProfitabilityHeatmap />
           </div>
         </div>
       </div>
