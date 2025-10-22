@@ -22,32 +22,43 @@ const handicapToSigma = (handicap: number): number => {
   return 3.0 + (handicap / 30) * 12.0; // Range: 3-15 yards
 };
 
-// Calculate expected house edge for a handicap/hole combination
-const calculateHouseEdge = (handicap: number, holeDistance: number): number => {
+// Calculate P_max required to achieve fair 85% RTP for a handicap/hole combination
+// The Kalman filter adjusts P_max so ALL skill levels have equal expected value
+const calculateRequiredPmax = (handicap: number, holeDistance: number): number => {
   const sigma = handicapToSigma(handicap);
 
   // Target radius scales with distance (approximate)
   const targetRadius = 10 + (holeDistance / 250) * 40; // 10-50 yards
 
-  // Expected RTP: easier holes (larger targets) = higher player return
-  // House edge = 1 - RTP
-  const ratio = sigma / targetRadius;
-  const rtp = 0.85 - (ratio - 0.2) * 0.15; // Target: 75-90% RTP
-  const houseEdge = (1 - Math.max(0.75, Math.min(0.90, rtp))) * 100;
+  // For a Rayleigh distribution with sigma and target radius d_max:
+  // Expected payout ≈ integral of P_max * (1 - r/d_max)^k * f(r) dr
+  // Simplified: higher sigma/d_max ratio requires higher P_max to maintain RTP
+  const sigmaFt = sigma * 3; // Convert to feet
+  const dMaxFt = targetRadius * 3;
+  const ratio = sigmaFt / dMaxFt;
 
-  return houseEdge;
+  // P_max increases with skill variance to maintain constant 85% RTP
+  // Better players (low sigma) get lower P_max but hit more often
+  // Worse players (high sigma) get higher P_max but miss more often
+  // Result: Equal expected value for all!
+  const targetRTP = 0.85;
+  const estimatedHitRate = Math.max(0.05, 0.6 * (1 - Math.min(0.9, ratio)));
+  const pmax = targetRTP / estimatedHitRate;
+
+  return Math.max(1.5, Math.min(20.0, pmax));
 };
 
-// Get color based on house edge percentage
-const getHeatmapColor = (houseEdge: number): string => {
-  // Green (low edge, player-friendly) to Red (high edge, house-friendly)
-  // Ideal range: 10-25%
+// Get color based on P_max value (shows difficulty/variance compensation)
+const getPmaxColor = (pmax: number): string => {
+  // Lower P_max (skilled players) = cooler colors
+  // Higher P_max (less skilled players) = warmer colors
+  // This visualizes how the system compensates for skill variance
 
-  if (houseEdge < 10) return 'rgba(239, 68, 68, 0.9)'; // Red - too low, unsustainable
-  if (houseEdge < 15) return 'rgba(251, 146, 60, 0.8)'; // Orange - acceptable
-  if (houseEdge < 20) return 'rgba(34, 197, 94, 0.9)'; // Green - ideal
-  if (houseEdge < 25) return 'rgba(34, 197, 94, 0.7)'; // Light green - good
-  return 'rgba(59, 130, 246, 0.7)'; // Blue - high but fair
+  if (pmax < 3) return 'rgba(59, 130, 246, 0.85)'; // Blue - low P_max (skilled)
+  if (pmax < 5) return 'rgba(34, 197, 94, 0.85)'; // Green - moderate-low
+  if (pmax < 8) return 'rgba(234, 179, 8, 0.85)'; // Yellow - moderate
+  if (pmax < 12) return 'rgba(251, 146, 60, 0.85)'; // Orange - moderate-high
+  return 'rgba(239, 68, 68, 0.85)'; // Red - high P_max (less skilled)
 };
 
 export default function ProfitabilityHeatmap({ className = '' }: ProfitabilityHeatmapProps) {
@@ -56,7 +67,7 @@ export default function ProfitabilityHeatmap({ className = '' }: ProfitabilityHe
       handicap,
       holes: HOLES.map((hole) => ({
         ...hole,
-        houseEdge: calculateHouseEdge(handicap, hole.distance),
+        pmax: calculateRequiredPmax(handicap, hole.distance),
       })),
     }));
   }, []);
@@ -64,8 +75,11 @@ export default function ProfitabilityHeatmap({ className = '' }: ProfitabilityHe
   return (
     <div className={`bg-gradient-to-br from-[#604c9c]/10 to-[#493b7c]/10 backdrop-blur-xl p-3 rounded-xl border border-[#9e8cb4]/30 shadow-lg ${className}`}>
       <h3 className="text-xs font-medium text-[#9e8cb4] mb-3">
-        Profitability Heatmap: House Edge %
+        Fairness Heatmap: Required P_max
       </h3>
+      <p className="text-[10px] text-[#9e8cb4]/60 mb-2">
+        Shows P_max values that ensure 85% RTP for all skill levels
+      </p>
 
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
@@ -93,11 +107,11 @@ export default function ProfitabilityHeatmap({ className = '' }: ProfitabilityHe
                     key={cell.id}
                     className="text-center py-1 px-1"
                     style={{
-                      backgroundColor: getHeatmapColor(cell.houseEdge),
+                      backgroundColor: getPmaxColor(cell.pmax),
                     }}
                   >
                     <div className="text-white font-semibold text-[11px] drop-shadow-md">
-                      {cell.houseEdge.toFixed(1)}%
+                      {cell.pmax.toFixed(1)}x
                     </div>
                   </td>
                 ))}
@@ -111,28 +125,28 @@ export default function ProfitabilityHeatmap({ className = '' }: ProfitabilityHe
       <div className="mt-3 pt-3 border-t border-[#9e8cb4]/20">
         <div className="flex items-center justify-between text-[10px]">
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(239, 68, 68, 0.9)' }}></div>
-            <span className="text-[#9e8cb4]/70">&lt;10% (Risk)</span>
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(59, 130, 246, 0.85)' }}></div>
+            <span className="text-[#9e8cb4]/70">&lt;3x (Skilled)</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(251, 146, 60, 0.8)' }}></div>
-            <span className="text-[#9e8cb4]/70">10-15%</span>
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(34, 197, 94, 0.85)' }}></div>
+            <span className="text-[#9e8cb4]/70">3-5x</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(34, 197, 94, 0.9)' }}></div>
-            <span className="text-[#9e8cb4]/70">15-20% (Ideal)</span>
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(234, 179, 8, 0.85)' }}></div>
+            <span className="text-[#9e8cb4]/70">5-8x</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(34, 197, 94, 0.7)' }}></div>
-            <span className="text-[#9e8cb4]/70">20-25%</span>
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(251, 146, 60, 0.85)' }}></div>
+            <span className="text-[#9e8cb4]/70">8-12x</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(59, 130, 246, 0.7)' }}></div>
-            <span className="text-[#9e8cb4]/70">&gt;25%</span>
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(239, 68, 68, 0.85)' }}></div>
+            <span className="text-[#9e8cb4]/70">&gt;12x (Beginner)</span>
           </div>
         </div>
         <p className="text-[10px] text-[#9e8cb4]/60 mt-2 text-center">
-          Shows expected house profitability across skill levels and hole difficulties
+          Higher P_max compensates for skill variance • All players get ~85% RTP regardless of skill
         </p>
       </div>
     </div>
