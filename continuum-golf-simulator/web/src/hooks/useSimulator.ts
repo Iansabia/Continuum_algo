@@ -440,16 +440,9 @@ export function useSimulator(initialHandicap: number = 10, selectedHoleId: numbe
         setShots(newShots);
         setCurrentHoleId(holeId);
 
-        // Create P_max history entries for each shot in the batch
-        // WASM returns p_max per shot, showing the evolution through the batch
-        // Use current confidence for intermediate points to avoid chart scaling issues
-        const currentConfidence = skillEstimate.confidence;
-        const batchPmaxHistory: PmaxDataPoint[] = result.shots.map((wasmShot, index) => ({
-          shotNumber: shots.length + index + 1,
-          pmax: wasmShot.p_max,
-          confidence: currentConfidence, // Use current confidence to maintain chart scale
-          sigma: skillEstimate.sigma, // Intermediate sigma not available per-shot
-        }));
+        // For batch shots, we should only add ONE data point at the END
+        // showing the final smoothed P_max, not per-shot fluctuations
+        // This prevents the spiky graph issue
 
         // Get final skill profile
         const skillProfile = result.final_skills && result.final_skills.length > 0
@@ -469,7 +462,6 @@ export function useSimulator(initialHandicap: number = 10, selectedHoleId: numbe
             confidence: updated.confidence.toFixed(1) + '%',
             totalShots: newShots.length,
             batchSize: numShots,
-            pmaxDataPoints: batchPmaxHistory.length,
           });
 
           setSkillEstimate(updated);
@@ -479,14 +471,14 @@ export function useSimulator(initialHandicap: number = 10, selectedHoleId: numbe
             measurementCount: newShots.length,
           });
 
-          // Update the last entry with final confidence and sigma
-          if (batchPmaxHistory.length > 0) {
-            batchPmaxHistory[batchPmaxHistory.length - 1].confidence = updated.confidence;
-            batchPmaxHistory[batchPmaxHistory.length - 1].sigma = updated.sigma;
-          }
-
-          // Add all P_max history entries from the batch
-          setPmaxHistory((prev) => [...prev, ...batchPmaxHistory]);
+          // Add ONE smoothed P_max data point for the entire batch
+          // This shows the final converged value after processing all shots
+          setPmaxHistory((prev) => [...prev, {
+            shotNumber: newShots.length,
+            pmax: updated.pmax,
+            confidence: updated.confidence,
+            sigma: updated.sigma,
+          }]);
         }
 
         return batchShots;

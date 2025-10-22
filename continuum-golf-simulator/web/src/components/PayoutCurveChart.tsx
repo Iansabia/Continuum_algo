@@ -111,7 +111,8 @@ export default function PayoutCurveChart({
             stroke="rgba(158,140,180,0.5)"
             tick={{ fontSize: 10, fill: 'rgba(158,140,180,0.7)' }}
             label={{ value: 'Mult', angle: -90, position: 'insideLeft', fill: 'rgba(158,140,180,0.7)', fontSize: 10 }}
-            domain={[0, Math.max(2, pmax * 1.1)]}
+            domain={[0, 'auto']}
+            tickCount={6}
           />
           <Tooltip
             contentStyle={{
