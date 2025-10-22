@@ -1,0 +1,73 @@
+name: Deploy Web Interface to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'continuum-golf-simulator/web/**'
+      - 'continuum-golf-simulator/src/**'
+      - 'continuum-golf-simulator/Cargo.toml'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'continuum-golf-simulator/web/package-lock.json'
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build WASM module
+        working-directory: ./continuum-golf-simulator
+        run: wasm-pack build --target web --out-dir web/src/wasm
+
+      - name: Install dependencies
+        working-directory: ./continuum-golf-simulator/web
+        run: npm ci
+
+      - name: Build web app
+        working-directory: ./continuum-golf-simulator/web
+        run: npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './continuum-golf-simulator/web/dist'
+
+  deploy:
+    environment:
+      name: github-pages
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
