@@ -34,6 +34,13 @@ interface WasmSkillProfile {
   p_max_current: number;
 }
 
+interface WasmAnomalyReport {
+  is_suspicious: boolean;
+  confidence: number;
+  detected_patterns: string[];
+  recommended_action: string;
+}
+
 interface WasmSessionResult {
   total_wagered: number;
   total_won: number;
@@ -41,6 +48,7 @@ interface WasmSessionResult {
   session_house_edge: number;
   shots: WasmShotOutcome[];
   final_skills: WasmSkillProfile[];
+  anti_cheat_report: WasmAnomalyReport | null;
 }
 
 export interface Shot {
@@ -103,10 +111,18 @@ const calculateInitialPmax = (handicap: number): number => {
   return Math.max(5, Math.min(50, pmax));
 };
 
+export interface AnomalyReport {
+  is_suspicious: boolean;
+  confidence: number;
+  detected_patterns: string[];
+  recommended_action: string;
+}
+
 export function useSimulator(initialHandicap: number = 10, selectedHoleId: number = 1) {
   const [wasmReady, setWasmReady] = useState(false);
   const [shots, setShots] = useState<Shot[]>([]);
   const [currentHoleId, setCurrentHoleId] = useState<number>(selectedHoleId); // Track which hole was used for last shot
+  const [antiCheatReport, setAntiCheatReport] = useState<AnomalyReport | null>(null);
 
   // Calculate initial sigma and P_max from handicap
   const initialSigma = 3 + (initialHandicap * 0.5);
@@ -471,6 +487,20 @@ export function useSimulator(initialHandicap: number = 10, selectedHoleId: numbe
             measurementCount: newShots.length,
           });
 
+          // Update anti-cheat report if available
+          if (result.anti_cheat_report) {
+            setAntiCheatReport(result.anti_cheat_report);
+
+            // Log suspicious activity
+            if (result.anti_cheat_report.is_suspicious) {
+              console.warn('🚨 Anti-Cheat Alert:', {
+                confidence: (result.anti_cheat_report.confidence * 100).toFixed(0) + '%',
+                patterns: result.anti_cheat_report.detected_patterns,
+                action: result.anti_cheat_report.recommended_action,
+              });
+            }
+          }
+
           // Add ONE smoothed P_max data point for the entire batch
           // This shows the final converged value after processing all shots
           setPmaxHistory((prev) => [...prev, {
@@ -678,6 +708,7 @@ export function useSimulator(initialHandicap: number = 10, selectedHoleId: numbe
       pmax: resetPmax,
     });
     setPmaxHistory([]);
+    setAntiCheatReport(null);
     setKalmanState({
       mean: resetSigma,
       variance: 100,
@@ -706,6 +737,7 @@ export function useSimulator(initialHandicap: number = 10, selectedHoleId: numbe
       targetRadius: currentHole.d_max_ft / 3, // Convert feet to yards for display
       k: currentHole.k, // Curve steepness
     },
+    antiCheatReport,
     shootOnce,
     shootBatch,
     reset,

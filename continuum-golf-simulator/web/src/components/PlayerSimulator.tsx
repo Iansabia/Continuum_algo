@@ -7,6 +7,7 @@ import PayoutCurveChart from './PayoutCurveChart';
 import PmaxHistoryChart from './PmaxHistoryChart';
 import SkillConfidenceBar from './SkillConfidenceBar';
 import SessionTracker from './SessionTracker';
+import AntiCheatPanel from './AntiCheatPanel';
 
 const HOLES = [
   { id: 1, distance: 75, name: 'Hole 1 (75y)' },
@@ -35,6 +36,7 @@ export default function PlayerSimulator() {
     sessionStats,
     breakevenRadius,
     currentHole,
+    antiCheatReport,
     shootOnce,
     shootBatch,
     reset,
@@ -322,6 +324,12 @@ export default function PlayerSimulator() {
           </div>
           <div className="flex-1 min-h-[200px] lg:min-h-0">
             <PmaxHistoryChart history={pmaxHistory} />
+          </div>
+          <div className="min-h-[150px]">
+            <AntiCheatPanel
+              report={antiCheatReport}
+              shotCount={shots.length}
+            />
           </div>
         </div>
       </div>
