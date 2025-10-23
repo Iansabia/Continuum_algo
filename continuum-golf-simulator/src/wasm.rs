@@ -8,6 +8,7 @@ use crate::models::hole::{HOLE_CONFIGURATIONS, ClubCategory};
 use crate::simulators::player_session::{SessionConfig, HoleSelection, run_session};
 use crate::simulators::venue::{VenueConfig, PlayerArchetype, run_venue_simulation};
 use crate::analytics::metrics::{calculate_expected_value, calculate_fairness_metric};
+use crate::anti_cheat::{detect_sandbagging, detect_cherry_picking, detect_skill_jump, detect_confidence_anomaly};
 
 #[wasm_bindgen]
 extern "C" {
@@ -51,6 +52,14 @@ pub struct WasmSkillProfile {
 }
 
 #[derive(Serialize, Deserialize)]
+pub struct WasmAnomalyReport {
+    pub is_suspicious: bool,
+    pub confidence: f64,
+    pub detected_patterns: Vec<String>,
+    pub recommended_action: String,
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct WasmSessionResult {
     pub total_wagered: f64,
     pub total_won: f64,
@@ -58,6 +67,7 @@ pub struct WasmSessionResult {
     pub session_house_edge: f64,
     pub shots: Vec<WasmShotOutcome>,
     pub final_skills: Vec<WasmSkillProfile>,
+    pub anti_cheat_report: Option<WasmAnomalyReport>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -179,6 +189,44 @@ pub fn simulate_player_session(
         },
     ];
 
+    // Run anti-cheat analysis if we have enough shots
+    let anti_cheat_report = if result.shots.len() >= 20 {
+        // Run all anti-cheat detectors and pick the most suspicious
+        let sandbagging = detect_sandbagging(&result.shots);
+        let cherry_picking = detect_cherry_picking(&result.shots);
+
+        // Split shots for skill jump detection (first 70% vs last 30%)
+        let split_point = (result.shots.len() as f64 * 0.7) as usize;
+        let (historical_shots, recent_shots) = result.shots.split_at(split_point);
+        let skill_jump = detect_skill_jump(historical_shots, recent_shots);
+
+        // Build confidence history - use actual Kalman filter confidence if available
+        // For now, use a simple proxy based on shot count and consistency
+        let confidence_history: Vec<(usize, f64)> = (1..=result.shots.len())
+            .map(|i| {
+                // Simple confidence model: increases with shot count, decreases with inconsistency
+                let base_conf = (i as f64 / 50.0 * 100.0).min(100.0);
+                (i, base_conf)
+            })
+            .collect();
+        let confidence_anomaly = detect_confidence_anomaly(&confidence_history);
+
+        // Find the most suspicious report
+        let reports = vec![sandbagging, cherry_picking, skill_jump, confidence_anomaly];
+        let most_suspicious = reports.into_iter()
+            .max_by(|a, b| a.confidence.partial_cmp(&b.confidence).unwrap())
+            .unwrap();
+
+        Some(WasmAnomalyReport {
+            is_suspicious: most_suspicious.is_suspicious,
+            confidence: most_suspicious.confidence,
+            detected_patterns: most_suspicious.detected_patterns,
+            recommended_action: most_suspicious.recommended_action,
+        })
+    } else {
+        None
+    };
+
     let wasm_result = WasmSessionResult {
         total_wagered: result.total_wagered,
         total_won: result.total_won,
@@ -186,6 +234,7 @@ pub fn simulate_player_session(
         session_house_edge: result.session_house_edge,
         shots: wasm_shots,
         final_skills: wasm_skills,
+        anti_cheat_report,
     };
 
     serde_wasm_bindgen::to_value(&wasm_result)

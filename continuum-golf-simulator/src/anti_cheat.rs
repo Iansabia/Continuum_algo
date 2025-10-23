@@ -248,6 +248,90 @@ fn partition_wagers(wagers: &[f64]) -> (Vec<f64>, Vec<f64>) {
     (low, high)
 }
 
+/// Detect sudden confidence drops (potential skill inconsistency or account sharing)
+///
+/// Indicators:
+/// - Sudden large drops in Kalman filter confidence
+/// - Inconsistent shot patterns that increase error covariance
+/// - May indicate account sharing or automated play
+pub fn detect_confidence_anomaly(confidence_history: &[(usize, f64)]) -> AnomalyReport {
+    if confidence_history.len() < 10 {
+        return AnomalyReport {
+            is_suspicious: false,
+            confidence: 0.0,
+            detected_patterns: vec![],
+            recommended_action: "Insufficient confidence history".to_string(),
+        };
+    }
+
+    let mut patterns = Vec::new();
+    let mut suspicion_score = 0.0;
+
+    // Check for sudden drops (>30% drop in confidence)
+    let mut max_drop = 0.0;
+    for i in 1..confidence_history.len() {
+        let prev_conf = confidence_history[i - 1].1;
+        let curr_conf = confidence_history[i].1;
+
+        // Only check for drops when previous confidence was reasonably high (>40%)
+        if prev_conf > 40.0 {
+            let drop = prev_conf - curr_conf;
+            if drop > max_drop {
+                max_drop = drop;
+            }
+        }
+    }
+
+    if max_drop > 30.0 {
+        patterns.push(format!("Sudden confidence drop: {:.1}% → indicates skill inconsistency", max_drop));
+        suspicion_score += 0.5;
+    }
+
+    // Check for multiple moderate drops (>15% each)
+    let mut moderate_drops = 0;
+    for i in 1..confidence_history.len() {
+        let prev_conf = confidence_history[i - 1].1;
+        let curr_conf = confidence_history[i].1;
+
+        if prev_conf > 30.0 && (prev_conf - curr_conf) > 15.0 {
+            moderate_drops += 1;
+        }
+    }
+
+    if moderate_drops >= 3 {
+        patterns.push(format!("Multiple confidence drops ({}x) → erratic skill pattern", moderate_drops));
+        suspicion_score += 0.3;
+    }
+
+    // Check confidence volatility (standard deviation)
+    let mean_conf: f64 = confidence_history.iter().map(|(_, c)| c).sum::<f64>() / confidence_history.len() as f64;
+    let variance: f64 = confidence_history.iter()
+        .map(|(_, c)| (c - mean_conf).powi(2))
+        .sum::<f64>() / confidence_history.len() as f64;
+    let std_dev = variance.sqrt();
+
+    if std_dev > 20.0 {
+        patterns.push(format!("High confidence volatility (σ={:.1}%) → unstable skill estimate", std_dev));
+        suspicion_score += 0.2;
+    }
+
+    let is_suspicious = suspicion_score >= 0.6;
+    let recommended_action = if is_suspicious {
+        "ALERT: Possible account sharing or bot usage - investigate immediately".to_string()
+    } else if suspicion_score >= 0.4 {
+        "CAUTION: Monitor for continued anomalies".to_string()
+    } else {
+        "Normal confidence pattern".to_string()
+    };
+
+    AnomalyReport {
+        is_suspicious,
+        confidence: suspicion_score,
+        detected_patterns: patterns,
+        recommended_action,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

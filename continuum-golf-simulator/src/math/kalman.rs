@@ -22,6 +22,7 @@ pub struct KalmanState {
     pub error_covariance: f64,
     pub process_noise: f64,
     pub initial_estimate: f64,
+    pub measurement_count: usize,
 }
 
 impl KalmanState {
@@ -48,6 +49,7 @@ impl KalmanState {
             error_covariance: 1000.0, // High initial uncertainty
             process_noise,
             initial_estimate: initial_sigma,
+            measurement_count: 0,
         }
     }
 
@@ -106,23 +108,30 @@ impl KalmanState {
 
         // Update covariance: reduce uncertainty
         self.error_covariance *= 1.0 - kalman_gain;
+
+        // Increment measurement count
+        self.measurement_count += 1;
     }
 
-    /// Calculate confidence score from error covariance
+    /// Calculate confidence score from error covariance and measurement count
     ///
     /// Maps error covariance (P) to a confidence percentage (0-100%).
     /// Uses logarithmic scale as P ranges from 50 (high confidence) to 1000 (low confidence).
+    /// Additionally penalizes low measurement counts to prevent premature high confidence.
     ///
     /// # Returns
     /// Confidence percentage (0-100)
     ///
     /// # Formula
-    /// confidence = 100 * (1 - ln(P/50) / ln(1000/50))
+    /// base_confidence = 100 * (1 - ln(P/50) / ln(1000/50))
+    /// measurement_factor = min(1.0, measurement_count / 50.0)
+    /// confidence = base_confidence * measurement_factor
     ///
     /// # Interpretation
-    /// - 100%: Very confident (P ≈ 50)
-    /// - 50%: Moderate confidence (P ≈ 223)
-    /// - 0%: No confidence (P ≥ 1000)
+    /// - Requires at least 50 measurements for full confidence
+    /// - P ≈ 50 with 50+ measurements → 100%
+    /// - P ≈ 223 with 50+ measurements → 50%
+    /// - P ≥ 1000 → 0% regardless of measurements
     ///
     /// # Example
     /// ```
@@ -141,16 +150,21 @@ impl KalmanState {
         let min_p = 50.0;
         let max_p = 1000.0;
 
-        if p <= min_p {
-            return 100.0;
-        }
-        if p >= max_p {
-            return 0.0;
-        }
+        // Base confidence from error covariance
+        let base_confidence = if p <= min_p {
+            100.0
+        } else if p >= max_p {
+            0.0
+        } else {
+            // Logarithmic mapping
+            let normalized = (p / min_p).ln() / (max_p / min_p).ln();
+            100.0 * (1.0 - normalized)
+        };
 
-        // Logarithmic mapping
-        let normalized = (p / min_p).ln() / (max_p / min_p).ln();
-        100.0 * (1.0 - normalized)
+        // Penalize low measurement counts (need ~50 shots for full confidence)
+        let measurement_factor = (self.measurement_count as f64 / 50.0).min(1.0);
+
+        base_confidence * measurement_factor
     }
 
     /// Reset filter to initial state
@@ -159,6 +173,7 @@ impl KalmanState {
     pub fn reset(&mut self) {
         self.estimate = self.initial_estimate;
         self.error_covariance = 1000.0;
+        self.measurement_count = 0;
     }
 
     /// Get the current standard error of the estimate
