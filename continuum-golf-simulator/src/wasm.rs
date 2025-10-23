@@ -152,10 +152,8 @@ pub fn simulate_player_session(
             sigma: player.skill_profiles.get(&ClubCategory::Wedge)
                 .map(|s| s.kalman_filter.estimate).unwrap_or(0.0),
             confidence: player.skill_profiles.get(&ClubCategory::Wedge)
-                .map(|s| {
-                    let shots_count = s.shot_batch.shots.len();
-                    if shots_count == 0 { 0.0 } else { (shots_count as f64 / 20.0 * 100.0).min(100.0) }
-                }).unwrap_or(0.0),
+                .map(|s| s.kalman_filter.calculate_confidence())
+                .unwrap_or(0.0),
             p_max_current: player.skill_profiles.get(&ClubCategory::Wedge)
                 .and_then(|s| s.p_max_history.last().copied()).unwrap_or(0.0),
         },
@@ -164,10 +162,8 @@ pub fn simulate_player_session(
             sigma: player.skill_profiles.get(&ClubCategory::MidIron)
                 .map(|s| s.kalman_filter.estimate).unwrap_or(0.0),
             confidence: player.skill_profiles.get(&ClubCategory::MidIron)
-                .map(|s| {
-                    let shots_count = s.shot_batch.shots.len();
-                    if shots_count == 0 { 0.0 } else { (shots_count as f64 / 20.0 * 100.0).min(100.0) }
-                }).unwrap_or(0.0),
+                .map(|s| s.kalman_filter.calculate_confidence())
+                .unwrap_or(0.0),
             p_max_current: player.skill_profiles.get(&ClubCategory::MidIron)
                 .and_then(|s| s.p_max_history.last().copied()).unwrap_or(0.0),
         },
@@ -176,10 +172,8 @@ pub fn simulate_player_session(
             sigma: player.skill_profiles.get(&ClubCategory::LongIron)
                 .map(|s| s.kalman_filter.estimate).unwrap_or(0.0),
             confidence: player.skill_profiles.get(&ClubCategory::LongIron)
-                .map(|s| {
-                    let shots_count = s.shot_batch.shots.len();
-                    if shots_count == 0 { 0.0 } else { (shots_count as f64 / 20.0 * 100.0).min(100.0) }
-                }).unwrap_or(0.0),
+                .map(|s| s.kalman_filter.calculate_confidence())
+                .unwrap_or(0.0),
             p_max_current: player.skill_profiles.get(&ClubCategory::LongIron)
                 .and_then(|s| s.p_max_history.last().copied()).unwrap_or(0.0),
         },

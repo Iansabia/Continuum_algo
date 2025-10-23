@@ -116,7 +116,7 @@ export default function PlayerSimulator() {
       {/* Main Layout: Responsive grid */}
       <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-3 flex-1 min-h-0">
         {/* Left Column: Controls - Responsive */}
-        <div className="lg:col-span-2 space-y-3 overflow-y-auto">
+        <div className="lg:col-span-2 space-y-3">
           {/* Frosted Glass Controls */}
           <div className="bg-gradient-to-br from-[#604c9c]/10 to-[#493b7c]/10 backdrop-blur-xl p-3 rounded-xl border border-[#9e8cb4]/30 shadow-lg space-y-3">
             {/* Handicap */}
