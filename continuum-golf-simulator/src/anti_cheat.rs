@@ -341,7 +341,7 @@ mod tests {
         let shots: Vec<ShotOutcome> = (0..50)
             .map(|i| {
                 let miss = 50.0 + (i % 10) as f64 * 5.0;
-                ShotOutcome::new(miss, 2.0, 10.0, 4, false)
+                ShotOutcome::new(miss, 2.0, 10.0, 4, false, 10.0)
             })
             .collect();
 
@@ -355,12 +355,12 @@ mod tests {
 
         // Phase 1: Poor shots with low wagers (establishing bad baseline)
         for _ in 0..25 {
-            shots.push(ShotOutcome::new(100.0, 0.5, 1.0, 4, false));
+            shots.push(ShotOutcome::new(100.0, 0.5, 1.0, 4, false, 10.0));
         }
 
         // Phase 2: Suddenly excellent shots with high wagers (sandbagging pattern)
         for _ in 0..25 {
-            shots.push(ShotOutcome::new(10.0, 5.0, 100.0, 4, false));
+            shots.push(ShotOutcome::new(10.0, 5.0, 100.0, 4, false, 10.0));
         }
 
         let report = detect_sandbagging(&shots);

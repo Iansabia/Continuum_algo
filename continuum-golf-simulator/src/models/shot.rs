@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     fn test_shot_outcome_creation() {
-        let outcome = ShotOutcome::new(10.0, 5.0, 10.0, 1, false);
+        let outcome = ShotOutcome::new(10.0, 5.0, 10.0, 1, false, 10.0);
 
         assert_eq!(outcome.miss_distance_ft, 10.0);
         assert_eq!(outcome.multiplier, 5.0);
@@ -299,31 +299,31 @@ mod tests {
 
     #[test]
     fn test_net_result() {
-        let winning_shot = ShotOutcome::new(5.0, 8.0, 10.0, 1, false);
+        let winning_shot = ShotOutcome::new(5.0, 8.0, 10.0, 1, false, 10.0);
         assert_eq!(winning_shot.net_result(), 70.0); // Won $80, wagered $10 = +$70
 
-        let losing_shot = ShotOutcome::new(50.0, 0.0, 10.0, 1, false);
+        let losing_shot = ShotOutcome::new(50.0, 0.0, 10.0, 1, false, 10.0);
         assert_eq!(losing_shot.net_result(), -10.0); // Won $0, wagered $10 = -$10
     }
 
     #[test]
     fn test_is_win() {
-        let winning_shot = ShotOutcome::new(5.0, 2.5, 10.0, 1, false);
+        let winning_shot = ShotOutcome::new(5.0, 2.5, 10.0, 1, false, 10.0);
         assert!(winning_shot.is_win());
 
-        let breakeven_shot = ShotOutcome::new(20.0, 1.0, 10.0, 1, false);
+        let breakeven_shot = ShotOutcome::new(20.0, 1.0, 10.0, 1, false, 10.0);
         assert!(breakeven_shot.is_win());
 
-        let losing_shot = ShotOutcome::new(50.0, 0.5, 10.0, 1, false);
+        let losing_shot = ShotOutcome::new(50.0, 0.5, 10.0, 1, false, 10.0);
         assert!(!losing_shot.is_win());
     }
 
     #[test]
     fn test_is_ace() {
-        let ace = ShotOutcome::new(0.05, 10.0, 10.0, 1, false);
+        let ace = ShotOutcome::new(0.05, 10.0, 10.0, 1, false, 10.0);
         assert!(ace.is_ace());
 
-        let near_ace = ShotOutcome::new(0.2, 9.9, 10.0, 1, false);
+        let near_ace = ShotOutcome::new(0.2, 9.9, 10.0, 1, false, 10.0);
         assert!(!near_ace.is_ace());
     }
 

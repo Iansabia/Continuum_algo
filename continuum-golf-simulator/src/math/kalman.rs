@@ -84,6 +84,7 @@ impl KalmanState {
     /// # Arguments
     /// * `measurement` - Observed miss distance (after debiasing for Rayleigh)
     /// * `measurement_noise` - Uncertainty in this measurement (R)
+    /// * `batch_size` - Number of shots represented by this measurement (default 1)
     ///
     /// # Update Equations
     /// 1. Kalman gain: K = P / (P + R)
@@ -95,10 +96,10 @@ impl KalmanState {
     /// use continuum_golf_simulator::math::kalman::KalmanState;
     ///
     /// let mut kalman = KalmanState::new(30.0, 1.0);
-    /// kalman.update(28.0, 50.0);  // Measurement suggests skill is better
+    /// kalman.update(28.0, 50.0, 1);  // Single measurement suggests skill is better
     /// // estimate will move toward 28.0, weighted by Kalman gain
     /// ```
-    pub fn update(&mut self, measurement: f64, measurement_noise: f64) {
+    pub fn update(&mut self, measurement: f64, measurement_noise: f64, batch_size: usize) {
         // Kalman gain: how much to trust the measurement
         let kalman_gain = self.error_covariance / (self.error_covariance + measurement_noise);
 
@@ -109,8 +110,8 @@ impl KalmanState {
         // Update covariance: reduce uncertainty
         self.error_covariance *= 1.0 - kalman_gain;
 
-        // Increment measurement count
-        self.measurement_count += 1;
+        // Increment measurement count by batch size
+        self.measurement_count += batch_size;
     }
 
     /// Calculate confidence score from error covariance and measurement count
@@ -124,13 +125,13 @@ impl KalmanState {
     ///
     /// # Formula
     /// base_confidence = 100 * (1 - ln(P/50) / ln(1000/50))
-    /// measurement_factor = min(1.0, measurement_count / 50.0)
+    /// measurement_factor = min(1.0, measurement_count / 20.0)
     /// confidence = base_confidence * measurement_factor
     ///
     /// # Interpretation
-    /// - Requires at least 50 measurements for full confidence
-    /// - P ≈ 50 with 50+ measurements → 100%
-    /// - P ≈ 223 with 50+ measurements → 50%
+    /// - Requires at least 20 measurements for full confidence
+    /// - P ≈ 50 with 20+ measurements → 100%
+    /// - P ≈ 223 with 20+ measurements → 50%
     /// - P ≥ 1000 → 0% regardless of measurements
     ///
     /// # Example
@@ -140,8 +141,8 @@ impl KalmanState {
     /// let mut kalman = KalmanState::new(30.0, 1.0);
     /// assert_eq!(kalman.calculate_confidence(), 0.0); // P = 1000
     ///
-    /// for _ in 0..50 {
-    ///     kalman.update(30.0, 50.0); // Many consistent measurements
+    /// for _ in 0..20 {
+    ///     kalman.update(30.0, 50.0, 1); // Many consistent measurements
     /// }
     /// assert!(kalman.calculate_confidence() > 80.0); // High confidence now
     /// ```
@@ -161,8 +162,8 @@ impl KalmanState {
             100.0 * (1.0 - normalized)
         };
 
-        // Penalize low measurement counts (need ~50 shots for full confidence)
-        let measurement_factor = (self.measurement_count as f64 / 50.0).min(1.0);
+        // Penalize low measurement counts (need ~20 shots for full confidence)
+        let measurement_factor = (self.measurement_count as f64 / 20.0).min(1.0);
 
         base_confidence * measurement_factor
     }
@@ -566,7 +567,7 @@ mod tests {
         // Simulate 100 consistent measurements
         for _ in 0..100 {
             kalman.predict();
-            kalman.update(true_sigma, 50.0);
+            kalman.update(true_sigma, 50.0, 1);
         }
 
         // Should converge close to true value
@@ -585,7 +586,7 @@ mod tests {
 
         // After many updates: P decreases → confidence increases
         for _ in 0..100 {
-            kalman.update(30.0, 50.0);
+            kalman.update(30.0, 50.0, 1);
         }
 
         let confidence = kalman.calculate_confidence();
@@ -631,7 +632,7 @@ mod tests {
 
         // Make some updates
         for _ in 0..10 {
-            kalman.update(25.0, 50.0);
+            kalman.update(25.0, 50.0, 1);
         }
 
         let modified_estimate = kalman.estimate;

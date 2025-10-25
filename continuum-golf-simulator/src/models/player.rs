@@ -583,10 +583,10 @@ impl Player {
 
         // Kalman filter update (fast tracking for skill estimation)
         skill.kalman_filter.predict();
-        skill.kalman_filter.update(unbiased_measurement, measurement_noise);
+        let num_shots_in_batch = final_measurements.len();
+        skill.kalman_filter.update(unbiased_measurement, measurement_noise, num_shots_in_batch);
 
         // Update shot count
-        let num_shots_in_batch = final_measurements.len();
         skill.shot_count += num_shots_in_batch;
 
         // Adaptive smoothing: aggressive early to catch sandbagging, conservative later for stability
