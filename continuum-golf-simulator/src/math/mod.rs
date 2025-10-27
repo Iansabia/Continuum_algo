@@ -1,5 +1,6 @@
-// Math module for statistical distributions, numerical integration, and Kalman filtering
+// Math module for statistical distributions, numerical integration, Kalman filtering, and MCMC
 
 pub mod distributions;
 pub mod integration;
 pub mod kalman;
+pub mod mcmc;

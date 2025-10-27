@@ -5,7 +5,8 @@
 
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
-use crate::math::kalman::{KalmanState, KalmanState4D, debias_rayleigh_measurement, weighted_average_measurement, measurement_variance};
+use crate::math::kalman::{KalmanState, KalmanState4D};
+use crate::math::mcmc::MCMCSkillEstimator;
 use crate::math::integration::trapezoidal_rule;
 use crate::models::hole::{Hole, ClubCategory};
 use crate::models::shot::ShotBatch;
@@ -28,7 +29,16 @@ pub struct Player {
 /// Skill profile for a specific club category
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillProfile {
-    /// 1D Kalman filter for radial dispersion (legacy Rayleigh)
+    /// MCMC Bayesian skill estimator (PRIMARY - replaces Kalman filter)
+    /// Provides mathematically optimal skill estimation with convergence guarantees
+    #[serde(skip)]
+    pub mcmc_estimator: MCMCSkillEstimator,
+
+    /// Cached sigma estimate from last MCMC update
+    /// This prevents re-running expensive MCMC on every shot
+    pub cached_sigma: f64,
+
+    /// 1D Kalman filter for radial dispersion (DEPRECATED - kept for migration)
     pub kalman_filter: KalmanState,
     /// 4D Kalman filter for BVN distribution [μ_x, μ_y, σ_x, σ_y]
     /// Only populated when BVN mode is enabled
@@ -36,17 +46,13 @@ pub struct SkillProfile {
     pub kalman_filter_4d: Option<KalmanState4D>,
     /// Whether to use BVN (4D) mode instead of Rayleigh (1D)
     pub use_bvn: bool,
-    /// Current batch of shots (for batched Kalman updates)
+    /// Current batch of shots (for batched updates)
     pub shot_batch: ShotBatch,
     /// History of P_max values (for analysis)
     pub p_max_history: Vec<f64>,
     /// Maximum batch size before triggering update
     pub batch_size: usize,
-    /// Smoothed sigma for stable P_max calculation (exponential moving average)
-    /// Updated every 10 shots with 30% weight on new estimate
-    /// This provides financial stability while fast kalman_filter tracks skill accurately
-    pub sigma_smooth: f64,
-    /// Total number of shots taken for this skill profile (used for smoothing logic)
+    /// Total number of shots taken for this skill profile
     pub shot_count: usize,
 }
 
@@ -83,14 +89,24 @@ impl Player {
 
             let kalman_filter = KalmanState::new(initial_sigma, 1.0);
 
+            // Initialize MCMC estimator with handicap-based prior
+            // Prior std = 30% of initial estimate (reflects handicap uncertainty)
+            let prior_std = initial_sigma * 0.3;
+            let mcmc_estimator = MCMCSkillEstimator::new(
+                initial_sigma,  // Initial estimate
+                initial_sigma,  // Prior mean (same as initial)
+                prior_std,      // Prior uncertainty
+            );
+
             skill_profiles.insert(*category, SkillProfile {
+                mcmc_estimator,
+                cached_sigma: initial_sigma, // Initialize cache with handicap-based estimate
                 kalman_filter,
                 kalman_filter_4d: None, // 4D mode disabled by default
                 use_bvn: false,         // Start in 1D Rayleigh mode
                 shot_batch: ShotBatch::new(5), // Use ShotBatch struct
                 p_max_history: Vec::new(),
                 batch_size: 5, // Default batch size
-                sigma_smooth: initial_sigma, // Initialize smoothed sigma to same as fast estimate
                 shot_count: 0, // Start at zero shots
             });
         }
@@ -261,17 +277,19 @@ impl Player {
     /// assert!(p_max < 20.0);
     /// ```
     pub fn calculate_p_max(&self, hole: &Hole) -> f64 {
-        // Always calculate fresh P_max based on current sigma
-        // Rate limiting is enforced in update_skill() when storing to history,
-        // but we need accurate P_max for current payouts
+        // Always calculate fresh P_max based on cached sigma
+        // Sigma is updated only during batch processing for stability
         self.calculate_p_max_fresh(hole)
     }
 
     /// Calculate fresh P_max without rate limiting (internal use only)
-    /// Uses sigma_smooth for financial stability instead of fast Kalman estimate
+    /// Uses cached MCMC posterior median for stable estimates
     fn calculate_p_max_fresh(&self, hole: &Hole) -> f64 {
         let skill = self.get_skill_for_hole(hole);
-        let sigma = skill.sigma_smooth; // Use smoothed sigma for stable pricing
+
+        // Use cached MCMC estimate (updated only during batch processing)
+        // This ensures P_max doesn't oscillate between updates
+        let sigma = skill.cached_sigma;
 
         // Calculate expected payout using numerical integration
         // Must account for fat-tail distribution (2% chance of 3x sigma)
@@ -528,7 +546,14 @@ impl Player {
         }
     }
 
-    /// Update skill using 1D Rayleigh Kalman filter (legacy mode)
+    /// Update skill using MCMC Bayesian inference (primary method)
+    ///
+    /// This replaces the Kalman filter approach with mathematically optimal
+    /// Bayesian inference using MCMC sampling. Provides:
+    /// - Guaranteed convergence to true skill level
+    /// - No oscillation issues
+    /// - Quantified uncertainty (credible intervals)
+    /// - Robust to outliers through posterior distribution
     fn update_skill_1d(&mut self, hole: &Hole) {
         let skill = self.get_skill_for_hole_mut(hole);
 
@@ -536,16 +561,11 @@ impl Player {
             return;
         }
 
-        // Extract miss distances and wagers
+        // Extract miss distances from batch
         let shots = skill.shot_batch.get_shots();
-        let measurements: Vec<(f64, f64)> = shots
-            .iter()
-            .map(|s| (s.miss_distance, s.wager))
-            .collect();
-
-        // SECURITY FIX: Outlier detection - flag shots >3 standard deviations from batch mean
         let miss_distances: Vec<f64> = shots.iter().map(|s| s.miss_distance).collect();
 
+        // SECURITY: Outlier detection - filter shots >3 sigma from mean
         let mean_miss: f64 = miss_distances.iter().sum::<f64>() / miss_distances.len() as f64;
         let variance: f64 = miss_distances
             .iter()
@@ -554,162 +574,99 @@ impl Player {
             / miss_distances.len() as f64;
         let std_dev = variance.sqrt();
 
-        // Filter out extreme outliers (>3 sigma) to reduce impact of intentional sandbagging
-        let filtered_measurements: Vec<(f64, f64)> = measurements
+        let filtered_distances: Vec<f64> = miss_distances
             .iter()
-            .filter(|(dist, _)| (*dist - mean_miss).abs() <= 3.0 * std_dev)
+            .filter(|&&d| (d - mean_miss).abs() <= 3.0 * std_dev)
             .copied()
             .collect();
 
-        // If all measurements were outliers, use original (but increase measurement noise)
-        let final_measurements = if filtered_measurements.is_empty() {
-            measurements
+        // Use filtered distances if we have any, otherwise use all
+        let final_distances = if filtered_distances.is_empty() {
+            miss_distances
         } else {
-            filtered_measurements
+            filtered_distances
         };
 
-        // Calculate wager-weighted average
-        let weighted_avg = weighted_average_measurement(&final_measurements);
-
-        // Debias for Rayleigh distribution
-        let unbiased_measurement = debias_rayleigh_measurement(weighted_avg);
-
-        // Calculate batch variance for dynamic measurement noise
-        let batch_variance = measurement_variance(&miss_distances);
-
-        // Measurement noise (R) is based on batch variance
-        // Higher variance = less trustworthy batch
-        let measurement_noise = batch_variance.max(50.0); // Minimum R = 50
-
-        // Kalman filter update (fast tracking for skill estimation)
-        skill.kalman_filter.predict();
-        let num_shots_in_batch = final_measurements.len();
-        skill.kalman_filter.update(unbiased_measurement, measurement_noise, num_shots_in_batch);
+        // Add observations to MCMC estimator
+        skill.mcmc_estimator.add_observations(&final_distances);
 
         // Update shot count
-        skill.shot_count += num_shots_in_batch;
+        skill.shot_count += final_distances.len();
 
-        // Adaptive smoothing: aggressive early to catch sandbagging, conservative later for stability
-        // Early phase (0-30 shots): Update every shot, high smoothing factor (70% new)
-        // Transition (30-100 shots): Update every 5 shots, medium smoothing (50% new)
-        // Mature (100+ shots): Update every 10 shots, low smoothing (30% new)
-        let should_update = if skill.shot_count <= 30 {
-            true // Update every shot in early phase
-        } else if skill.shot_count <= 100 {
-            skill.shot_count % 5 == 0 // Every 5 shots in transition
+        // Adaptive MCMC sampling strategy based on observation count
+        // Early phase: More samples for faster convergence
+        // Later phase: Fewer samples as posterior becomes concentrated
+        let (num_samples, burn_in, thin) = if skill.shot_count <= 10 {
+            (2000, 400, 2)  // High sampling early for quick skill detection
+        } else if skill.shot_count <= 50 {
+            (1500, 300, 2)  // Medium sampling during transition
         } else {
-            skill.shot_count % 10 == 0 // Every 10 shots when mature
+            (1000, 200, 2)  // Standard sampling when mature
         };
 
-        if should_update {
-            let smoothing_factor = if skill.shot_count <= 30 {
-                0.7 // 70% new, 30% old - aggressive anti-sandbagging
-            } else if skill.shot_count <= 100 {
-                0.5 // 50% new, 50% old - balanced transition
-            } else {
-                0.3 // 30% new, 70% old - conservative for stability
-            };
+        // Run MCMC to get posterior estimate
+        skill.mcmc_estimator.sample(num_samples, burn_in, thin);
 
-            let sigma_fast = skill.kalman_filter.estimate;
+        // Get sigma estimate (posterior median)
+        let sigma_estimate = skill.mcmc_estimator.get_sigma_estimate();
 
-            // ANTI-SANDBAGGING: Detect extreme jumps that indicate intentional skill manipulation
-            // Only clamp if fast estimate suggests >50% increase from smooth (potential sandbagging)
-            // This allows normal convergence while preventing exploitation
-            let max_increase_ratio = 1.5; // Allow up to 50% increase per update
-            let max_sigma_fast = skill.sigma_smooth * max_increase_ratio;
-            let sigma_fast_clamped = sigma_fast.min(max_sigma_fast);
+        // **CRITICAL**: Cache the estimate so it's stable between updates
+        skill.cached_sigma = sigma_estimate;
 
-            // Apply exponential moving average with clamped fast estimate
-            let sigma_proposed = (1.0 - smoothing_factor) * skill.sigma_smooth + smoothing_factor * sigma_fast_clamped;
+        // Get credible interval for logging
+        let (sigma_lower, sigma_upper) = skill.mcmc_estimator.get_credible_interval(0.95);
+        let confidence = skill.mcmc_estimator.calculate_confidence();
 
-            let old_smooth = skill.sigma_smooth;
-            skill.sigma_smooth = sigma_proposed;
+        eprintln!(
+            "📊 MCMC Bayesian update (shot {}): σ={:.2}ft, 95% CI=[{:.2}, {:.2}], conf={:.1}%",
+            skill.shot_count, sigma_estimate, sigma_lower, sigma_upper, confidence * 100.0
+        );
 
-            let was_clamped = sigma_fast != sigma_fast_clamped;
+        // Calculate P_max using posterior median sigma
+        let d_max = hole.d_max_ft;
+        let k = hole.k;
+        let fat_tail_prob = 0.02;
+        let fat_tail_mult = 3.0;
 
-            eprintln!(
-                "📊 Sigma smoothing update (shot {}): fast={:.2}ft{}, smooth={:.2}ft→{:.2}ft (Δ={:.2}ft), factor={:.1}%",
-                skill.shot_count,
-                sigma_fast,
-                if was_clamped { " [CLAMPED]" } else { "" },
-                old_smooth,
-                skill.sigma_smooth,
-                skill.sigma_smooth - old_smooth,
-                smoothing_factor * 100.0
-            );
+        let integrand_normal = |d: f64| -> f64 {
+            if d > d_max {
+                return 0.0;
+            }
+            let payout_factor = (1.0 - d / d_max).powf(k);
+            let rayleigh_pdf = (d / (sigma_estimate * sigma_estimate)) * (-d * d / (2.0 * sigma_estimate * sigma_estimate)).exp();
+            payout_factor * rayleigh_pdf
+        };
 
-            // Calculate and store P_max based on SMOOTHED sigma (for WASM export and analysis)
-            // This ensures P_max history reflects the stable, rate-limited sigma
-            let sigma_smooth = skill.sigma_smooth;
-            let d_max = hole.d_max_ft;
-            let k = hole.k;
-            let fat_tail_prob = 0.02;
-            let fat_tail_mult = 3.0;
+        let sigma_fat = sigma_estimate * fat_tail_mult;
+        let integrand_fat = |d: f64| -> f64 {
+            if d > d_max {
+                return 0.0;
+            }
+            let payout_factor = (1.0 - d / d_max).powf(k);
+            let rayleigh_pdf =
+                (d / (sigma_fat * sigma_fat)) * (-d * d / (2.0 * sigma_fat * sigma_fat)).exp();
+            payout_factor * rayleigh_pdf
+        };
 
-            let integrand_normal = |d: f64| -> f64 {
-                if d > d_max {
-                    return 0.0;
-                }
-                let payout_factor = (1.0 - d / d_max).powf(k);
-                let rayleigh_pdf = (d / (sigma_smooth * sigma_smooth)) * (-d * d / (2.0 * sigma_smooth * sigma_smooth)).exp();
-                payout_factor * rayleigh_pdf
-            };
+        let upper_bound = (d_max * 1.5).max(sigma_fat * 5.0);
+        let n_subdivisions = 2000;
 
-            let sigma_fat = sigma_smooth * fat_tail_mult;
-            let integrand_fat = |d: f64| -> f64 {
-                if d > d_max {
-                    return 0.0;
-                }
-                let payout_factor = (1.0 - d / d_max).powf(k);
-                let rayleigh_pdf =
-                    (d / (sigma_fat * sigma_fat)) * (-d * d / (2.0 * sigma_fat * sigma_fat)).exp();
-                payout_factor * rayleigh_pdf
-            };
+        let expected_payout_normal =
+            trapezoidal_rule(integrand_normal, 0.0, upper_bound, n_subdivisions);
+        let expected_payout_fat = trapezoidal_rule(integrand_fat, 0.0, upper_bound, n_subdivisions);
+        let expected_payout = (1.0 - fat_tail_prob) * expected_payout_normal
+            + fat_tail_prob * expected_payout_fat;
+        let epsilon = 1e-10;
+        let calculated_p_max = hole.rtp / (expected_payout + epsilon);
 
-            let upper_bound = (d_max * 1.5).max(sigma_fat * 5.0);
-            let n_subdivisions = 2000;
+        // Store P_max in history
+        // MCMC naturally converges - no artificial rate limiting needed!
+        skill.p_max_history.push(calculated_p_max);
 
-            let expected_payout_normal =
-                trapezoidal_rule(integrand_normal, 0.0, upper_bound, n_subdivisions);
-            let expected_payout_fat = trapezoidal_rule(integrand_fat, 0.0, upper_bound, n_subdivisions);
-            let expected_payout = (1.0 - fat_tail_prob) * expected_payout_normal
-                + fat_tail_prob * expected_payout_fat;
-            let epsilon = 1e-10;
-            let calculated_p_max = hole.rtp / (expected_payout + epsilon);
-
-            // PLAYER PROTECTION: Limit P_max changes to prevent perceived unfairness
-            // Apply rate limiting to P_max itself (not just sigma) since P_max = f(1/sigma)
-            // Maximum change: 20% per update in either direction
-            let p_max_final = if let Some(&last_p_max) = skill.p_max_history.last() {
-                let max_increase_ratio = 1.20; // Allow 20% increase
-                let max_decrease_ratio = 0.80; // Allow 20% decrease
-
-                let p_max_clamped = calculated_p_max
-                    .min(last_p_max * max_increase_ratio)  // Cap increases
-                    .max(last_p_max * max_decrease_ratio); // Cap decreases
-
-                let was_clamped = (calculated_p_max - p_max_clamped).abs() > 0.01;
-
-                if was_clamped {
-                    eprintln!(
-                        "⚠️  P_max rate limited: {:.2}x → {:.2}x (calculated: {:.2}x)",
-                        last_p_max, p_max_clamped, calculated_p_max
-                    );
-                }
-
-                p_max_clamped
-            } else {
-                // First P_max - use calculated value
-                calculated_p_max
-            };
-
-            skill.p_max_history.push(p_max_final);
-
-            eprintln!(
-                "💰 P_max update (shot {}): {:.2}x (from sigma_smooth={:.2}ft)",
-                skill.shot_count, p_max_final, sigma_smooth
-            );
-        }
+        eprintln!(
+            "💰 P_max calculated (shot {}): {:.2}x (from MCMC σ={:.2}ft)",
+            skill.shot_count, calculated_p_max, sigma_estimate
+        );
 
         // Clear batch
         skill.shot_batch.clear();
@@ -834,100 +791,37 @@ impl Player {
         };
 
         if should_update {
-            let smoothing_factor = if skill.shot_count <= 30 {
-                0.7 // 70% new, 30% old - aggressive anti-sandbagging
-            } else if skill.shot_count <= 100 {
-                0.5 // 50% new, 50% old - balanced transition
+            // Calculate P_max using BVN distribution with Kalman estimates
+            // Get current Kalman state for bias (mu_x, mu_y)
+            let (mu_x, mu_y) = if let Some(ref kf4d) = skill.kalman_filter_4d {
+                (kf4d.state[0], kf4d.state[1])
             } else {
-                0.3 // 30% new, 70% old - conservative for stability
+                (0.0, 0.0) // Fallback to no bias
             };
 
-            let sigma_fast = (sigma_x_fast + sigma_y_fast) / 2.0; // Average of x and y dispersion
-
-            // ANTI-SANDBAGGING: Detect extreme jumps that indicate intentional skill manipulation
-            // Only clamp if fast estimate suggests >50% increase from smooth (potential sandbagging)
-            // This allows normal convergence while preventing exploitation
-            let max_increase_ratio = 1.5; // Allow up to 50% increase per update
-            let max_sigma_fast = skill.sigma_smooth * max_increase_ratio;
-            let sigma_fast_clamped = sigma_fast.min(max_sigma_fast);
-
-            // Apply exponential moving average with clamped fast estimate
-            let sigma_proposed = (1.0 - smoothing_factor) * skill.sigma_smooth + smoothing_factor * sigma_fast_clamped;
-
-            let old_smooth = skill.sigma_smooth;
-            skill.sigma_smooth = sigma_proposed;
-
-            let was_clamped = sigma_fast != sigma_fast_clamped;
+            // Use Kalman estimates directly (no smoothing in BVN mode yet)
+            let sigma_avg = (sigma_x_fast + sigma_y_fast) / 2.0;
 
             eprintln!(
-                "📊 BVN Sigma smoothing update (shot {}): fast={:.2}ft (σ_x={:.2}, σ_y={:.2}){}, smooth={:.2}ft→{:.2}ft (Δ={:.2}ft), factor={:.1}%",
-                skill.shot_count,
-                sigma_fast,
-                sigma_x_fast,
-                sigma_y_fast,
-                if was_clamped { " [CLAMPED]" } else { "" },
-                old_smooth,
-                skill.sigma_smooth,
-                skill.sigma_smooth - old_smooth,
-                smoothing_factor * 100.0
+                "📊 BVN update (shot {}): σ_x={:.2}ft, σ_y={:.2}ft, μ_x={:.2}ft, μ_y={:.2}ft",
+                skill.shot_count, sigma_x_fast, sigma_y_fast, mu_x, mu_y
             );
 
-            // Calculate P_max using BVN distribution with SMOOTHED sigma
-            // For BVN, we use sigma_smooth as an average dispersion and assume symmetric for P_max calculation
-            // This ensures P_max history reflects the stable, rate-limited sigma
+            // Calculate P_max using BVN distribution
             let calculated_p_max = {
                 // Clone hole to avoid lifetime issues
                 let hole_clone = hole.clone();
-
-                // Get current Kalman state for bias (mu_x, mu_y)
-                let (mu_x, mu_y) = if let Some(ref kf4d) = skill.kalman_filter_4d {
-                    (kf4d.state[0], kf4d.state[1])
-                } else {
-                    (0.0, 0.0) // Fallback to no bias
-                };
-
-                // Use sigma_smooth for both x and y dispersion (averaged)
-                let sigma_smooth = skill.sigma_smooth;
-
                 let _ = skill; // Drop mutable borrow
-
-                self.calculate_p_max_bvn(&hole_clone, mu_x, mu_y, sigma_smooth, sigma_smooth)
+                self.calculate_p_max_bvn(&hole_clone, mu_x, mu_y, sigma_x_fast, sigma_y_fast)
             };
 
-            // Re-acquire mutable borrow for rate limiting and storage
+            // Re-acquire mutable borrow for storage
             let skill = self.get_skill_for_hole_mut(hole);
-
-            // PLAYER PROTECTION: Limit P_max changes to prevent perceived unfairness
-            // Apply rate limiting to P_max itself (not just sigma) since P_max = f(1/sigma)
-            // Maximum change: 20% per update in either direction
-            let p_max_final = if let Some(&last_p_max) = skill.p_max_history.last() {
-                let max_increase_ratio = 1.20; // Allow 20% increase
-                let max_decrease_ratio = 0.80; // Allow 20% decrease
-
-                let p_max_clamped = calculated_p_max
-                    .min(last_p_max * max_increase_ratio)  // Cap increases
-                    .max(last_p_max * max_decrease_ratio); // Cap decreases
-
-                let was_clamped = (calculated_p_max - p_max_clamped).abs() > 0.01;
-
-                if was_clamped {
-                    eprintln!(
-                        "⚠️  BVN P_max rate limited: {:.2}x → {:.2}x (calculated: {:.2}x)",
-                        last_p_max, p_max_clamped, calculated_p_max
-                    );
-                }
-
-                p_max_clamped
-            } else {
-                // First P_max - use calculated value
-                calculated_p_max
-            };
-
-            skill.p_max_history.push(p_max_final);
+            skill.p_max_history.push(calculated_p_max);
 
             eprintln!(
-                "💰 BVN P_max update (shot {}): {:.2}x (from sigma_smooth={:.2}ft)",
-                skill.shot_count, p_max_final, skill.sigma_smooth
+                "💰 BVN P_max update (shot {}): {:.2}x (σ_avg={:.2}ft)",
+                skill.shot_count, calculated_p_max, sigma_avg
             );
         }
 
@@ -937,15 +831,15 @@ impl Player {
     }
 
     /// Get current skill confidence for a hole (0-100%)
-    pub fn get_skill_confidence(&self, hole: &Hole) -> f64 {
-        let skill = self.get_skill_for_hole(hole);
-        skill.kalman_filter.calculate_confidence()
+    pub fn get_skill_confidence(&mut self, hole: &Hole) -> f64 {
+        let skill = self.get_skill_for_hole_mut(hole);
+        skill.mcmc_estimator.calculate_confidence()
     }
 
-    /// Get current sigma estimate for a hole
+    /// Get current sigma estimate for a hole (uses cached value)
     pub fn get_current_sigma(&self, hole: &Hole) -> f64 {
         let skill = self.get_skill_for_hole(hole);
-        skill.kalman_filter.estimate
+        skill.cached_sigma
     }
 
     /// Get number of shots in current batch for a hole

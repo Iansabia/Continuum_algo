@@ -22,8 +22,7 @@ pub fn calculate_expected_value(
     wager: f64,
     trials: usize,
 ) -> f64 {
-    let skill_profile = player.get_skill_for_hole(hole);
-    let sigma = skill_profile.kalman_filter.estimate;
+    let sigma = player.get_current_sigma(hole);
     let p_max = player.calculate_p_max(hole);
     
     let mut total_net = 0.0;
@@ -61,8 +60,7 @@ pub fn validate_rtp_across_skills(
     for handicap in handicap_range {
         let player_id = format!("player_{}", handicap);
         let player = Player::new(player_id, handicap);
-        let skill_profile = player.get_skill_for_hole(hole);
-        let sigma = skill_profile.kalman_filter.estimate;
+        let sigma = player.get_current_sigma(hole);
         let p_max = player.calculate_p_max(hole);
         
         let mut total_wagered = 0.0;
@@ -125,10 +123,9 @@ pub fn calculate_fairness_metric(
     for handicap in &handicaps_to_test {
         let player_id = format!("player_{}", handicap);
         let player = Player::new(player_id, *handicap);
-        let skill_profile = player.get_skill_for_hole(hole);
-        let sigma = skill_profile.kalman_filter.estimate;
+        let sigma = player.get_current_sigma(hole);
         let p_max = player.calculate_p_max(hole);
-        
+
         let ev = calculate_expected_value(&player, hole, 10.0, trials_per_handicap);
         
         comparisons.push(FairnessComparison {

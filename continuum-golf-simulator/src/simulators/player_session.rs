@@ -364,11 +364,10 @@ pub fn run_session(player: &mut Player, config: SessionConfig) -> SessionResult 
         // Determine wager for this shot
         let wager = rng.gen_range(config.wager_min..=config.wager_max);
 
-        // Get player's current skill for this hole's category
-        let skill_profile = player.get_skill_for_hole(hole);
-        let current_sigma = skill_profile.kalman_filter.estimate;
+        // Get player's current skill for this hole's category (using MCMC estimator)
+        let current_sigma = player.get_current_sigma(hole);
 
-        // Calculate P_max for current skill level
+        // Calculate P_max for current skill level (using MCMC posterior median)
         let p_max = player.calculate_p_max(hole);
 
         // Simulate or use manual miss distance

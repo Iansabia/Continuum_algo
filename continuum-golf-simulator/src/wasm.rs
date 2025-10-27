@@ -8,7 +8,12 @@ use crate::models::hole::{HOLE_CONFIGURATIONS, ClubCategory};
 use crate::simulators::player_session::{SessionConfig, HoleSelection, run_session};
 use crate::simulators::venue::{VenueConfig, PlayerArchetype, run_venue_simulation};
 use crate::analytics::metrics::{calculate_expected_value, calculate_fairness_metric};
-use crate::anti_cheat::{detect_sandbagging, detect_cherry_picking, detect_skill_jump, detect_confidence_anomaly};
+use crate::anti_cheat::{detect_ml_ensemble};
+use once_cell::sync::Lazy;
+use std::sync::Mutex;
+
+static PERSISTENT_PLAYER: Lazy<Mutex<Option<Player>>> = Lazy::new(|| Mutex::new(None));
+
 
 #[wasm_bindgen]
 extern "C" {
@@ -107,35 +112,69 @@ pub struct WasmHandicapEV {
 // ============================================================================
 
 #[wasm_bindgen]
+pub fn reset_persistent_player() {
+    console_log!("Resetting persistent player profile");
+    let mut player_guard = PERSISTENT_PLAYER.lock().unwrap();
+    *player_guard = None;
+}
+
+#[wasm_bindgen]
 pub fn simulate_player_session(
     handicap: u8,
     num_shots: usize,
     wager_min: f64,
     wager_max: f64,
     hole_id: Option<u8>,
+    manual_miss_distance: Option<f64>,
 ) -> Result<JsValue, JsValue> {
     console_log!("Starting player session: handicap={}, shots={}", handicap, num_shots);
 
-    let mut player = Player::new(format!("wasm_player_{}", handicap), handicap);
+    // ---- Persistent Player Retrieval ----
+    let mut player_guard = PERSISTENT_PLAYER.lock().unwrap();
 
+    // Check if we need to create a new player or reset due to handicap change
+    let needs_reset = player_guard.as_ref().map_or(false, |p| p.handicap != handicap);
+
+    if needs_reset {
+        console_log!("Handicap changed, resetting player profile");
+        *player_guard = None;
+    }
+
+    let player = player_guard.get_or_insert_with(|| {
+        console_log!("Creating new persistent player profile (handicap={})", handicap);
+        Player::new(format!("wasm_player_{}", handicap), handicap)
+    });
+
+    // ---- Hole Selection ----
     let hole_selection = match hole_id {
         Some(id) => HoleSelection::Fixed(id),
         None => HoleSelection::Random,
     };
 
+    // ---- Developer Mode ----
+    let developer_mode = manual_miss_distance.map(|dist| {
+        use crate::simulators::player_session::DeveloperMode;
+        DeveloperMode {
+            manual_miss_distance: Some(dist),
+            disable_kalman: true, // Now MCMC-only
+        }
+    });
+
+    // ---- Session Configuration ----
     let config = SessionConfig {
         num_shots,
         wager_min,
         wager_max,
         hole_selection,
-        developer_mode: None,
-        fat_tail_prob: 0.02,  // 2% chance of fat-tail event
-        fat_tail_mult: 3.0,   // 3x worse dispersion
+        developer_mode,
+        fat_tail_prob: 0.02,
+        fat_tail_mult: 3.0,
     };
 
-    let result = run_session(&mut player, config);
+    // ---- Run the session ----
+    let result = run_session(player, config);
 
-    // Convert to WASM-friendly format
+    // ---- Convert to WASM-friendly shot data ----
     let mut cumulative_net = 0.0;
     let wasm_shots: Vec<WasmShotOutcome> = result.shots.iter().enumerate().map(|(i, shot)| {
         cumulative_net += shot.payout - shot.wager;
@@ -151,82 +190,54 @@ pub fn simulate_player_session(
             payout: shot.payout,
             cumulative_net,
             is_fat_tail: shot.is_fat_tail,
-            p_max: shot.p_max, // P_max stored in the shot outcome
+            p_max: shot.p_max,
         }
     }).collect();
 
-    // Extract skill profiles from the player directly
-    let wasm_skills: Vec<WasmSkillProfile> = vec![
-        WasmSkillProfile {
-            category: "Wedge".to_string(),
-            sigma: player.skill_profiles.get(&ClubCategory::Wedge)
-                .map(|s| s.kalman_filter.estimate).unwrap_or(0.0),
-            confidence: player.skill_profiles.get(&ClubCategory::Wedge)
-                .map(|s| s.kalman_filter.calculate_confidence())
-                .unwrap_or(0.0),
-            p_max_current: player.skill_profiles.get(&ClubCategory::Wedge)
-                .and_then(|s| s.p_max_history.last().copied()).unwrap_or(0.0),
-        },
-        WasmSkillProfile {
-            category: "MidIron".to_string(),
-            sigma: player.skill_profiles.get(&ClubCategory::MidIron)
-                .map(|s| s.kalman_filter.estimate).unwrap_or(0.0),
-            confidence: player.skill_profiles.get(&ClubCategory::MidIron)
-                .map(|s| s.kalman_filter.calculate_confidence())
-                .unwrap_or(0.0),
-            p_max_current: player.skill_profiles.get(&ClubCategory::MidIron)
-                .and_then(|s| s.p_max_history.last().copied()).unwrap_or(0.0),
-        },
-        WasmSkillProfile {
-            category: "LongIron".to_string(),
-            sigma: player.skill_profiles.get(&ClubCategory::LongIron)
-                .map(|s| s.kalman_filter.estimate).unwrap_or(0.0),
-            confidence: player.skill_profiles.get(&ClubCategory::LongIron)
-                .map(|s| s.kalman_filter.calculate_confidence())
-                .unwrap_or(0.0),
-            p_max_current: player.skill_profiles.get(&ClubCategory::LongIron)
-                .and_then(|s| s.p_max_history.last().copied()).unwrap_or(0.0),
-        },
-    ];
+    // ---- Extract MCMC skill states ----
+    let wasm_skills: Vec<WasmSkillProfile> = player.skill_profiles.iter_mut().map(|(category, skill)| {
+        let sigma_est = skill.mcmc_estimator.get_sigma_estimate();
+        let conf = skill.mcmc_estimator.calculate_confidence();
+        let p_max = skill.p_max_history.last().copied().unwrap_or(0.0);
 
-    // Run anti-cheat analysis if we have enough shots
-    let anti_cheat_report = if result.shots.len() >= 20 {
-        // Run all anti-cheat detectors and pick the most suspicious
-        let sandbagging = detect_sandbagging(&result.shots);
-        let cherry_picking = detect_cherry_picking(&result.shots);
+        WasmSkillProfile {
+            category: format!("{:?}", category),
+            sigma: sigma_est,
+            confidence: conf,
+            p_max_current: p_max,
+        }
+    }).collect();
 
-        // Split shots for skill jump detection (first 70% vs last 30%)
-        let split_point = (result.shots.len() as f64 * 0.7) as usize;
-        let (historical_shots, recent_shots) = result.shots.split_at(split_point);
-        let skill_jump = detect_skill_jump(historical_shots, recent_shots);
-
-        // Build confidence history - use actual Kalman filter confidence if available
-        // For now, use a simple proxy based on shot count and consistency
+    // ---- Anti-Cheat Ensemble ----
+    let anti_cheat_report = if result.shots.len() >= 10 {
         let confidence_history: Vec<(usize, f64)> = (1..=result.shots.len())
-            .map(|i| {
-                // Simple confidence model: increases with shot count, decreases with inconsistency
-                let base_conf = (i as f64 / 50.0 * 100.0).min(100.0);
-                (i, base_conf)
-            })
+            .map(|i| (i, (i as f64 / 30.0 * 100.0).min(100.0)))
             .collect();
-        let confidence_anomaly = detect_confidence_anomaly(&confidence_history);
 
-        // Find the most suspicious report
-        let reports = vec![sandbagging, cherry_picking, skill_jump, confidence_anomaly];
-        let most_suspicious = reports.into_iter()
-            .max_by(|a, b| a.confidence.partial_cmp(&b.confidence).unwrap())
-            .unwrap();
+        let historical_shots = if result.shots.len() >= 30 {
+            let split_point = (result.shots.len() as f64 * 0.7) as usize;
+            Some(&result.shots[..split_point])
+        } else {
+            None
+        };
+
+        let ml_report = detect_ml_ensemble(
+            &result.shots,
+            historical_shots,
+            Some(&confidence_history),
+        );
 
         Some(WasmAnomalyReport {
-            is_suspicious: most_suspicious.is_suspicious,
-            confidence: most_suspicious.confidence,
-            detected_patterns: most_suspicious.detected_patterns,
-            recommended_action: most_suspicious.recommended_action,
+            is_suspicious: ml_report.is_suspicious,
+            confidence: ml_report.ensemble_score,
+            detected_patterns: ml_report.detected_patterns,
+            recommended_action: ml_report.recommended_action,
         })
     } else {
         None
     };
 
+    // ---- Package Final Result ----
     let wasm_result = WasmSessionResult {
         total_wagered: result.total_wagered,
         total_won: result.total_won,
