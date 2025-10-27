@@ -4,13 +4,14 @@
 use wasm_bindgen::prelude::*;
 use serde::{Serialize, Deserialize};
 use crate::models::player::Player;
-use crate::models::hole::{HOLE_CONFIGURATIONS, ClubCategory};
+use crate::models::hole::{Hole, HOLE_CONFIGURATIONS, ClubCategory};
 use crate::simulators::player_session::{SessionConfig, HoleSelection, run_session};
 use crate::simulators::venue::{VenueConfig, PlayerArchetype, run_venue_simulation};
 use crate::analytics::metrics::{calculate_expected_value, calculate_fairness_metric};
 use crate::anti_cheat::{detect_ml_ensemble};
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
+use std::collections::HashMap;
 
 static PERSISTENT_PLAYER: Lazy<Mutex<Option<Player>>> = Lazy::new(|| Mutex::new(None));
 
@@ -195,10 +196,28 @@ pub fn simulate_player_session(
     }).collect();
 
     // ---- Extract MCMC skill states ----
+    // Calculate current P_max for each club category using the most recent hole from that category
+    let mut category_holes: HashMap<ClubCategory, &Hole> = HashMap::new();
+    for shot in result.shots.iter().rev() {
+        let hole = HOLE_CONFIGURATIONS.iter().find(|h| h.id == shot.hole_id).unwrap();
+        category_holes.entry(hole.category).or_insert(hole);
+    }
+
+    // Pre-calculate P_max values to avoid borrow conflicts
+    let mut category_p_max: HashMap<ClubCategory, f64> = HashMap::new();
+    for (category, hole) in category_holes.iter() {
+        let p_max = player.calculate_p_max(hole);
+        category_p_max.insert(*category, p_max);
+    }
+
     let wasm_skills: Vec<WasmSkillProfile> = player.skill_profiles.iter_mut().map(|(category, skill)| {
         let sigma_est = skill.mcmc_estimator.get_sigma_estimate();
         let conf = skill.mcmc_estimator.calculate_confidence();
-        let p_max = skill.p_max_history.last().copied().unwrap_or(0.0);
+
+        // Get pre-calculated P_max or use cached value
+        let p_max = category_p_max.get(category).copied().unwrap_or_else(|| {
+            skill.p_max_history.last().copied().unwrap_or(0.0)
+        });
 
         WasmSkillProfile {
             category: format!("{:?}", category),
