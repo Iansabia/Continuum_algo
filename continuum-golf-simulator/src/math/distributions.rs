@@ -404,9 +404,10 @@ pub fn log_normal_pdf(x: f64, mean: f64, std_dev: f64) -> f64 {
 /// * `observations` - Vec of observed miss distances (feet)
 /// * `prior_mean` - Prior mean for σ (from handicap)
 /// * `prior_std` - Prior uncertainty (wider = less confident in handicap)
+/// * `weights` - Optional observation weights for recency weighting (None = uniform weights)
 ///
 /// # Returns
-/// log P(σ | observations) ∝ Σ log P(dᵢ | σ) + log P(σ)
+/// log P(σ | observations) ∝ Σ wᵢ × log P(dᵢ | σ) + log P(σ)
 ///
 /// # Example
 /// ```
@@ -417,23 +418,34 @@ pub fn log_normal_pdf(x: f64, mean: f64, std_dev: f64) -> f64 {
 /// let prior_std = 5.0;    // Prior uncertainty
 ///
 /// let sigma_proposal = 27.5;
-/// let log_prob = log_posterior(sigma_proposal, &observations, prior_mean, prior_std);
+/// let log_prob = log_posterior(sigma_proposal, &observations, prior_mean, prior_std, None);
 /// ```
 pub fn log_posterior(
     sigma: f64,
     observations: &[f64],
     prior_mean: f64,
     prior_std: f64,
+    weights: Option<&[f64]>,
 ) -> f64 {
     if sigma <= 0.0 {
         return f64::NEG_INFINITY;
     }
 
-    // Compute log-likelihood: sum of log-probabilities for each observation
-    let log_likelihood: f64 = observations
-        .iter()
-        .map(|&distance| log_rayleigh_pdf(distance, sigma))
-        .sum();
+    // Compute log-likelihood: weighted sum of log-probabilities for each observation
+    let log_likelihood: f64 = if let Some(ws) = weights {
+        // Exponential recency weighting: recent observations matter more
+        observations
+            .iter()
+            .zip(ws.iter())
+            .map(|(&distance, &weight)| weight * log_rayleigh_pdf(distance, sigma))
+            .sum()
+    } else {
+        // Uniform weighting (backward compatibility)
+        observations
+            .iter()
+            .map(|&distance| log_rayleigh_pdf(distance, sigma))
+            .sum()
+    };
 
     // Add log-prior
     let log_prior = log_normal_pdf(sigma, prior_mean, prior_std);
@@ -707,7 +719,7 @@ mod tests {
         let sigma = 27.5;
 
         // Compute posterior
-        let posterior = log_posterior(sigma, &observations, prior_mean, prior_std);
+        let posterior = log_posterior(sigma, &observations, prior_mean, prior_std, None);
 
         // Manually compute likelihood and prior
         let likelihood: f64 = observations
@@ -728,13 +740,13 @@ mod tests {
 
         // Negative sigma should give -∞
         assert_eq!(
-            log_posterior(-5.0, &observations, prior_mean, prior_std),
+            log_posterior(-5.0, &observations, prior_mean, prior_std, None),
             f64::NEG_INFINITY
         );
 
         // Zero sigma should give -∞
         assert_eq!(
-            log_posterior(0.0, &observations, prior_mean, prior_std),
+            log_posterior(0.0, &observations, prior_mean, prior_std, None),
             f64::NEG_INFINITY
         );
     }
@@ -746,8 +758,8 @@ mod tests {
         let prior_std = 10.0; // Weak prior
 
         // Sigma=30 (near observations) should have higher posterior than sigma=25
-        let posterior_30 = log_posterior(30.0, &observations, prior_mean, prior_std);
-        let posterior_25 = log_posterior(25.0, &observations, prior_mean, prior_std);
+        let posterior_30 = log_posterior(30.0, &observations, prior_mean, prior_std, None);
+        let posterior_25 = log_posterior(25.0, &observations, prior_mean, prior_std, None);
 
         assert!(posterior_30 > posterior_25);
     }
@@ -760,7 +772,7 @@ mod tests {
         let prior_std = 5.0;
         let sigma = 27.5;
 
-        let posterior = log_posterior(sigma, &observations, prior_mean, prior_std);
+        let posterior = log_posterior(sigma, &observations, prior_mean, prior_std, None);
 
         // Should be finite (not overflow to ±∞)
         assert!(posterior.is_finite());

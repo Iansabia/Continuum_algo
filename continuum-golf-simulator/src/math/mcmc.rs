@@ -66,10 +66,11 @@ impl MCMCSampler {
     /// * `observations` - Observed miss distances
     /// * `prior_mean` - Prior mean for σ
     /// * `prior_std` - Prior uncertainty
+    /// * `weights` - Optional observation weights for recency weighting
     ///
     /// # Returns
     /// The sampled sigma value (either new proposal or previous value)
-    pub fn step(&mut self, observations: &[f64], prior_mean: f64, prior_std: f64) -> f64 {
+    pub fn step(&mut self, observations: &[f64], prior_mean: f64, prior_std: f64, weights: Option<&[f64]>) -> f64 {
         // Propose new sigma from symmetric normal distribution
         let proposed_sigma = normal_random(self.current_sigma, self.proposal_std);
 
@@ -85,6 +86,7 @@ impl MCMCSampler {
             observations,
             prior_mean,
             prior_std,
+            weights,
         );
 
         // Metropolis-Hastings acceptance ratio
@@ -148,6 +150,9 @@ impl MCMCSampler {
 ///
 /// Maintains posterior distribution over skill parameter σ and provides
 /// robust point estimates with quantified uncertainty.
+///
+/// Uses exponential recency weighting to adapt to skill changes over time:
+/// older observations contribute exponentially less to the likelihood.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MCMCSkillEstimator {
     /// Observed miss distances (feet)
@@ -167,11 +172,17 @@ pub struct MCMCSkillEstimator {
 
     /// Whether posterior samples are valid (cleared when new observations added)
     samples_valid: bool,
+
+    /// Decay factor for exponential recency weighting (0.95 - 0.99)
+    /// Higher values = slower forgetting, more stable estimates
+    /// Lower values = faster adaptation to skill changes
+    /// Default: 0.98 (observations from 50 shots ago have ~36% weight)
+    decay_factor: f64,
 }
 
 impl Default for MCMCSkillEstimator {
     fn default() -> Self {
-        // Default estimator with neutral prior
+        // Default estimator with neutral prior and default decay factor
         Self::new(30.0, 30.0, 10.0)
     }
 }
@@ -196,6 +207,7 @@ impl MCMCSkillEstimator {
             &[],
             prior_mean,
             prior_std,
+            None, // No weights for empty observations
         );
 
         let sampler = MCMCSampler::new(initial_sigma, initial_log_posterior, 2.0);
@@ -207,6 +219,7 @@ impl MCMCSkillEstimator {
             sampler,
             posterior_samples: Vec::new(),
             samples_valid: false,
+            decay_factor: 0.98, // Default: moderate forgetting
         }
     }
 
@@ -234,7 +247,35 @@ impl MCMCSkillEstimator {
         self.samples_valid = false;
     }
 
+    /// Calculate exponential recency weights for observations
+    ///
+    /// Returns vector of weights where:
+    /// - Most recent observation has weight = 1.0
+    /// - Each older observation has weight = decay_factor × (next observation's weight)
+    ///
+    /// # Returns
+    /// Vec of weights, same length as observations
+    ///
+    /// # Formula
+    /// weight[i] = decay_factor^(N - i - 1)
+    /// where N = total observations, i = observation index
+    fn calculate_observation_weights(&self) -> Vec<f64> {
+        let n = self.observations.len();
+        if n == 0 {
+            return Vec::new();
+        }
+
+        // Calculate weights with exponential decay
+        // Most recent (index n-1) gets weight = 1.0
+        // Each older observation is multiplied by decay_factor
+        (0..n)
+            .map(|i| self.decay_factor.powi((n - i - 1) as i32))
+            .collect()
+    }
+
     /// Run MCMC sampling to generate posterior distribution
+    ///
+    /// Uses exponential recency weighting to give more importance to recent observations.
     ///
     /// # Arguments
     /// * `num_samples` - Number of posterior samples to generate
@@ -257,6 +298,9 @@ impl MCMCSkillEstimator {
             return;
         }
 
+        // Calculate exponential recency weights
+        let weights = self.calculate_observation_weights();
+
         // Reset sampler to use current posterior median as starting point
         // This prevents the chain from getting stuck after serialization/deserialization
         if !self.samples_valid && !self.posterior_samples.is_empty() {
@@ -270,7 +314,7 @@ impl MCMCSkillEstimator {
                 sorted[mid]
             };
 
-            let start_log_post = log_posterior(start_sigma, &self.observations, self.prior_mean, self.prior_std);
+            let start_log_post = log_posterior(start_sigma, &self.observations, self.prior_mean, self.prior_std, Some(&weights));
             self.sampler = MCMCSampler::new(start_sigma, start_log_post, self.sampler.proposal_std);
         }
 
@@ -279,7 +323,7 @@ impl MCMCSkillEstimator {
 
         // Burn-in phase with adaptive tuning
         for i in 0..burn_in {
-            self.sampler.step(&self.observations, self.prior_mean, self.prior_std);
+            self.sampler.step(&self.observations, self.prior_mean, self.prior_std, Some(&weights));
 
             // Adapt every 50 steps during burn-in
             if (i + 1) % 50 == 0 {
@@ -290,7 +334,7 @@ impl MCMCSkillEstimator {
         // Sampling phase
         let total_iterations = num_samples * thin;
         for i in 0..total_iterations {
-            let sample = self.sampler.step(&self.observations, self.prior_mean, self.prior_std);
+            let sample = self.sampler.step(&self.observations, self.prior_mean, self.prior_std, Some(&weights));
 
             // Keep every nth sample
             if i % thin == 0 {
@@ -431,7 +475,7 @@ mod tests {
 
         // Many steps should never accept negative sigma
         for _ in 0..100 {
-            let sample = sampler.step(&observations, 28.0, 5.0);
+            let sample = sampler.step(&observations, 28.0, 5.0, None);
             assert!(sample > 0.0);
         }
     }
@@ -443,7 +487,7 @@ mod tests {
 
         // Run some steps
         for _ in 0..100 {
-            sampler.step(&observations, 28.0, 5.0);
+            sampler.step(&observations, 28.0, 5.0, None);
         }
 
         let rate = sampler.acceptance_rate();
