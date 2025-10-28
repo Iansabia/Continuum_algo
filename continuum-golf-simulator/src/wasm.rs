@@ -153,11 +153,12 @@ pub fn simulate_player_session(
     };
 
     // ---- Developer Mode ----
+    // Developer shots are processed identically to real shots by MCMC
+    // Only difference: miss distance comes from manual_miss_distance instead of simulation
     let developer_mode = manual_miss_distance.map(|dist| {
         use crate::simulators::player_session::DeveloperMode;
         DeveloperMode {
             manual_miss_distance: Some(dist),
-            disable_kalman: true, // Now MCMC-only
         }
     });
 
@@ -196,14 +197,14 @@ pub fn simulate_player_session(
     }).collect();
 
     // ---- Extract MCMC skill states ----
-    // Calculate current P_max for each club category using the most recent hole from that category
-    let mut category_holes: HashMap<ClubCategory, &Hole> = HashMap::new();
-    for shot in result.shots.iter().rev() {
-        let hole = HOLE_CONFIGURATIONS.iter().find(|h| h.id == shot.hole_id).unwrap();
-        category_holes.entry(hole.category).or_insert(hole);
-    }
+    // Pre-calculate P_max for each category to avoid borrow conflicts
+    // Use representative holes for each category
+    let category_holes: HashMap<ClubCategory, &Hole> = [
+        (ClubCategory::Wedge, &HOLE_CONFIGURATIONS[0]),      // Hole 1: 75yd
+        (ClubCategory::MidIron, &HOLE_CONFIGURATIONS[3]),    // Hole 4: 150yd
+        (ClubCategory::LongIron, &HOLE_CONFIGURATIONS[7]),   // Hole 8: 250yd
+    ].iter().copied().collect();
 
-    // Pre-calculate P_max values to avoid borrow conflicts
     let mut category_p_max: HashMap<ClubCategory, f64> = HashMap::new();
     for (category, hole) in category_holes.iter() {
         let p_max = player.calculate_p_max(hole);
@@ -214,10 +215,8 @@ pub fn simulate_player_session(
         let sigma_est = skill.mcmc_estimator.get_sigma_estimate();
         let conf = skill.mcmc_estimator.calculate_confidence();
 
-        // Get pre-calculated P_max or use cached value
-        let p_max = category_p_max.get(category).copied().unwrap_or_else(|| {
-            skill.p_max_history.last().copied().unwrap_or(0.0)
-        });
+        // Get pre-calculated P_max
+        let p_max = category_p_max.get(category).copied().unwrap_or(0.0);
 
         WasmSkillProfile {
             category: format!("{:?}", category),
@@ -354,6 +353,53 @@ pub fn get_hole_info(hole_id: u8) -> Result<JsValue, JsValue> {
 
     serde_wasm_bindgen::to_value(&hole)
         .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
+}
+
+/// Run anti-cheat analysis on provided shot data without mutating player state
+///
+/// This function is stateless and only analyzes the provided shots.
+/// Use this for real-time anti-cheat monitoring without corrupting MCMC.
+#[wasm_bindgen]
+pub fn analyze_anti_cheat(
+    shots_json: JsValue,
+) -> Result<JsValue, JsValue> {
+    use crate::models::shot::ShotOutcome;
+
+    // Deserialize shots from JSON
+    let shots: Vec<ShotOutcome> = serde_wasm_bindgen::from_value(shots_json)
+        .map_err(|e| JsValue::from_str(&format!("Failed to parse shots: {}", e)))?;
+
+    console_log!("Running anti-cheat analysis on {} shots", shots.len());
+
+    // Build confidence history (placeholder based on shot count)
+    let confidence_history: Vec<(usize, f64)> = (1..=shots.len())
+        .map(|i| (i, (i as f64 / 30.0 * 100.0).min(100.0)))
+        .collect();
+
+    // Split for historical comparison if enough shots
+    let historical_shots = if shots.len() >= 30 {
+        let split_point = (shots.len() as f64 * 0.7) as usize;
+        Some(&shots[..split_point])
+    } else {
+        None
+    };
+
+    // Run ML ensemble detection
+    let ml_report = detect_ml_ensemble(
+        &shots,
+        historical_shots,
+        Some(&confidence_history),
+    );
+
+    let wasm_report = WasmAnomalyReport {
+        is_suspicious: ml_report.is_suspicious,
+        confidence: ml_report.ensemble_score,
+        detected_patterns: ml_report.detected_patterns,
+        recommended_action: ml_report.recommended_action,
+    };
+
+    serde_wasm_bindgen::to_value(&wasm_report)
+        .map_err(|e| JsValue::from_str(&format!("Serialization failed: {}", e)))
 }
 
 #[wasm_bindgen]

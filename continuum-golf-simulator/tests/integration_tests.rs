@@ -385,7 +385,6 @@ fn test_breakeven_radius() {
         hole_selection: HoleSelection::Fixed(6),
         developer_mode: Some(DeveloperMode {
             manual_miss_distance: Some(d_break_theoretical),
-            disable_kalman: true, // Disable Kalman to keep P_max constant
         }),
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,

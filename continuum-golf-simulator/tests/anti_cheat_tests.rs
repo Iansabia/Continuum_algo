@@ -36,7 +36,6 @@ fn test_sandbagging_attack() {
         hole_selection: HoleSelection::Fixed(4),
         developer_mode: Some(DeveloperMode {
             manual_miss_distance: Some(100.0), // Terrible miss
-            disable_kalman: false,
         }),
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
@@ -123,7 +122,6 @@ fn test_gradual_skill_manipulation() {
             // Intentional bad shot
             Some(DeveloperMode {
                 manual_miss_distance: Some(60.0),
-                disable_kalman: false,
             })
         } else {
             // Real shots (player's actual skill)
@@ -193,7 +191,6 @@ fn test_sudden_skill_jump_detection() {
         hole_selection: HoleSelection::Fixed(4),
         developer_mode: Some(DeveloperMode {
             manual_miss_distance: Some(80.0), // Intentional poor performance
-            disable_kalman: false,
         }),
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
@@ -289,7 +286,6 @@ fn test_bet_timing_exploitation() {
             // Low wager on intentional bad shot
             (5.0, Some(DeveloperMode {
                 manual_miss_distance: Some(60.0),
-                disable_kalman: false,
             }))
         };
 
@@ -374,7 +370,6 @@ fn test_multi_account_collusion() {
             hole_selection: HoleSelection::Fixed(4),
             developer_mode: Some(DeveloperMode {
                 manual_miss_distance: Some(*miss_distance),
-                disable_kalman: false,
             }),
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
@@ -432,7 +427,6 @@ fn test_session_interruption_exploitation() {
             // Intentional bad shots
             Some(DeveloperMode {
                 manual_miss_distance: Some(65.0),
-                disable_kalman: false,
             })
         };
 
@@ -501,7 +495,6 @@ fn test_maximum_exploitation_attempt() {
             hole_selection: HoleSelection::Fixed(4),
             developer_mode: Some(DeveloperMode {
                 manual_miss_distance: Some(120.0),
-                disable_kalman: false,
             }),
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
@@ -526,7 +519,6 @@ fn test_maximum_exploitation_attempt() {
             // Throw-away shot (intentional bad miss)
             (1.0, Some(DeveloperMode {
                 manual_miss_distance: Some(90.0),
-                disable_kalman: false,
             }))
         };
 

@@ -17,12 +17,13 @@
 // 5. Use median of samples as point estimate
 
 use rand::Rng;
+use serde::{Serialize, Deserialize};
 use crate::math::distributions::{log_posterior, normal_random};
 
 /// MCMC sampler state using Metropolis-Hastings algorithm
 ///
 /// Maintains current position in parameter space and acceptance statistics.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MCMCSampler {
     /// Current sigma value in the Markov chain
     pub current_sigma: f64,
@@ -147,7 +148,7 @@ impl MCMCSampler {
 ///
 /// Maintains posterior distribution over skill parameter σ and provides
 /// robust point estimates with quantified uncertainty.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MCMCSkillEstimator {
     /// Observed miss distances (feet)
     observations: Vec<f64>,
@@ -254,6 +255,23 @@ impl MCMCSkillEstimator {
             self.posterior_samples = vec![self.prior_mean];
             self.samples_valid = true;
             return;
+        }
+
+        // Reset sampler to use current posterior median as starting point
+        // This prevents the chain from getting stuck after serialization/deserialization
+        if !self.samples_valid && !self.posterior_samples.is_empty() {
+            // Compute median directly (don't call get_sigma_estimate to avoid recursion)
+            let mut sorted = self.posterior_samples.clone();
+            sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let mid = sorted.len() / 2;
+            let start_sigma = if sorted.len() % 2 == 0 {
+                (sorted[mid - 1] + sorted[mid]) / 2.0
+            } else {
+                sorted[mid]
+            };
+
+            let start_log_post = log_posterior(start_sigma, &self.observations, self.prior_mean, self.prior_std);
+            self.sampler = MCMCSampler::new(start_sigma, start_log_post, self.sampler.proposal_std);
         }
 
         self.posterior_samples.clear();

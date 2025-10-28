@@ -176,13 +176,14 @@ pub enum HoleSelection {
 /// ⚠️ SECURITY WARNING: Developer mode should NEVER be accessible to real players.
 /// Manual miss distances allow complete control over shot outcomes, enabling
 /// trivial exploitation of the payout system.
+///
+/// Developer mode shots are processed identically to real shots by the MCMC
+/// algorithm - the only difference is the miss distance source (manual vs simulated).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeveloperMode {
     /// If set, use this miss distance instead of simulating
     /// ⚠️ CRITICAL: This must never be available in production
     pub manual_miss_distance: Option<f64>,
-    /// If true, disable Kalman filter updates (skill stays constant)
-    pub disable_kalman: bool,
 }
 
 /// Results from a completed player session
@@ -402,56 +403,52 @@ pub fn run_session(player: &mut Player, config: SessionConfig) -> SessionResult 
         // SECURITY FIX: Track wager for lifetime average (cross-session detection)
         player.track_wager(wager);
 
-        // Add shot to batch (unless Kalman is disabled)
-        if config.developer_mode.as_ref().map_or(true, |dm| !dm.disable_kalman) {
-            // SECURITY FIX: Use lifetime average wager if available, otherwise use session average
-            let lifetime_avg = player.get_lifetime_avg_wager();
-            let session_avg_wager = if shot_num > 0 {
-                total_wagered / (shot_num + 1) as f64
-            } else {
-                wager
-            };
+        // Add shot to batch (developer mode shots update MCMC identically to real shots)
+        // SECURITY FIX: Use lifetime average wager if available, otherwise use session average
+        let lifetime_avg = player.get_lifetime_avg_wager();
+        let session_avg_wager = if shot_num > 0 {
+            total_wagered / (shot_num + 1) as f64
+        } else {
+            wager
+        };
 
-            // Use the more conservative of lifetime or session average
-            let reference_avg = if lifetime_avg > 0.0 {
-                lifetime_avg.max(session_avg_wager)
-            } else {
-                session_avg_wager
-            };
+        // Use the more conservative of lifetime or session average
+        let reference_avg = if lifetime_avg > 0.0 {
+            lifetime_avg.max(session_avg_wager)
+        } else {
+            session_avg_wager
+        };
 
-            // SECURITY FIX: More aggressive high-stakes detection (2x reference average instead of 10x batch average)
-            let is_high_stakes = wager >= 2.0 * reference_avg;
+        // SECURITY FIX: More aggressive high-stakes detection (2x reference average instead of 10x batch average)
+        let is_high_stakes = wager >= 2.0 * reference_avg;
 
-            if is_high_stakes {
-                num_high_stakes_shots += 1;
-                // Process existing batch first if it has shots
-                let skill = player.get_skill_for_hole(hole);
-                if !skill.shot_batch.is_empty() {
-                    player.update_skill(hole, p_max);
-                    num_kalman_updates += 1;
-                }
-            }
-
-            // Add shot to batch
-            let batch_full = player.add_shot_to_batch(hole, miss_distance, wager);
-
-            // Update if batch is full or this is a high-stakes shot
-            if batch_full || is_high_stakes {
+        if is_high_stakes {
+            num_high_stakes_shots += 1;
+            // Process existing batch first if it has shots
+            let skill = player.get_skill_for_hole(hole);
+            if !skill.shot_batch.is_empty() {
                 player.update_skill(hole, p_max);
                 num_kalman_updates += 1;
             }
         }
+
+        // Add shot to batch
+        let batch_full = player.add_shot_to_batch(hole, miss_distance, wager);
+
+        // Update if batch is full or this is a high-stakes shot
+        if batch_full || is_high_stakes {
+            player.update_skill(hole, p_max);
+            num_kalman_updates += 1;
+        }
     }
 
     // Process any remaining shots in batches at end of session
-    if config.developer_mode.as_ref().map_or(true, |dm| !dm.disable_kalman) {
-        for hole in HOLE_CONFIGURATIONS.iter() {
-            let skill = player.get_skill_for_hole(hole);
-            if !skill.shot_batch.is_empty() {
-                let p_max = player.calculate_p_max(hole);
-                player.update_skill(hole, p_max);
-                num_kalman_updates += 1;
-            }
+    for hole in HOLE_CONFIGURATIONS.iter() {
+        let skill = player.get_skill_for_hole(hole);
+        if !skill.shot_batch.is_empty() {
+            let p_max = player.calculate_p_max(hole);
+            player.update_skill(hole, p_max);
+            num_kalman_updates += 1;
         }
     }
 
@@ -608,7 +605,6 @@ mod tests {
             hole_selection: HoleSelection::Fixed(4),
             developer_mode: Some(DeveloperMode {
                 manual_miss_distance: Some(5.0), // Always miss by 5ft
-                disable_kalman: false,
             }),
             ..Default::default()
         };
@@ -619,33 +615,6 @@ mod tests {
         for shot in &result.shots {
             assert_eq!(shot.miss_distance_ft, 5.0);
         }
-    }
-
-    #[test]
-    fn test_run_session_developer_mode_disable_kalman() {
-        let mut player = Player::new("test_player".to_string(), 15);
-        let hole = get_hole_by_id(4).unwrap();
-        let initial_sigma = player.get_skill_for_hole(hole).kalman_filter.estimate;
-
-        let config = SessionConfig {
-            num_shots: 20,
-            wager_min: 5.0,
-            wager_max: 10.0,
-            hole_selection: HoleSelection::Fixed(4),
-            developer_mode: Some(DeveloperMode {
-                manual_miss_distance: None,
-                disable_kalman: true, // No updates
-            }),
-            ..Default::default()
-        };
-
-        let result = run_session(&mut player, config);
-
-        assert_eq!(result.num_kalman_updates, 0);
-
-        // Skill should not have changed
-        let final_sigma = player.get_skill_for_hole(hole).kalman_filter.estimate;
-        assert_eq!(initial_sigma, final_sigma);
     }
 
     #[test]
@@ -768,7 +737,6 @@ mod tests {
         let config = SessionConfig {
             developer_mode: Some(DeveloperMode {
                 manual_miss_distance: Some(20.0),
-                disable_kalman: false,
             }),
             ..Default::default()
         };
@@ -784,7 +752,6 @@ mod tests {
         let config = SessionConfig {
             developer_mode: Some(DeveloperMode {
                 manual_miss_distance: Some(20.0),
-                disable_kalman: false,
             }),
             ..Default::default()
         };

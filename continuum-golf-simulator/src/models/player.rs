@@ -31,7 +31,6 @@ pub struct Player {
 pub struct SkillProfile {
     /// MCMC Bayesian skill estimator (PRIMARY - replaces Kalman filter)
     /// Provides mathematically optimal skill estimation with convergence guarantees
-    #[serde(skip)]
     pub mcmc_estimator: MCMCSkillEstimator,
 
     /// Cached sigma estimate from last MCMC update
@@ -287,8 +286,8 @@ impl Player {
     fn calculate_p_max_fresh(&self, hole: &Hole) -> f64 {
         let skill = self.get_skill_for_hole(hole);
 
-        // Use cached MCMC estimate (updated only during batch processing)
-        // This ensures P_max doesn't oscillate between updates
+        // Use cached MCMC estimate (updated during batch processing)
+        // If no observations yet, this will be the handicap-based initial estimate
         let sigma = skill.cached_sigma;
 
         // Calculate expected payout using numerical integration
@@ -483,7 +482,21 @@ impl Player {
     /// True if the batch is full and should be processed
     pub fn add_shot_to_batch(&mut self, hole: &Hole, miss_distance: f64, wager: f64) -> bool {
         let skill = self.get_skill_for_hole_mut(hole);
+
+        // Add shot to batch for later batch processing
         skill.shot_batch.add_shot(miss_distance, wager);
+
+        // IMMEDIATELY add observation to MCMC estimator so P_max stays current
+        skill.mcmc_estimator.add_observation(miss_distance);
+
+        // Update cached sigma with quick MCMC sampling (fewer iterations for speed)
+        // This ensures P_max calculations reflect current skill without waiting for batch
+        if skill.mcmc_estimator.observation_count() > 0 {
+            // Use lightweight sampling for real-time updates
+            skill.mcmc_estimator.sample(500, 100, 1);
+            skill.cached_sigma = skill.mcmc_estimator.get_sigma_estimate();
+        }
+
         skill.shot_batch.is_full()
     }
 
@@ -587,8 +600,8 @@ impl Player {
             filtered_distances
         };
 
-        // Add observations to MCMC estimator
-        skill.mcmc_estimator.add_observations(&final_distances);
+        // NOTE: Observations already added to MCMC in add_shot_to_batch()
+        // This batch processing just re-samples with higher accuracy
 
         // Update shot count
         skill.shot_count += final_distances.len();
