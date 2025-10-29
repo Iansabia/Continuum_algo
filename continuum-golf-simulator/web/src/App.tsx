@@ -1,10 +1,14 @@
 import PlayerSimulator from './components/PlayerSimulator';
+import AnimatedBackground from './components/AnimatedBackground';
 
 function App() {
   return (
-    <div className="h-screen w-screen overflow-hidden bg-black flex flex-col">
+    <div className="h-screen w-screen overflow-hidden bg-black flex flex-col relative">
+      {/* Animated Background - Global floating lines */}
+      <AnimatedBackground />
+
       {/* Frosted Glass Purple Header */}
-      <header className="relative bg-gradient-to-r from-[#493b7c]/30 via-[#604c9c]/30 to-[#493b7c]/30 backdrop-blur-2xl border-b border-[#604c9c]/30 shadow-lg flex-shrink-0">
+      <header className="relative bg-gradient-to-r from-[#493b7c]/30 via-[#604c9c]/30 to-[#493b7c]/30 backdrop-blur-2xl border-b border-[#604c9c]/30 shadow-lg flex-shrink-0 z-10">
         <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none"></div>
         <div className="relative flex items-center justify-between py-3 px-6">
           <div className="flex items-center gap-4">
@@ -24,7 +28,7 @@ function App() {
       </header>
 
       {/* Main Simulator - Responsive container */}
-      <main className="flex-1 min-h-0 p-4 overflow-auto">
+      <main className="flex-1 min-h-0 p-4 overflow-auto relative z-10">
         <div className="h-full max-w-[2000px] mx-auto">
           <PlayerSimulator />
         </div>

@@ -36,15 +36,15 @@ export default function VenueSimulator() {
   };
 
   return (
-    <div className="bg-gray-800/50 backdrop-blur-sm rounded-lg p-8 border border-gray-700">
-      <h2 className="text-3xl font-montserrat font-bold text-golf-gold mb-6">
+    <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl p-8 border border-[var(--brand-tan)]/20">
+      <h2 className="text-3xl font-semibold text-[var(--brand-tan)] mb-6">
         Venue Economics Simulator
       </h2>
 
       {/* Controls */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className="block text-sm font-medium text-[var(--brand-lavender)] mb-2">
             Number of Bays: {numBays}
           </label>
           <input
@@ -54,12 +54,12 @@ export default function VenueSimulator() {
             step="5"
             value={numBays}
             onChange={(e) => setNumBays(Number(e.target.value))}
-            className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            className="w-full h-2 bg-[var(--brand-dark-gray)] rounded-lg appearance-none cursor-pointer slider-thumb"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className="block text-sm font-medium text-[var(--brand-lavender)] mb-2">
             Operating Hours: {hours}
           </label>
           <input
@@ -68,12 +68,12 @@ export default function VenueSimulator() {
             max="24"
             value={hours}
             onChange={(e) => setHours(Number(e.target.value))}
-            className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            className="w-full h-2 bg-[var(--brand-dark-gray)] rounded-lg appearance-none cursor-pointer slider-thumb"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className="block text-sm font-medium text-[var(--brand-lavender)] mb-2">
             Shots/Bay/Hour: {shotsPerHour}
           </label>
           <input
@@ -83,7 +83,7 @@ export default function VenueSimulator() {
             step="10"
             value={shotsPerHour}
             onChange={(e) => setShotsPerHour(Number(e.target.value))}
-            className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            className="w-full h-2 bg-[var(--brand-dark-gray)] rounded-lg appearance-none cursor-pointer slider-thumb"
           />
         </div>
       </div>
@@ -91,8 +91,7 @@ export default function VenueSimulator() {
       <button
         onClick={runSimulation}
         disabled={isSimulating}
-        className="w-full bg-golf-gold text-golf-navy font-montserrat font-bold py-4 px-8 rounded-lg
-                   hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full bg-gradient-to-r from-[var(--brand-bright-purple)] to-[var(--brand-deep-purple)] hover:from-[var(--brand-deep-purple)] hover:to-[var(--brand-bright-purple)] text-[var(--brand-tan)] font-semibold py-4 px-8 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[var(--brand-bright-purple)]/25"
       >
         {isSimulating ? 'Running Simulation...' : 'Run Venue Simulation'}
       </button>
@@ -102,39 +101,39 @@ export default function VenueSimulator() {
         <div className="mt-8 space-y-6">
           {/* Summary Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-gray-900/50 p-4 rounded-lg">
-              <div className="text-sm text-gray-400">Total Handle</div>
-              <div className="text-2xl font-bold text-white">${results.total_wagered.toLocaleString()}</div>
+            <div className="bg-[var(--brand-deep-purple)]/10 p-4 rounded-xl border border-[var(--brand-tan)]/10">
+              <div className="text-sm text-[var(--brand-lavender)]">Total Handle</div>
+              <div className="text-2xl font-bold text-[var(--brand-tan)]">${results.total_wagered.toLocaleString()}</div>
             </div>
-            <div className="bg-gray-900/50 p-4 rounded-lg">
-              <div className="text-sm text-gray-400">Total Payouts</div>
-              <div className="text-2xl font-bold text-red-400">${results.total_payouts.toLocaleString()}</div>
+            <div className="bg-[var(--brand-deep-purple)]/10 p-4 rounded-xl border border-[var(--brand-tan)]/10">
+              <div className="text-sm text-[var(--brand-lavender)]">Total Payouts</div>
+              <div className="text-2xl font-bold text-[var(--brand-rose-copper)]">${results.total_payouts.toLocaleString()}</div>
             </div>
-            <div className="bg-gray-900/50 p-4 rounded-lg">
-              <div className="text-sm text-gray-400">Net Profit</div>
-              <div className="text-2xl font-bold text-green-400">${results.net_profit.toLocaleString()}</div>
+            <div className="bg-[var(--brand-deep-purple)]/10 p-4 rounded-xl border border-[var(--brand-tan)]/10">
+              <div className="text-sm text-[var(--brand-lavender)]">Net Profit</div>
+              <div className="text-2xl font-bold text-[var(--brand-tan)]">${results.net_profit.toLocaleString()}</div>
             </div>
-            <div className="bg-gray-900/50 p-4 rounded-lg">
-              <div className="text-sm text-gray-400">Hold %</div>
-              <div className="text-2xl font-bold text-golf-gold">{results.hold_percentage.toFixed(1)}%</div>
+            <div className="bg-[var(--brand-deep-purple)]/10 p-4 rounded-xl border border-[var(--brand-tan)]/10">
+              <div className="text-sm text-[var(--brand-lavender)]">Hold %</div>
+              <div className="text-2xl font-bold text-[var(--brand-dark-gold)]">{results.hold_percentage.toFixed(1)}%</div>
             </div>
           </div>
 
           {/* Hourly Profit Chart */}
-          <div className="bg-gray-900/50 p-6 rounded-lg">
-            <h3 className="text-xl font-montserrat font-semibold text-golf-gold mb-4">
+          <div className="bg-[var(--brand-deep-purple)]/10 p-6 rounded-xl border border-[var(--brand-tan)]/10">
+            <h3 className="text-xl font-semibold text-[var(--brand-tan)] mb-4">
               Profit by Hour
             </h3>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={results.profit_by_hour}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="hour" stroke="#9CA3AF" />
-                <YAxis stroke="#9CA3AF" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--brand-lavender)" opacity={0.2} />
+                <XAxis dataKey="hour" stroke="var(--brand-lavender)" />
+                <YAxis stroke="var(--brand-lavender)" />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151' }}
-                  labelStyle={{ color: '#D4AF37' }}
+                  contentStyle={{ backgroundColor: 'var(--brand-deep-purple)', border: '1px solid var(--brand-tan)', borderRadius: '8px', opacity: 0.95 }}
+                  labelStyle={{ color: 'var(--brand-tan)' }}
                 />
-                <Bar dataKey="profit" fill="#D4AF37" />
+                <Bar dataKey="profit" fill="var(--brand-dark-gold)" />
               </BarChart>
             </ResponsiveContainer>
           </div>

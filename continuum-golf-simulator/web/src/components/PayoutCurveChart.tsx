@@ -1,4 +1,5 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { motion } from 'framer-motion';
 
 interface PayoutCurveChartProps {
   pmax: number;
@@ -20,22 +21,18 @@ export default function PayoutCurveChart({
   // Validate P_max before rendering
   const isValidPmax = pmax > 0 && !isNaN(pmax) && isFinite(pmax);
 
-  // Debug last shot values
-  console.log('📍 PayoutCurveChart last shot:', {
-    distance: lastShotDistance,
-    multiplier: lastShotMultiplier,
-    hasDistance: lastShotDistance !== undefined,
-    hasMultiplier: lastShotMultiplier !== undefined,
-  });
-
   if (!isValidPmax) {
     return (
-      <div className="bg-gradient-to-br from-[#604c9c]/10 to-[#493b7c]/10 backdrop-blur-xl p-3 rounded-xl border border-[#9e8cb4]/30 shadow-lg h-full flex flex-col">
-        <h3 className="text-xs font-medium text-[#9e8cb4] mb-2">Payout Curve</h3>
-        <div className="flex-1 flex items-center justify-center text-[#9e8cb4]/60 text-xs">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl border border-[var(--brand-tan)]/20 p-4 h-full flex flex-col"
+      >
+        <h3 className="text-xs font-semibold text-[var(--brand-lavender)] uppercase tracking-wider mb-3">Payout Curve</h3>
+        <div className="flex-1 flex items-center justify-center text-[var(--brand-lavender)] text-sm">
           <p>⚠️ Take shots to see curve</p>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
@@ -95,31 +92,36 @@ export default function PayoutCurveChart({
   const data = generateCurveData();
 
   return (
-    <div className="bg-gradient-to-br from-[#604c9c]/10 to-[#493b7c]/10 backdrop-blur-xl p-3 rounded-xl border border-[#9e8cb4]/30 shadow-lg h-full flex flex-col">
-      <h3 className="text-xs font-medium text-[#9e8cb4] mb-2">Payout Curve</h3>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl border border-[var(--brand-tan)]/20 p-4 h-full flex flex-col"
+    >
+      <h3 className="text-xs font-semibold text-[var(--brand-lavender)] uppercase tracking-wider mb-3">Payout Curve</h3>
       <div className="flex-1 min-h-0">
         <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(158,140,180,0.1)" />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--brand-lavender)" opacity={0.1} />
           <XAxis
             dataKey="distance"
-            stroke="rgba(158,140,180,0.5)"
-            tick={{ fontSize: 10, fill: 'rgba(158,140,180,0.7)' }}
-            label={{ value: 'Distance (y)', position: 'insideBottom', offset: -3, fill: 'rgba(158,140,180,0.7)', fontSize: 10 }}
+            stroke="var(--brand-lavender)"
+            tick={{ fontSize: 10, fill: 'var(--brand-lavender)' }}
+            label={{ value: 'Distance (y)', position: 'insideBottom', offset: -3, fill: 'var(--brand-lavender)', fontSize: 10 }}
           />
           <YAxis
-            stroke="rgba(158,140,180,0.5)"
-            tick={{ fontSize: 10, fill: 'rgba(158,140,180,0.7)' }}
-            label={{ value: 'Mult', angle: -90, position: 'insideLeft', fill: 'rgba(158,140,180,0.7)', fontSize: 10 }}
+            stroke="var(--brand-lavender)"
+            tick={{ fontSize: 10, fill: 'var(--brand-lavender)' }}
+            label={{ value: 'Mult', angle: -90, position: 'insideLeft', fill: 'var(--brand-lavender)', fontSize: 10 }}
             domain={[0, 'auto']}
             tickCount={6}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'rgba(73,59,124,0.9)',
-              border: '1px solid rgba(158,140,180,0.3)',
-              borderRadius: '8px',
-              color: 'rgba(223,201,173,1)',
+              backgroundColor: 'var(--brand-deep-purple)',
+              border: '1px solid var(--brand-tan)',
+              borderRadius: '12px',
+              color: 'var(--brand-tan)',
+              padding: '8px 12px',
             }}
             formatter={(value: number, name: string) => {
               if (name === 'multiplier') return [`${value.toFixed(2)}x`, 'Payout'];
@@ -131,33 +133,34 @@ export default function PayoutCurveChart({
           {/* Breakeven line */}
           <ReferenceLine
             y={1.0}
-            stroke="rgba(158,140,180,0.5)"
+            stroke="var(--brand-tan)"
             strokeDasharray="5 5"
             strokeWidth={1.5}
-            label={{ value: 'Breakeven', position: 'right', fill: 'rgba(158,140,180,0.7)' }}
+            label={{ value: 'Breakeven', position: 'right', fill: 'var(--brand-tan)', fontSize: 10 }}
           />
 
           {/* Breakeven radius vertical line */}
           <ReferenceLine
             x={breakevenRadius}
-            stroke="rgba(158,140,180,0.3)"
+            stroke="var(--brand-lavender)"
             strokeDasharray="3 3"
             strokeWidth={1}
-            label={{ value: `${breakevenRadius.toFixed(1)}y`, position: 'top', fill: 'rgba(158,140,180,0.7)' }}
+            opacity={0.4}
+            label={{ value: `${breakevenRadius.toFixed(1)}y`, position: 'top', fill: 'var(--brand-lavender)', fontSize: 10 }}
           />
 
           {/* Payout curve */}
           <Line
             type="monotone"
             dataKey="multiplier"
-            stroke="#604c9c"
-            strokeWidth={2}
+            stroke="var(--brand-bright-purple)"
+            strokeWidth={2.5}
             dot={false}
-            activeDot={{ r: 4, fill: '#604c9c' }}
+            activeDot={{ r: 5, fill: 'var(--brand-bright-purple)', strokeWidth: 2, stroke: 'var(--brand-lavender)' }}
           />
         </LineChart>
       </ResponsiveContainer>
       </div>
-    </div>
+    </motion.div>
   );
 }

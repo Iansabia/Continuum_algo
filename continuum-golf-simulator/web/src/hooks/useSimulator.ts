@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import init, { simulate_player_session } from '../wasm/continuum_golf_simulator';
+import init, { simulate_player_session, analyze_anti_cheat } from '../wasm/continuum_golf_simulator';
 
 // Hole configurations matching Rust HOLE_CONFIGURATIONS
 const HOLE_CONFIGS = [
@@ -12,6 +12,16 @@ const HOLE_CONFIGS = [
   { id: 7, distance_yds: 225, d_max_ft: 84.84, rtp: 0.85, k: 6.5 },
   { id: 8, distance_yds: 250, d_max_ft: 101.14, rtp: 0.85, k: 6.5 },
 ];
+
+// Get club category for a hole (matches Rust ClubCategory)
+function getCategoryForHole(holeId: number): string {
+  const hole = HOLE_CONFIGS.find(h => h.id === holeId);
+  if (!hole) return "Wedge";
+
+  if (hole.distance_yds < 140) return "Wedge";
+  if (hole.distance_yds < 210) return "MidIron";
+  return "LongIron";
+}
 
 // WASM result types
 interface WasmShotOutcome {
@@ -62,6 +72,8 @@ export interface Shot {
 
 export interface SkillEstimate {
   sigma: number;
+  sigmaX: number;
+  sigmaY: number;
   confidence: number;
   pmax: number;
 }
@@ -88,6 +100,42 @@ interface KalmanState {
   measurementCount: number;
 }
 
+// Calculate sigmaX and sigmaY from shot coordinates
+const calculateDirectionalSigmas = (shots: Shot[], currentSigma: number = 8): { sigmaX: number; sigmaY: number } => {
+  // Need at least 2 shots to calculate meaningful directional standard deviations
+  // For 0-1 shots, use the overall sigma estimate
+  if (shots.length < 2) {
+    return { sigmaX: currentSigma, sigmaY: currentSigma };
+  }
+
+  // Convert polar to Cartesian coordinates
+  const xCoords: number[] = [];
+  const yCoords: number[] = [];
+
+  shots.forEach(shot => {
+    const x = shot.distance * Math.cos(shot.angle);
+    const y = shot.distance * Math.sin(shot.angle);
+    xCoords.push(x);
+    yCoords.push(y);
+  });
+
+  // Calculate mean
+  const meanX = xCoords.reduce((sum, x) => sum + x, 0) / xCoords.length;
+  const meanY = yCoords.reduce((sum, y) => sum + y, 0) / yCoords.length;
+
+  // Calculate sample variance (using n-1 for Bessel's correction)
+  const varianceX = xCoords.reduce((sum, x) => sum + Math.pow(x - meanX, 2), 0) / (xCoords.length - 1);
+  const varianceY = yCoords.reduce((sum, y) => sum + Math.pow(y - meanY, 2), 0) / (yCoords.length - 1);
+
+  const sigmaX = Math.sqrt(varianceX);
+  const sigmaY = Math.sqrt(varianceY);
+
+  return {
+    sigmaX: Math.max(0.1, sigmaX), // Minimum to avoid division by zero
+    sigmaY: Math.max(0.1, sigmaY)
+  };
+};
+
 // Calculate initial P_max from handicap
 // Uses a stable formula based on expected dispersion
 const calculateInitialPmax = (handicap: number): number => {
@@ -112,10 +160,10 @@ const calculateInitialPmax = (handicap: number): number => {
 };
 
 export interface AnomalyReport {
-  is_suspicious: boolean;
+  isSuspicious: boolean;
   confidence: number;
-  detected_patterns: string[];
-  recommended_action: string;
+  detectedPatterns: string[];
+  recommendedAction: string;
 }
 
 export function useSimulator(initialHandicap: number = 10, selectedHoleId: number = 1) {
@@ -130,6 +178,8 @@ export function useSimulator(initialHandicap: number = 10, selectedHoleId: numbe
 
   const [skillEstimate, setSkillEstimate] = useState<SkillEstimate>({
     sigma: initialSigma,
+    sigmaX: initialSigma,
+    sigmaY: initialSigma,
     confidence: 0,
     pmax: initialPmax,
   });
@@ -191,43 +241,18 @@ export function useSimulator(initialHandicap: number = 10, selectedHoleId: numbe
     return breakevenFt / 3;
   };
 
-  // Calculate payout multiplier from distance for a specific hole
-  const calculatePayoutMultiplier = (distanceYards: number, pmax: number, holeId: number): number => {
-    if (!pmax || pmax <= 0 || isNaN(pmax)) {
-      console.warn('⚠️ Invalid P_max for payout calculation:', pmax);
-      return 0;
-    }
-
-    const hole = getHoleConfig(holeId);
-    const dMaxFt = hole.d_max_ft;
-    const k = hole.k;
-
-    // Convert distance from yards to feet
-    const distanceFt = distanceYards * 3;
-
-    // If beyond target radius, no payout
-    if (distanceFt >= dMaxFt) {
-      return 0;
-    }
-
-    // Rust formula: P_max * (1 - d/d_max)^k
-    const payoutFactor = Math.pow(1 - distanceFt / dMaxFt, k);
-    const multiplier = pmax * payoutFactor;
-
-    return Math.max(0, multiplier);
-  };
-
   // WASM wrapper: simulates a single shot using Rust implementation
   const simulateShotWasm = useCallback(
-    (handicap: number, wager: number, holeId: number): { shot: Shot; skillProfile: WasmSkillProfile | null; holeId: number } => {
+    (handicap: number, wager: number, holeId: number, manualDistance?: number): { shot: Shot; skillProfile: WasmSkillProfile | null; holeId: number; antiCheatReport: AnomalyReport | null } => {
       try {
-        // Call WASM with num_shots=1
+        // Call WASM with num_shots=1, pass manual distance if provided
         const result: WasmSessionResult = simulate_player_session(
           handicap,
           1, // Single shot
           wager,
           wager,
-          holeId // Pass selected hole ID
+          holeId, // Pass selected hole ID
+          manualDistance // Pass manual miss distance for dev mode
         );
 
         if (!result.shots || result.shots.length === 0) {
@@ -259,9 +284,10 @@ export function useSimulator(initialHandicap: number = 10, selectedHoleId: numbe
           multiplier: wasmShot.multiplier,
         };
 
-        // Extract skill profile for Kalman update (use first category, typically Wedge)
+        // Extract skill profile matching the hole's category
+        const holeCategory = getCategoryForHole(usedHoleId);
         const skillProfile = result.final_skills && result.final_skills.length > 0
-          ? result.final_skills[0]
+          ? result.final_skills.find(s => s.category === holeCategory) || result.final_skills[0]
           : null;
 
         // Debug: Log skill profile
@@ -276,7 +302,15 @@ export function useSimulator(initialHandicap: number = 10, selectedHoleId: numbe
           console.warn('⚠️ WASM returned no skill profile');
         }
 
-        return { shot, skillProfile, holeId: usedHoleId };
+        // Extract anti-cheat report from result
+        const antiCheatReport: AnomalyReport | null = result.anti_cheat_report ? {
+          isSuspicious: result.anti_cheat_report.is_suspicious,
+          confidence: result.anti_cheat_report.confidence,
+          detectedPatterns: result.anti_cheat_report.detected_patterns,
+          recommendedAction: result.anti_cheat_report.recommended_action,
+        } : null;
+
+        return { shot, skillProfile, holeId: usedHoleId, antiCheatReport };
       } catch (error) {
         console.error('WASM simulation error:', error);
         throw error;
@@ -285,72 +319,25 @@ export function useSimulator(initialHandicap: number = 10, selectedHoleId: numbe
     []
   );
 
-  // Simulate a single shot
+  // Simulate a single shot - always uses Rust WASM
   const simulateShot = useCallback(
-    (wager: number, manualDistance?: number): { shot: Shot; skillProfile: WasmSkillProfile | null; holeId: number } => {
+    (wager: number, manualDistance?: number): { shot: Shot; skillProfile: WasmSkillProfile | null; holeId: number; antiCheatReport: AnomalyReport | null } => {
+      if (!wasmReady) {
+        throw new Error('WASM not ready - cannot simulate shot');
+      }
+
       // Use the selected hole ID
       const holeId = selectedHoleId;
 
-      // Developer mode: use manual distance with placeholder simulation
+      // Log developer mode if manual distance is provided
       if (manualDistance !== undefined) {
-        const distance = manualDistance;
-        const angle = Math.random() * 2 * Math.PI;
-        const multiplier = calculatePayoutMultiplier(distance, skillEstimate.pmax, holeId);
-        const payout = wager * multiplier;
-        const profit = payout - wager;
-
-        return {
-          shot: {
-            distance,
-            angle,
-            wager,
-            payout,
-            profit,
-            multiplier,
-          },
-          skillProfile: null, // No skill update in manual mode
-          holeId,
-        };
+        console.log('🔧 Developer mode: manual distance =', manualDistance, 'yards');
       }
 
-      // Use WASM if ready, otherwise fall back to placeholder
-      if (wasmReady) {
-        try {
-          return simulateShotWasm(initialHandicap, wager, holeId);
-        } catch (error) {
-          console.warn('⚠️ WASM simulation failed, using placeholder:', error);
-          // Fall through to placeholder
-        }
-      }
-
-      // Placeholder simulation (fallback)
-      const u = Math.random();
-      let distance = skillEstimate.sigma * Math.sqrt(-2 * Math.log(u));
-
-      // Add fat-tail probability (2% chance of 3x worse)
-      if (Math.random() < 0.02) {
-        distance *= 3;
-      }
-
-      const angle = Math.random() * 2 * Math.PI;
-      const multiplier = calculatePayoutMultiplier(distance, skillEstimate.pmax, holeId);
-      const payout = wager * multiplier;
-      const profit = payout - wager;
-
-      return {
-        shot: {
-          distance,
-          angle,
-          wager,
-          payout,
-          profit,
-          multiplier,
-        },
-        skillProfile: null,
-        holeId,
-      };
+      // Always use WASM (with optional manual distance for dev mode)
+      return simulateShotWasm(initialHandicap, wager, holeId, manualDistance);
     },
-    [wasmReady, initialHandicap, selectedHoleId, skillEstimate, simulateShotWasm]
+    [wasmReady, initialHandicap, selectedHoleId, simulateShotWasm]
   );
 
   // Update Kalman filter with new measurement
@@ -362,7 +349,7 @@ export function useSimulator(initialHandicap: number = 10, selectedHoleId: numbe
       // Sample mean of r^2 should be 2*sigma^2
       const sumSquared = measurements.reduce((sum, r) => sum + r * r, 0);
       const meanSquared = sumSquared / measurements.length;
-      const estimatedSigmaSquared = meanSquared / 2;
+      const estimatedSigmaSquared = Math.max(0.01, meanSquared / 2); // Minimum 0.01 to avoid division by zero
       const estimatedSigma = Math.sqrt(estimatedSigmaSquared);
 
       // Kalman filter update
@@ -407,141 +394,139 @@ export function useSimulator(initialHandicap: number = 10, selectedHoleId: numbe
         clampedPmax: clampedPmax.toFixed(2),
       });
 
+      // Calculate directional sigmas from actual shot data
+      const { sigmaX, sigmaY } = calculateDirectionalSigmas(shots, newMean);
+
       setKalmanState(state);
       setSkillEstimate({
         sigma: newMean,
+        sigmaX,
+        sigmaY,
         confidence,
         pmax: clampedPmax,
       });
 
       return { sigma: newMean, confidence, pmax: clampedPmax };
     },
-    [kalmanState]
+    [kalmanState, shots]
   );
 
-  // Shoot batch using WASM
+  // Shoot batch using WASM - behaves identically to clicking 1x button multiple times
   const shootBatch = useCallback(
     (wager: number, numShots: number) => {
       if (numShots <= 0) return [];
 
-      const holeId = selectedHoleId;
+      console.log(`🎯 Batch mode: simulating ${numShots} shots (incremental)...`);
 
-      try {
-        // Call WASM with batch of shots
-        const result: WasmSessionResult = simulate_player_session(
-          initialHandicap,
-          numShots,
-          wager,
-          wager,
-          holeId
-        );
+      const batchShots: Shot[] = [];
+      let currentShotState = [...shots]; // Array spread, not object spread!
+      let currentSkillEstimate = { ...skillEstimate }; // Mutable copy for tracking across iterations
 
-        if (!result.shots || result.shots.length === 0) {
-          throw new Error('WASM returned no shots');
-        }
+      // Shoot each shot individually, just like clicking 1x button multiple times
+      for (let i = 0; i < numShots; i++) {
+        try {
+          // Simulate one shot using WASM
+          const { shot, skillProfile, holeId } = simulateShot(wager);
+          batchShots.push(shot);
+          currentShotState = [...currentShotState, shot];
+          setShots(currentShotState);
+          setCurrentHoleId(holeId);
 
-        console.log(`🎯 Batch WASM Result: ${result.shots.length} shots simulated`);
+          // MCMC updates every shot - Rust handles smoothing
+          const shotNumber = currentShotState.length;
+          const shouldUpdate = true; // Always update with MCMC
 
-        // Map all WASM shots to UI format and create P_max history entries
-        const batchShots: Shot[] = result.shots.map((wasmShot) => ({
-          distance: wasmShot.miss_distance_ft / 3, // Convert feet to yards
-          angle: Math.random() * 2 * Math.PI, // Random angle
-          wager: wasmShot.wager,
-          payout: wasmShot.payout,
-          profit: wasmShot.payout - wasmShot.wager,
-          multiplier: wasmShot.multiplier,
-        }));
+          let updated: SkillEstimate = { ...currentSkillEstimate };
 
-        const newShots = [...shots, ...batchShots];
-        setShots(newShots);
-        setCurrentHoleId(holeId);
+          // Update skill estimate (MCMC updates every shot)
+          if (shouldUpdate) {
+            console.log(`🔄 Batch update triggered at shot ${shotNumber}/${numShots}`, {
+              hasSkillProfile: !!skillProfile,
+              wasmReady,
+            });
+            
+            // Use WASM skill profile if available AND VALID
+            if (
+              skillProfile &&
+              skillProfile.p_max_current > 0 &&
+              !isNaN(skillProfile.p_max_current) &&
+              skillProfile.sigma > 0 &&
+              !isNaN(skillProfile.sigma)
+            ) {
+              // Trust WASM's MCMC P_max calculation directly (no UI rate limiting)
+              let pmaxToUse = skillProfile.p_max_current;
 
-        // For batch shots, we should only add ONE data point at the END
-        // showing the final smoothed P_max, not per-shot fluctuations
-        // This prevents the spiky graph issue
+              const sigmaCurrent = Math.max(1, skillProfile.sigma);
+              const { sigmaX, sigmaY } = calculateDirectionalSigmas(currentShotState, sigmaCurrent);
 
-        // Get final skill profile
-        const skillProfile = result.final_skills && result.final_skills.length > 0
-          ? result.final_skills[0]
-          : null;
+              updated = {
+                sigma: sigmaCurrent,
+                sigmaX,
+                sigmaY,
+                confidence: Math.max(currentSkillEstimate.confidence, Math.max(0, Math.min(100, skillProfile.confidence))),
+                pmax: pmaxToUse,
+              };
 
-        if (skillProfile && skillProfile.p_max_current > 0 && !isNaN(skillProfile.p_max_current)) {
-          const updated: SkillEstimate = {
-            sigma: Math.max(1, skillProfile.sigma),
-            confidence: Math.max(skillEstimate.confidence, Math.max(0, Math.min(100, skillProfile.confidence))),
-            pmax: skillProfile.p_max_current,
-          };
+              console.log(`✅ Batch update (shot ${shotNumber}/${numShots}):`, {
+                sigma: updated.sigma.toFixed(2),
+                pmax: updated.pmax.toFixed(2),
+                confidence: updated.confidence.toFixed(1) + '%',
+              });
 
-          console.log('✅ Batch WASM Update:', {
-            sigma: updated.sigma.toFixed(2),
-            pmax: updated.pmax.toFixed(2),
-            confidence: updated.confidence.toFixed(1) + '%',
-            totalShots: newShots.length,
-            batchSize: numShots,
-          });
-
-          setSkillEstimate(updated);
-          setKalmanState({
-            mean: updated.sigma,
-            variance: 100 * (1 - updated.confidence / 100),
-            measurementCount: newShots.length,
-          });
-
-          // Update anti-cheat report if available
-          if (result.anti_cheat_report) {
-            setAntiCheatReport(result.anti_cheat_report);
-
-            // Log suspicious activity
-            if (result.anti_cheat_report.is_suspicious) {
-              console.warn('🚨 Anti-Cheat Alert:', {
-                confidence: (result.anti_cheat_report.confidence * 100).toFixed(0) + '%',
-                patterns: result.anti_cheat_report.detected_patterns,
-                action: result.anti_cheat_report.recommended_action,
+              setSkillEstimate(updated);
+              setKalmanState({
+                mean: updated.sigma,
+                variance: 100 * (1 - updated.confidence / 100),
+                measurementCount: shotNumber,
               });
             }
           }
 
-          // Add ONE smoothed P_max data point for the entire batch
-          // This shows the final converged value after processing all shots
-          setPmaxHistory((prev) => [...prev, {
-            shotNumber: newShots.length,
-            pmax: updated.pmax,
-            confidence: updated.confidence,
-            sigma: updated.sigma,
-          }]);
-        }
+          // ALWAYS add current state to P_max history for charting (matching shootOnce)
+          setPmaxHistory((prev) => [
+            ...prev,
+            {
+              shotNumber,
+              pmax: updated.pmax,
+              confidence: updated.confidence,
+              sigma: updated.sigma,
+            },
+          ]);
 
-        return batchShots;
-      } catch (error) {
-        console.error('❌ Batch WASM simulation failed:', error);
-        return [];
+          // Update currentSkillEstimate for next iteration
+          currentSkillEstimate = updated;
+        } catch (error) {
+          console.error(`❌ Batch shot ${i + 1}/${numShots} failed:`, error);
+          break; // Stop batch on error
+        }
       }
+
+      // REMOVED: Anti-cheat analysis from batch shooter
+      // The anti-cheat call was re-simulating the entire session which corrupted P_max
+      // Anti-cheat analysis now only runs in the standalone shootOnce function
+
+      console.log(`✅ Batch complete: ${batchShots.length} shots`);
+      return batchShots;
     },
-    [shots, wasmReady, initialHandicap, selectedHoleId, skillEstimate]
+    [shots, wasmReady, initialHandicap, selectedHoleId, skillEstimate, simulateShot]
   );
 
   // Shoot once
   const shootOnce = useCallback(
     (wager: number, manualDistance?: number) => {
+      console.log('🎯 shootOnce called:', { wager, manualDistance, isDefined: manualDistance !== undefined });
       const { shot, skillProfile, holeId } = simulateShot(wager, manualDistance);
       const newShots = [...shots, shot];
       setShots(newShots);
       setCurrentHoleId(holeId); // Track which hole was used
 
-      // Determine if we should update skill estimate
-      // Adaptive update frequency to match Rust's smoothing:
-      // - Shots 1-30: Update every shot (aggressive anti-sandbagging)
-      // - Shots 31-100: Update every 5 shots (balanced transition)
-      // - Shots 100+: Update every 10 shots (conservative stability)
-      const shouldUpdate =
-        newShots.length <= 30 || // Early phase: every shot
-        (newShots.length <= 100 && newShots.length % 5 === 0) || // Transition: every 5
-        (newShots.length > 100 && newShots.length % 10 === 0) || // Mature: every 10
-        (shots.length > 0 && wager >= shots.reduce((sum, s) => sum + s.wager, 0) / shots.length * 10); // High stakes
+      // MCMC updates every shot now - no more batching needed
+      // The Rust MCMC system handles smoothing internally, so we update UI every shot
+      const shouldUpdate = true; // Always update with MCMC
 
       let updated: SkillEstimate = { ...skillEstimate };
 
-      // Only update skill estimate periodically
+      // Update skill estimate (MCMC updates every shot)
       if (shouldUpdate) {
         console.log('🔄 Update triggered at shot', newShots.length, {
           hasSkillProfile: !!skillProfile,
@@ -557,60 +542,28 @@ export function useSimulator(initialHandicap: number = 10, selectedHoleId: numbe
           skillProfile.sigma > 0 &&
           !isNaN(skillProfile.sigma)
         ) {
-          // WASM returns calculated P_max, but we need UI-side rate limiting
-          // because WASM creates a new player for each shot (no state persistence)
-
-          // WAGER-BASED RATE LIMITING:
-          // Philosophy: Big bets = high confidence in true skill = allow more P_max adaptation
-          // Small bets = testing/uncertain = conservative P_max changes
+          // Trust WASM's MCMC P_max calculation directly
+          // The Rust backend maintains persistent player state and has built-in
+          // MCMC smoothing, so no additional UI rate limiting is needed
           let pmaxToUse = skillProfile.p_max_current;
-          const currentPmax = skillEstimate.pmax;
 
-          if (currentPmax > 0 && newShots.length > 1) {
-            // Calculate average wager from shot history
-            const avgWager = newShots.reduce((sum, s) => sum + s.wager, 0) / newShots.length;
-            const wagerRatio = avgWager > 0 ? wager / avgWager : 1.0;
+          const sigmaCurrent = Math.max(1, skillProfile.sigma);
 
-            // HYBRID MODEL: Base rate + wager bonus
-            const baseMaxChange = 0.15; // 15% base protection for all players
-            const wagerBonus = Math.min(0.15, Math.max(0, (wagerRatio - 1.0) * 0.05)); // +5% per 1x wager increase, capped at +15%
-            const totalMaxChange = baseMaxChange + wagerBonus; // Max 30% total
-
-            const maxIncreaseRatio = 1.0 + totalMaxChange;
-            const maxDecreaseRatio = 1.0 - totalMaxChange;
-
-            const pmaxClamped = Math.min(
-              currentPmax * maxIncreaseRatio,
-              Math.max(currentPmax * maxDecreaseRatio, pmaxToUse)
-            );
-
-            const wasClamped = Math.abs(pmaxToUse - pmaxClamped) > 0.01;
-
-            if (wasClamped || wagerRatio > 1.5) {
-              console.log('⚠️ Wager-based P_max rate limiting:', {
-                wager: `$${wager.toFixed(2)}`,
-                avgWager: `$${avgWager.toFixed(2)}`,
-                wagerRatio: wagerRatio.toFixed(2) + 'x',
-                allowedChange: `±${(totalMaxChange * 100).toFixed(1)}%`,
-                breakdown: `base ${(baseMaxChange * 100).toFixed(0)}% + bonus ${(wagerBonus * 100).toFixed(0)}%`,
-                from: currentPmax.toFixed(2) + 'x',
-                calculated: pmaxToUse.toFixed(2) + 'x',
-                final: pmaxClamped.toFixed(2) + 'x',
-                clamped: wasClamped ? 'YES' : 'NO',
-              });
-            }
-
-            pmaxToUse = pmaxClamped;
-          }
+          // Calculate directional sigmas from actual shot data
+          const { sigmaX: sigmaX1, sigmaY: sigmaY1 } = calculateDirectionalSigmas(newShots, sigmaCurrent);
 
           updated = {
-            sigma: Math.max(1, skillProfile.sigma),
+            sigma: sigmaCurrent,
+            sigmaX: sigmaX1,
+            sigmaY: sigmaY1,
             confidence: Math.max(skillEstimate.confidence, Math.max(0, Math.min(100, skillProfile.confidence))), // Never decrease
             pmax: pmaxToUse,
           };
 
           console.log('✅ WASM Update (UI rate-limited):', {
             sigma: updated.sigma.toFixed(2),
+            sigmaX: updated.sigmaX.toFixed(2),
+            sigmaY: updated.sigmaY.toFixed(2),
             pmax: updated.pmax.toFixed(2),
             confidence: updated.confidence.toFixed(1) + '%',
             shots: newShots.length,
@@ -641,14 +594,21 @@ export function useSimulator(initialHandicap: number = 10, selectedHoleId: numbe
           const measurements = recentShots.map((s) => s.distance);
           const kalmanResult = updateKalman(measurements);
 
+          // Calculate directional sigmas from actual shot data
+          const { sigmaX: sigmaX2, sigmaY: sigmaY2 } = calculateDirectionalSigmas(newShots, kalmanResult.sigma);
+
           updated = {
             sigma: kalmanResult.sigma,
+            sigmaX: sigmaX2,
+            sigmaY: sigmaY2,
             confidence: Math.max(skillEstimate.confidence, kalmanResult.confidence), // Never decrease
             pmax: kalmanResult.pmax,
           };
 
           console.log('✅ Fallback Kalman Update:', {
             sigma: updated.sigma.toFixed(2),
+            sigmaX: updated.sigmaX.toFixed(2),
+            sigmaY: updated.sigmaY.toFixed(2),
             pmax: updated.pmax.toFixed(2),
             confidence: updated.confidence.toFixed(1) + '%',
             shots: newShots.length,
@@ -669,9 +629,45 @@ export function useSimulator(initialHandicap: number = 10, selectedHoleId: numbe
         },
       ]);
 
+      // Run anti-cheat analysis on accumulated UI shots every 5 shots
+      // Uses stateless analyze_anti_cheat function that doesn't corrupt MCMC
+      if (newShots.length >= 10 && newShots.length % 5 === 0) {
+        try {
+          // Convert UI shots to WASM ShotOutcome format
+          const wasmShots = newShots.map((s, idx) => ({
+            shot_number: idx + 1,
+            hole_id: currentHoleId,
+            wager: s.wager,
+            miss_distance_ft: s.distance * 3, // Convert yards to feet
+            multiplier: s.multiplier,
+            payout: s.payout,
+            is_fat_tail: false,
+            p_max: skillEstimate.pmax,
+          }));
+
+          const antiCheatResult = analyze_anti_cheat(wasmShots);
+
+          setAntiCheatReport({
+            isSuspicious: antiCheatResult.is_suspicious,
+            confidence: antiCheatResult.confidence,
+            detectedPatterns: antiCheatResult.detected_patterns,
+            recommendedAction: antiCheatResult.recommended_action,
+          });
+
+          if (antiCheatResult.is_suspicious) {
+            console.warn('🚨 Anti-Cheat Alert:', {
+              confidence: (antiCheatResult.confidence * 100).toFixed(0) + '%',
+              patterns: antiCheatResult.detected_patterns,
+            });
+          }
+        } catch (error) {
+          console.warn('⚠️ Anti-cheat analysis failed:', error);
+        }
+      }
+
       return shot;
     },
-    [shots, simulateShot, updateKalman, skillEstimate]
+    [shots, simulateShot, updateKalman, skillEstimate, pmaxHistory, initialHandicap, selectedHoleId]
   );
 
   // Calculate session stats
@@ -704,6 +700,8 @@ export function useSimulator(initialHandicap: number = 10, selectedHoleId: numbe
 
     setSkillEstimate({
       sigma: resetSigma,
+      sigmaX: resetSigma,
+      sigmaY: resetSigma,
       confidence: 0,
       pmax: resetPmax,
     });

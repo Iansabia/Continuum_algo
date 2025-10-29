@@ -35,12 +35,12 @@ export default function TargetVisualizer({
   const centerX = width / 2;
   const centerY = height / 2;
 
-  // Fixed scale: Show a consistent viewport of 50 yards radius for all holes
-  // The target edge line represents the absolute boundary (50 yards)
-  // Individual holes have smaller effective target radii shown separately
-  const MAX_DISPLAY_RADIUS = 50; // yards - absolute maximum boundary
-  const availableRadius = Math.min(width, height) / 2 - 40; // Leave 40px padding
-  const SCALE = availableRadius / MAX_DISPLAY_RADIUS; // pixels per yard
+  // Fixed scale based ONLY on target radius to keep circles stationary
+  // We show 1.3x the target radius to make the target larger on screen
+  const viewportRadius = targetRadius * 1.3;
+
+  const availableRadius = Math.min(width, height) / 2 - 20; // Canvas padding
+  const SCALE = availableRadius / viewportRadius; // pixels per yard (fixed scale)
 
   const yardsToPixels = (yards: number) => yards * SCALE;
 
@@ -57,17 +57,11 @@ export default function TargetVisualizer({
     // Draw grid (optional, for scale reference)
     drawGrid(ctx);
 
-    // Draw fixed target boundary (absolute maximum)
-    drawFixedTargetBoundary(ctx);
-
-    // Draw current hole's effective target radius
-    drawCurrentHoleTarget(ctx);
-
-    // Draw probability density rings (3σ, 2σ, 1σ)
-    drawProbabilityRings(ctx);
-
     // Draw breakeven radius
     drawBreakevenRadius(ctx);
+
+    // Draw fixed target boundary (absolute maximum)
+    drawFixedTargetBoundary(ctx);
 
     // Draw center pin
     drawCenterPin(ctx);
@@ -81,7 +75,7 @@ export default function TargetVisualizer({
     if (currentShot) {
       drawShot(ctx, currentShot, true);
     }
-  }, [sigma, breakevenRadius, targetRadius, shots, currentShot, animationFrame]);
+  }, [sigma, breakevenRadius, targetRadius, shots, currentShot, animationFrame, viewportRadius]);
 
   // Animate current shot
   useEffect(() => {
@@ -101,21 +95,40 @@ export default function TargetVisualizer({
   }, [currentShot]);
 
   const drawGrid = (ctx: CanvasRenderingContext2D) => {
-    ctx.strokeStyle = '#2a2a2a';
-    ctx.lineWidth = 0.5;
+    // Calculate distance from center for each grid line to fade at edges
+    const maxDistance = Math.sqrt(centerX * centerX + centerY * centerY);
 
-    // Draw vertical lines every 10 yards
-    for (let x = -40; x <= 40; x += 10) {
+    // Dynamic grid spacing based on target radius
+    // Smaller holes (5-10y) = 2y grid, Medium (10-20y) = 5y grid, Large (20y+) = 10y grid
+    const gridSpacing = targetRadius < 10 ? 2 : targetRadius < 20 ? 5 : 10;
+    const maxRange = Math.ceil(viewportRadius / gridSpacing) * gridSpacing;
+
+    // Draw vertical lines with opacity based on distance from center
+    for (let x = -maxRange; x <= maxRange; x += gridSpacing) {
       const px = centerX + yardsToPixels(x);
+      if (px < 0 || px > width) continue; // Skip lines outside canvas
+
+      const distanceFromCenter = Math.abs(px - centerX);
+      const opacity = Math.max(0, 1 - (distanceFromCenter / maxDistance) * 1.5);
+
+      ctx.strokeStyle = `rgba(126, 102, 73, ${opacity * 0.08})`; // Very subtle tan/brown
+      ctx.lineWidth = 0.5;
       ctx.beginPath();
       ctx.moveTo(px, 0);
       ctx.lineTo(px, height);
       ctx.stroke();
     }
 
-    // Draw horizontal lines every 10 yards
-    for (let y = -40; y <= 40; y += 10) {
+    // Draw horizontal lines with opacity based on distance from center
+    for (let y = -maxRange; y <= maxRange; y += gridSpacing) {
       const py = centerY + yardsToPixels(y);
+      if (py < 0 || py > height) continue; // Skip lines outside canvas
+
+      const distanceFromCenter = Math.abs(py - centerY);
+      const opacity = Math.max(0, 1 - (distanceFromCenter / maxDistance) * 1.5);
+
+      ctx.strokeStyle = `rgba(126, 102, 73, ${opacity * 0.08})`; // Very subtle tan/brown
+      ctx.lineWidth = 0.5;
       ctx.beginPath();
       ctx.moveTo(0, py);
       ctx.lineTo(width, py);
@@ -124,124 +137,61 @@ export default function TargetVisualizer({
   };
 
   const drawFixedTargetBoundary = (ctx: CanvasRenderingContext2D) => {
-    // Fixed boundary at MAX_DISPLAY_RADIUS (50 yards) - this NEVER moves
-    const radius = yardsToPixels(MAX_DISPLAY_RADIUS);
+    // Target boundary for current hole
+    const radius = yardsToPixels(targetRadius);
 
-    // Fill area inside target with subtle background
-    ctx.fillStyle = '#1a1a2e20';
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Draw fixed target boundary - this represents the absolute edge
-    ctx.strokeStyle = '#D4AF37';
-    ctx.lineWidth = 3;
+    // Draw target boundary circle only
+    ctx.strokeStyle = '#7e6649';
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Label
-    ctx.fillStyle = '#D4AF37';
-    ctx.font = 'bold 14px Inter';
-    ctx.fillText('Target Edge', centerX + radius - 65, centerY - 10);
-    ctx.font = '12px Inter';
-    ctx.fillText(`${MAX_DISPLAY_RADIUS.toFixed(1)}y`, centerX + radius - 35, centerY + 5);
+    // Simple label at the top
+    ctx.fillStyle = '#7e6649';
+    ctx.font = '11px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Target`, centerX, centerY - radius - 8);
+    ctx.textAlign = 'left';
   };
 
-  const drawCurrentHoleTarget = (ctx: CanvasRenderingContext2D) => {
-    // Current hole's effective target radius (varies by hole)
-    const radius = yardsToPixels(targetRadius);
-
-    // Only draw if different from max boundary
-    if (Math.abs(targetRadius - MAX_DISPLAY_RADIUS) > 0.5) {
-      // Draw dashed circle for current hole's effective target
-      ctx.strokeStyle = '#FFD700';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([8, 4]);
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // Label
-      ctx.fillStyle = '#FFD700';
-      ctx.font = '12px Inter';
-      ctx.fillText(`Hole ${targetRadius.toFixed(1)}y`, centerX + radius + 5, centerY);
-    }
-  };
-
-  const drawProbabilityRings = (ctx: CanvasRenderingContext2D) => {
-    const rings = [
-      { sigma: 3, color: '#493b7c', alpha: 0.1 },
-      { sigma: 2, color: '#604c9c', alpha: 0.15 },
-      { sigma: 1, color: '#9e8cb4', alpha: 0.25 },
-    ];
-
-    rings.forEach((ring) => {
-      const radius = yardsToPixels(sigma * ring.sigma);
-
-      // Fill
-      ctx.fillStyle = ring.color + Math.floor(ring.alpha * 255).toString(16).padStart(2, '0');
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Stroke
-      ctx.strokeStyle = ring.color;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // Label
-      ctx.fillStyle = '#dfc9ad';
-      ctx.font = '12px Inter';
-      ctx.fillText(`${ring.sigma}σ`, centerX + radius - 20, centerY - 5);
-    });
-  };
 
   const drawBreakevenRadius = (ctx: CanvasRenderingContext2D) => {
     const radius = yardsToPixels(breakevenRadius);
 
-    ctx.strokeStyle = '#7e6649';
-    ctx.lineWidth = 2;
+    // Draw dashed circle for breakeven
+    ctx.strokeStyle = '#9e8cb4';
+    ctx.lineWidth = 1.5;
     ctx.setLineDash([5, 5]);
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Label
-    ctx.fillStyle = '#dfc9ad';
-    ctx.font = '14px Inter';
-    ctx.fillText('Breakeven', centerX + radius - 50, centerY + 15);
+    // Simple label at the bottom
+    ctx.fillStyle = '#9e8cb4';
+    ctx.font = '11px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText('Breakeven', centerX, centerY + radius + 18);
+    ctx.textAlign = 'left';
   };
 
   const drawCenterPin = (ctx: CanvasRenderingContext2D) => {
-    // Pin base (circle)
-    ctx.fillStyle = '#D4AF37';
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, 5, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Pin top (triangle)
-    ctx.fillStyle = '#D4AF37';
-    ctx.beginPath();
-    ctx.moveTo(centerX, centerY - 5);
-    ctx.lineTo(centerX - 4, centerY - 15);
-    ctx.lineTo(centerX + 4, centerY - 15);
-    ctx.closePath();
-    ctx.fill();
-
-    // Cross-hair
-    ctx.strokeStyle = '#D4AF37';
+    // Simple center crosshair
+    ctx.strokeStyle = '#7e6649';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(centerX - 10, centerY);
-    ctx.lineTo(centerX + 10, centerY);
-    ctx.moveTo(centerX, centerY - 10);
-    ctx.lineTo(centerX, centerY + 10);
+    ctx.moveTo(centerX - 8, centerY);
+    ctx.lineTo(centerX + 8, centerY);
+    ctx.moveTo(centerX, centerY - 8);
+    ctx.lineTo(centerX, centerY + 8);
     ctx.stroke();
+
+    // Center dot
+    ctx.fillStyle = '#7e6649';
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 2, 0, Math.PI * 2);
+    ctx.fill();
   };
 
   const drawShot = (ctx: CanvasRenderingContext2D, shot: Shot, isAnimated: boolean) => {
@@ -250,7 +200,7 @@ export default function TargetVisualizer({
     const y = centerY + yardsToPixels(shot.distance * Math.sin(shot.angle));
 
     // Color based on profit/loss
-    const color = shot.profit >= 0 ? '#10B981' : '#EF4444';
+    const color = shot.profit >= 0 ? '#604c9c' : '#ac7c6c';
     const radius = isAnimated ? 6 + Math.sin(animationFrame / 5) * 2 : 4;
     const alpha = isAnimated ? 0.8 + Math.sin(animationFrame / 3) * 0.2 : 0.6;
 
@@ -286,16 +236,11 @@ export default function TargetVisualizer({
   };
 
   return (
-    <div className="flex flex-col items-center">
-      <canvas
-        ref={canvasRef}
-        width={width}
-        height={height}
-        className="bg-gray-900 rounded-lg shadow-lg border-2 border-brand-deep-purple"
-      />
-      <div className="mt-4 text-center text-sm text-gray-400">
-        <p>Target Radius: {targetRadius.toFixed(2)}y | σ = {sigma.toFixed(2)}y | Breakeven = {breakevenRadius.toFixed(2)}y</p>
-      </div>
-    </div>
+    <canvas
+      ref={canvasRef}
+      width={width}
+      height={height}
+      className="bg-black/80 rounded-lg shadow-lg"
+    />
   );
 }

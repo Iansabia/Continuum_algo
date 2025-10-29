@@ -11,27 +11,27 @@ export default function Hero() {
         </h1>
 
         {/* Tagline */}
-        <p className="text-2xl md:text-3xl text-gray-300 mb-8">
+        <p className="text-2xl md:text-3xl text-[var(--brand-lavender)] mb-8">
           Fair • Adaptive • Intelligent
         </p>
 
-        <p className="text-xl text-gray-400 max-w-3xl mx-auto mb-12">
+        <p className="text-xl text-[var(--brand-tan)] max-w-3xl mx-auto mb-12">
           Experience the future of golf wagering with real-time skill adaptation and guaranteed fairness
         </p>
 
         {/* Key Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-          <div className="bg-gray-800/50 backdrop-blur-sm rounded-lg p-6 border border-brand-bright-purple/40">
-            <div className="text-4xl font-bold text-brand-tan mb-2">85%</div>
-            <div className="text-gray-400">Return to Player</div>
+          <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl p-6 border border-[var(--brand-bright-purple)]/40">
+            <div className="text-4xl font-bold text-[var(--brand-tan)] mb-2">85%</div>
+            <div className="text-[var(--brand-lavender)]">Return to Player</div>
           </div>
-          <div className="bg-gray-800/50 backdrop-blur-sm rounded-lg p-6 border border-brand-bright-purple/40">
-            <div className="text-4xl font-bold text-brand-tan mb-2">100%</div>
-            <div className="text-gray-400">Fairness Guarantee</div>
+          <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl p-6 border border-[var(--brand-bright-purple)]/40">
+            <div className="text-4xl font-bold text-[var(--brand-tan)] mb-2">100%</div>
+            <div className="text-[var(--brand-lavender)]">Fairness Guarantee</div>
           </div>
-          <div className="bg-gray-800/50 backdrop-blur-sm rounded-lg p-6 border border-brand-bright-purple/40">
-            <div className="text-4xl font-bold text-brand-tan mb-2">Real-time</div>
-            <div className="text-gray-400">Kalman Adaptation</div>
+          <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl p-6 border border-[var(--brand-bright-purple)]/40">
+            <div className="text-4xl font-bold text-[var(--brand-tan)] mb-2">Real-time</div>
+            <div className="text-[var(--brand-lavender)]">Kalman Adaptation</div>
           </div>
         </div>
       </div>

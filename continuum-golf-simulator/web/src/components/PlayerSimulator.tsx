@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useSimulator } from '../hooks/useSimulator';
 import { useExportPDF } from '../hooks/useExportPDF';
 import TargetVisualizer from './TargetVisualizer';
@@ -23,7 +24,7 @@ const HOLES = [
 export default function PlayerSimulator() {
   const [handicap, setHandicap] = useState(10);
   const [wager, setWager] = useState(10);
-  const [selectedHoleId, setSelectedHoleId] = useState<number>(1); // Default to Hole 1
+  const [selectedHoleId, setSelectedHoleId] = useState<number>(1);
   const [devMode, setDevMode] = useState(false);
   const [manualDistance, setManualDistance] = useState(5);
   const [isShooting, setIsShooting] = useState(false);
@@ -46,27 +47,15 @@ export default function PlayerSimulator() {
 
   const handleShoot = () => {
     setIsShooting(true);
-
-    // Simulate shot with optional manual distance
     const distance = devMode ? manualDistance : undefined;
     shootOnce(wager, distance);
-
-    // Brief animation delay
-    setTimeout(() => {
-      setIsShooting(false);
-    }, 500);
+    setTimeout(() => setIsShooting(false), 500);
   };
 
   const handleBatchShoot = () => {
     setIsShooting(true);
-
-    // Simulate batch of shots
     shootBatch(wager, batchSize);
-
-    // Brief animation delay
-    setTimeout(() => {
-      setIsShooting(false);
-    }, 500);
+    setTimeout(() => setIsShooting(false), 500);
   };
 
   const handleReset = () => {
@@ -88,249 +77,292 @@ export default function PlayerSimulator() {
   const lastShot = shots.length > 0 ? shots[shots.length - 1] : null;
 
   return (
-    <div className="relative bg-gradient-to-br from-[#493b7c]/20 via-[#604c9c]/15 to-[#493b7c]/20 backdrop-blur-2xl rounded-2xl p-4 border border-[#604c9c]/40 shadow-2xl h-full overflow-hidden flex flex-col">
-      {/* Frosted glass overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none rounded-2xl"></div>
+    <div className="relative bg-[var(--brand-deep-purple)]/30 backdrop-blur-3xl rounded-3xl border border-[var(--brand-tan)]/20 shadow-2xl h-full overflow-hidden flex flex-col">
+      {/* Glass morphism effect */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[var(--brand-bright-purple)]/[0.15] via-transparent to-[var(--brand-dark-gold)]/[0.05] pointer-events-none rounded-3xl" />
 
-      <div className="relative flex justify-between items-center mb-3">
-        <h2 className="text-lg font-semibold text-[#dfc9ad] tracking-tight">
-          Continuum Simulator
-        </h2>
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative px-6 py-5 border-b border-[var(--brand-tan)]/20"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-[var(--brand-tan)] tracking-tight">Continuum Golf</h1>
+            <p className="text-sm text-[var(--brand-lavender)] mt-0.5">AI-Powered Simulator</p>
+          </div>
 
-        {/* Developer Mode Toggle */}
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-[#9e8cb4]">Developer</label>
-          <button
+          {/* Developer Mode Toggle */}
+          <motion.button
+            whileTap={{ scale: 0.95 }}
             onClick={() => setDevMode(!devMode)}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-all duration-200 ${
-              devMode ? 'bg-[#604c9c]' : 'bg-[#493b7c]/30'
+            className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors duration-200 ${
+              devMode ? 'bg-[var(--brand-bright-purple)]' : 'bg-[var(--brand-tan)]/20'
             }`}
           >
-            <span
-              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-[#dfc9ad] transition-transform duration-200 ${
-                devMode ? 'translate-x-4' : 'translate-x-0.5'
+            <motion.span
+              layout
+              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              className={`inline-block h-6 w-6 transform rounded-full bg-[var(--brand-tan)] shadow-lg transition ${
+                devMode ? 'translate-x-7' : 'translate-x-1'
               }`}
             />
-          </button>
+          </motion.button>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Main Layout: Responsive grid */}
-      <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-3 flex-1 min-h-0">
-        {/* Left Column: Controls - Responsive */}
-        <div className="lg:col-span-2 space-y-3">
-          {/* Frosted Glass Controls */}
-          <div className="bg-gradient-to-br from-[#604c9c]/10 to-[#493b7c]/10 backdrop-blur-xl p-3 rounded-xl border border-[#9e8cb4]/30 shadow-lg space-y-3">
-            {/* Handicap */}
-            <div>
-              <label className="block text-xs font-medium text-[#9e8cb4] mb-1.5">
-                Handicap: {handicap}
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="30"
-                value={handicap}
-                onChange={(e) => setHandicap(Number(e.target.value))}
-                className="w-full h-1 bg-[#493b7c]/30 rounded-full appearance-none cursor-pointer accent-[#604c9c]"
-              />
-            </div>
+      {/* Main Content */}
+      <div className="relative flex-1 overflow-hidden px-6 py-4">
+        <div className="h-full grid grid-cols-12 gap-3">
 
-            {/* Wager */}
-            <div>
-              <label className="block text-xs font-medium text-[#9e8cb4] mb-1.5">
-                Wager: ${wager}
-              </label>
-              <input
-                type="range"
-                min="1"
-                max="100"
-                value={wager}
-                onChange={(e) => setWager(Number(e.target.value))}
-                className="w-full h-1 bg-[#493b7c]/30 rounded-full appearance-none cursor-pointer accent-[#604c9c]"
-              />
-            </div>
-
-            {/* Hole Selection */}
-            <div>
-              <label className="block text-xs font-medium text-[#9e8cb4] mb-1.5">
-                Hole
-              </label>
-              <select
-                value={selectedHoleId}
-                onChange={(e) => setSelectedHoleId(Number(e.target.value))}
-                className="w-full bg-[#493b7c]/20 text-[#dfc9ad] border border-[#9e8cb4]/30 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-[#604c9c]"
-              >
-                {HOLES.map((hole) => (
-                  <option key={hole.id} value={hole.id} className="bg-[#1F2937] text-[#dfc9ad]">
-                    {hole.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Current Hole Info */}
-          <div className="bg-gradient-to-br from-[#604c9c]/10 to-[#493b7c]/10 backdrop-blur-xl p-3 rounded-xl border border-[#9e8cb4]/30 shadow-lg">
-            <h3 className="text-xs font-medium text-[#9e8cb4] mb-2">
-              Current Hole
-            </h3>
-            <div className="space-y-1.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-[#9e8cb4]/70">Distance</span>
-                <span className="text-[#dfc9ad] font-medium">{currentHole.distance}y</span>
+          {/* Left Sidebar - Controls */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.1 }}
+            className="col-span-2 flex flex-col gap-3 overflow-y-auto"
+          >
+            {/* Controls Card */}
+            <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl border border-[var(--brand-tan)]/20 p-3 space-y-3">
+              {/* Handicap */}
+              <div>
+                <label className="block text-xs font-medium text-[var(--brand-lavender)] mb-2">
+                  Handicap <span className="text-[var(--brand-tan)] font-semibold">{handicap}</span>
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="30"
+                  value={handicap}
+                  onChange={(e) => setHandicap(Number(e.target.value))}
+                  className="w-full h-1.5 bg-[var(--brand-dark-gray)] rounded-full appearance-none cursor-pointer slider-thumb"
+                />
               </div>
-              <div className="flex justify-between">
-                <span className="text-[#9e8cb4]/70">Target</span>
-                <span className="text-[#dfc9ad] font-medium">{currentHole.targetRadius.toFixed(1)}y</span>
+
+              {/* Wager */}
+              <div>
+                <label className="block text-xs font-medium text-[var(--brand-lavender)] mb-2">
+                  Wager <span className="text-[var(--brand-tan)] font-semibold">${wager}</span>
+                </label>
+                <input
+                  type="range"
+                  min="1"
+                  max="100"
+                  value={wager}
+                  onChange={(e) => setWager(Number(e.target.value))}
+                  className="w-full h-1.5 bg-[var(--brand-dark-gray)] rounded-full appearance-none cursor-pointer slider-thumb"
+                />
               </div>
-              <div className="flex justify-between">
-                <span className="text-[#9e8cb4]/70">σ</span>
-                <span className="text-[#dfc9ad] font-medium">{skillEstimate.sigma.toFixed(2)}y</span>
+
+              {/* Hole Selection */}
+              <div>
+                <label className="block text-xs font-medium text-[var(--brand-lavender)] mb-2">Hole</label>
+                <select
+                  value={selectedHoleId}
+                  onChange={(e) => setSelectedHoleId(Number(e.target.value))}
+                  className="w-full bg-[var(--brand-dark-gray)] backdrop-blur-xl text-[var(--brand-tan)] border border-[var(--brand-tan)]/30 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-bright-purple)]/50 transition"
+                >
+                  {HOLES.map((hole) => (
+                    <option key={hole.id} value={hole.id} className="bg-[var(--brand-dark-gray)]">
+                      {hole.name}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="flex justify-between">
-                <span className="text-[#9e8cb4]/70">P_max</span>
-                <span className="text-[#dfc9ad] font-medium">{skillEstimate.pmax.toFixed(3)}</span>
+
+              {/* Batch Size */}
+              <div>
+                <label className="block text-xs font-medium text-[var(--brand-lavender)] mb-2">
+                  Batch Size <span className="text-[var(--brand-tan)] font-semibold">{batchSize}</span>
+                </label>
+                <input
+                  type="range"
+                  min="1"
+                  max="100"
+                  value={batchSize}
+                  onChange={(e) => setBatchSize(Number(e.target.value))}
+                  className="w-full h-1.5 bg-[var(--brand-dark-gray)] rounded-full appearance-none cursor-pointer slider-thumb"
+                />
               </div>
             </div>
-          </div>
 
-          {/* Session Stats Compact */}
-          <SessionTracker stats={sessionStats} />
-
-          {/* Skill Confidence */}
-          <SkillConfidenceBar
-            confidence={skillEstimate.confidence}
-            sigma={skillEstimate.sigma}
-            shotsUsed={shots.length}
-          />
-
-          {/* Developer Mode Panel */}
-          {devMode && (
-            <div className="bg-gradient-to-br from-[#604c9c]/20 to-[#493b7c]/20 backdrop-blur-xl p-3 rounded-xl border border-[#9e8cb4]/40 shadow-lg">
-              <h3 className="text-xs font-medium text-[#604c9c] mb-2">
-                Dev Controls
+            {/* Current Hole Stats */}
+            <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl border border-[var(--brand-tan)]/20 p-3">
+              <h3 className="text-xs font-semibold text-[var(--brand-lavender)] uppercase tracking-wider mb-3">
+                Current Hole
               </h3>
-              <div className="space-y-2">
-                <div>
-                  <label className="block text-xs text-[#9e8cb4]/80 mb-1.5">
-                    Manual Miss: {manualDistance.toFixed(1)}y
-                  </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="50"
-                    step="0.1"
-                    value={manualDistance}
-                    onChange={(e) => setManualDistance(Number(e.target.value))}
-                    className="w-full h-1 bg-[#493b7c]/30 rounded-full appearance-none cursor-pointer accent-[#604c9c]"
-                  />
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-[var(--brand-lavender)]">Distance</span>
+                  <span className="text-[var(--brand-tan)] font-medium">{currentHole.distance}y</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[var(--brand-lavender)]">Target</span>
+                  <span className="text-[var(--brand-tan)] font-medium">{currentHole.targetRadius.toFixed(1)}y</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[var(--brand-lavender)]">σ</span>
+                  <span className="text-[var(--brand-tan)] font-medium">{skillEstimate.sigma.toFixed(2)}y</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[var(--brand-lavender)]">P_max</span>
+                  <span className="text-[var(--brand-tan)] font-medium">{skillEstimate.pmax.toFixed(3)}</span>
                 </div>
               </div>
             </div>
-          )}
 
-          {/* Batch Size Control */}
-          <div className="bg-gradient-to-br from-[#604c9c]/10 to-[#493b7c]/10 backdrop-blur-xl p-3 rounded-xl border border-[#9e8cb4]/30 shadow-lg">
-            <label className="block text-xs font-medium text-[#9e8cb4] mb-1.5">
-              Batch Size: {batchSize}
-            </label>
-            <input
-              type="range"
-              min="1"
-              max="100"
-              value={batchSize}
-              onChange={(e) => setBatchSize(Number(e.target.value))}
-              className="w-full h-1 bg-[#493b7c]/30 rounded-full appearance-none cursor-pointer accent-[#604c9c]"
-            />
-          </div>
+            {/* Session Stats */}
+            <SessionTracker stats={sessionStats} />
 
-          {/* Action Buttons */}
-          <div className="space-y-2">
-            <button
-              onClick={handleShoot}
-              disabled={isShooting}
-              className="w-full bg-gradient-to-r from-[#604c9c] to-[#493b7c] hover:from-[#604c9c]/90 hover:to-[#493b7c]/90 text-[#dfc9ad] font-medium py-2.5 px-4 rounded-lg
-                         transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm shadow-lg"
-            >
-              {isShooting ? 'Shooting...' : 'Shoot 1x'}
-            </button>
-
-            <button
-              onClick={handleBatchShoot}
-              disabled={isShooting}
-              className="w-full bg-gradient-to-r from-[#9e8cb4] to-[#604c9c] hover:from-[#9e8cb4]/90 hover:to-[#604c9c]/90 text-[#dfc9ad] font-medium py-2.5 px-4 rounded-lg
-                         transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm shadow-lg"
-            >
-              {isShooting ? 'Shooting...' : `Shoot ${batchSize}x`}
-            </button>
-
-            <button
-              onClick={handleExport}
-              disabled={shots.length === 0}
-              className="w-full bg-gradient-to-r from-[#D4AF37] to-[#C5A028] hover:from-[#D4AF37]/90 hover:to-[#C5A028]/90 text-[#1A1D29] font-medium py-2 px-4 rounded-lg
-                         transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm shadow-lg"
-            >
-              Export PDF
-            </button>
-
-            <button
-              onClick={handleReset}
-              className="w-full bg-[#493b7c]/20 hover:bg-[#493b7c]/30 text-[#9e8cb4] font-medium py-1.5 px-4 rounded-lg
-                         transition-all text-xs border border-[#9e8cb4]/30"
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-
-        {/* Center Column: Both Visualizers Side by Side (7 cols) */}
-        <div className="lg:col-span-7 flex flex-col lg:flex-row gap-3">
-          {/* 2D Target View */}
-          <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-[#604c9c]/5 to-[#493b7c]/5 backdrop-blur-xl rounded-xl border border-[#9e8cb4]/20">
-            <TargetVisualizer
+            {/* Confidence Bar */}
+            <SkillConfidenceBar
+              confidence={skillEstimate.confidence}
               sigma={skillEstimate.sigma}
-              breakevenRadius={breakevenRadius}
-              targetRadius={currentHole.targetRadius}
-              shots={shots}
-              currentShot={isShooting ? lastShot : null}
-              width={400}
-              height={400}
+              shotsUsed={shots.length}
             />
-          </div>
 
-          {/* 3D BVN View */}
-          <div className="flex-1">
-            <BVNHeatmap3D
-              sigmaX={skillEstimate.sigma}
-              sigmaY={skillEstimate.sigma}
-              currentPmax={skillEstimate.pmax}
-              shots={shots}
-            />
-          </div>
-        </div>
+            {/* Developer Controls */}
+            <AnimatePresence>
+              {devMode && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="bg-[var(--brand-bright-purple)]/10 backdrop-blur-xl rounded-2xl border border-[var(--brand-bright-purple)]/30 p-4"
+                >
+                  <h3 className="text-xs font-semibold text-[var(--brand-bright-purple)] uppercase tracking-wider mb-3">
+                    Developer Mode
+                  </h3>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--brand-lavender)] mb-2">
+                      Manual Miss <span className="text-[var(--brand-tan)] font-semibold">{manualDistance.toFixed(1)}y</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="50"
+                      step="0.1"
+                      value={manualDistance}
+                      onChange={(e) => setManualDistance(Number(e.target.value))}
+                      className="w-full h-1.5 bg-[var(--brand-dark-gray)] rounded-full appearance-none cursor-pointer slider-thumb"
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-        {/* Right Column: Charts (3 cols) */}
-        <div className="lg:col-span-3 flex flex-col gap-3">
-          <div className="flex-1 min-h-[200px] lg:min-h-0">
-            <PayoutCurveChart
-              pmax={skillEstimate.pmax}
-              breakevenRadius={breakevenRadius}
-              targetRadius={currentHole.targetRadius}
-              k={currentHole.k}
-              lastShotDistance={lastShot?.distance}
-              lastShotMultiplier={lastShot?.multiplier}
-            />
-          </div>
-          <div className="flex-1 min-h-[200px] lg:min-h-0">
-            <PmaxHistoryChart history={pmaxHistory} />
-          </div>
-          <div className="min-h-[150px]">
-            <AntiCheatPanel
-              report={antiCheatReport}
-              shotCount={shots.length}
-            />
-          </div>
+            {/* Action Buttons */}
+            <div className="space-y-2">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleShoot}
+                disabled={isShooting}
+                className="w-full bg-gradient-to-r from-[var(--brand-bright-purple)] to-[var(--brand-deep-purple)] hover:from-[var(--brand-deep-purple)] hover:to-[var(--brand-bright-purple)] text-[var(--brand-tan)] font-medium py-3 px-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[var(--brand-bright-purple)]/25"
+              >
+                {isShooting ? 'Shooting...' : 'Shoot 1x'}
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleBatchShoot}
+                disabled={isShooting}
+                className="w-full bg-[var(--brand-deep-purple)]/30 hover:bg-[var(--brand-deep-purple)]/40 text-[var(--brand-tan)] font-medium py-3 px-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-[var(--brand-tan)]/20"
+              >
+                {isShooting ? 'Shooting...' : `Shoot ${batchSize}x`}
+              </motion.button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleExport}
+                  disabled={shots.length === 0}
+                  className="bg-[var(--brand-deep-purple)]/30 hover:bg-[var(--brand-deep-purple)]/40 text-[var(--brand-tan)] font-medium py-2 px-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-[var(--brand-tan)]/20 text-sm"
+                >
+                  Export
+                </motion.button>
+
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleReset}
+                  className="bg-[var(--brand-deep-purple)]/10 hover:bg-[var(--brand-deep-purple)]/20 text-[var(--brand-lavender)] hover:text-[var(--brand-tan)] font-medium py-2 px-3 rounded-xl transition-all border border-[var(--brand-tan)]/10 text-sm"
+                >
+                  Reset
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Center - Visualizers */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="col-span-6 flex flex-col gap-3 h-full"
+          >
+            {/* 2D Target View - Blends into background */}
+            <div className="flex-1 flex items-center justify-center relative">
+              <TargetVisualizer
+                sigma={skillEstimate.sigma}
+                breakevenRadius={breakevenRadius}
+                targetRadius={currentHole.targetRadius}
+                shots={shots}
+                currentShot={isShooting ? lastShot : null}
+                width={450}
+                height={450}
+              />
+              <p className="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-xs text-center text-[var(--brand-lavender)]/60">
+                Target: {currentHole.targetRadius.toFixed(2)}y | σ = {skillEstimate.sigma.toFixed(2)}y | Breakeven: {breakevenRadius.toFixed(2)}y
+              </p>
+            </div>
+
+            {/* 3D BVN View - Blends into background */}
+            <div className="flex-1 relative">
+              <BVNHeatmap3D
+                sigmaX={skillEstimate.sigmaX}
+                sigmaY={skillEstimate.sigmaY}
+                currentPmax={skillEstimate.pmax}
+                shots={shots}
+              />
+            </div>
+          </motion.div>
+
+          {/* Right Sidebar - Charts & Anti-Cheat */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            className="col-span-4 flex flex-col gap-3 h-full overflow-y-auto"
+          >
+            {/* Payout Curve */}
+            <div className="h-1/3 min-h-0">
+              <PayoutCurveChart
+                pmax={skillEstimate.pmax}
+                breakevenRadius={breakevenRadius}
+                targetRadius={currentHole.targetRadius}
+                k={currentHole.k}
+                lastShotDistance={lastShot?.distance}
+                lastShotMultiplier={lastShot?.multiplier}
+              />
+            </div>
+
+            {/* P_max Evolution */}
+            <div className="h-1/3 min-h-0">
+              <PmaxHistoryChart history={pmaxHistory} />
+            </div>
+
+            {/* Anti-Cheat Monitor */}
+            <div className="flex-1 min-h-0">
+              <AntiCheatPanel
+                report={antiCheatReport}
+                shotCount={shots.length}
+              />
+            </div>
+          </motion.div>
         </div>
       </div>
     </div>

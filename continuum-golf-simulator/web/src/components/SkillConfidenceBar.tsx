@@ -1,3 +1,5 @@
+import { motion } from 'framer-motion';
+
 interface SkillConfidenceBarProps {
   confidence: number; // 0-100
   sigma: number;
@@ -7,51 +9,67 @@ interface SkillConfidenceBarProps {
 export default function SkillConfidenceBar({
   confidence,
 }: SkillConfidenceBarProps) {
-  // Determine color based on confidence level - using purple palette
+  // Determine color based on confidence level - Brand colors
   const getColor = (conf: number) => {
-    if (conf < 30) return 'bg-red-500';
-    if (conf < 60) return 'bg-[#ac7c6c]'; // rose-copper
-    if (conf < 80) return 'bg-[#604c9c]'; // bright-purple
-    return 'bg-green-500';
+    if (conf < 30) return 'from-[var(--brand-rose-copper)] to-[#ac7c6c]';
+    if (conf < 60) return 'from-[var(--brand-dark-gold)] to-[#7e6649]';
+    if (conf < 80) return 'from-[var(--brand-lavender)] to-[#9e8cb4]';
+    return 'from-[var(--brand-bright-purple)] to-[var(--brand-deep-purple)]';
   };
 
   const getTextColor = (conf: number) => {
-    if (conf < 30) return 'text-red-400';
-    if (conf < 60) return 'text-[#ac7c6c]'; // rose-copper
-    if (conf < 80) return 'text-[#604c9c]'; // bright-purple
-    return 'text-green-400';
+    if (conf < 30) return 'text-[var(--brand-rose-copper)]';
+    if (conf < 60) return 'text-[var(--brand-dark-gold)]';
+    if (conf < 80) return 'text-[var(--brand-lavender)]';
+    return 'text-[var(--brand-bright-purple)]';
+  };
+
+  const getLabel = (conf: number) => {
+    if (conf < 30) return 'Low - need more shots';
+    if (conf < 60) return 'Moderate - stabilizing';
+    if (conf < 80) return 'Good - reliable';
+    return 'High - very accurate';
   };
 
   const barColor = getColor(confidence);
   const textColor = getTextColor(confidence);
+  const label = getLabel(confidence);
 
   return (
-    <div className="bg-gradient-to-br from-[#604c9c]/10 to-[#493b7c]/10 backdrop-blur-xl p-3 rounded-xl border border-[#9e8cb4]/30 shadow-lg">
-      <h3 className="text-xs font-medium text-[#9e8cb4] mb-2">Confidence</h3>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl border border-[var(--brand-tan)]/20 p-3"
+    >
+      <h3 className="text-xs font-semibold text-[var(--brand-lavender)] uppercase tracking-wider mb-2">
+        Confidence
+      </h3>
 
       {/* Progress bar */}
       <div className="mb-2">
-        <div className="flex justify-between items-center mb-1.5">
-          <span className="text-[10px] text-[#9e8cb4]/70">Accuracy</span>
-          <span className={`text-xs font-medium ${textColor}`}>
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-xs text-[var(--brand-lavender)]">Accuracy</span>
+          <motion.span
+            key={confidence}
+            initial={{ scale: 1.1 }}
+            animate={{ scale: 1 }}
+            className={`text-sm font-semibold ${textColor}`}
+          >
             {confidence.toFixed(0)}%
-          </span>
+          </motion.span>
         </div>
-        <div className="w-full bg-[#493b7c]/20 rounded-full h-2 overflow-hidden">
-          <div
-            className={`${barColor} h-full transition-all duration-500 ease-out`}
-            style={{ width: `${confidence}%` }}
+        <div className="w-full bg-[var(--brand-dark-gray)] rounded-full h-2 overflow-hidden">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${confidence}%` }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+            className={`h-full bg-gradient-to-r ${barColor} shadow-lg`}
           />
         </div>
       </div>
 
       {/* Confidence interpretation */}
-      <div className="text-[10px] text-[#9e8cb4]/70">
-        {confidence < 30 && <p>Low - need more shots</p>}
-        {confidence >= 30 && confidence < 60 && <p>Moderate - stabilizing</p>}
-        {confidence >= 60 && confidence < 80 && <p>Good - reliable</p>}
-        {confidence >= 80 && <p>High - very accurate</p>}
-      </div>
-    </div>
+      <p className="text-[10px] text-[var(--brand-lavender)]/80">{label}</p>
+    </motion.div>
   );
 }

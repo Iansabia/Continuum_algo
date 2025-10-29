@@ -1,6 +1,6 @@
 import { useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Text, Grid } from '@react-three/drei';
+import { OrbitControls, Text, Grid, Line as DreiLine } from '@react-three/drei';
 import * as THREE from 'three';
 
 interface Shot {
@@ -18,63 +18,167 @@ interface BVNHeatmap3DProps {
   sigmaY: number;
   currentPmax: number;
   shots: Shot[];
-  width?: number;
-  height?: number;
 }
 
-// Generate BVN probability density surface
-function generateBVNSurface(sigmaX: number, sigmaY: number): {
+// ============================================================================
+// BIVARIATE NORMAL DISTRIBUTION & KERNEL DENSITY ESTIMATION
+// ============================================================================
+
+/**
+ * Calculate the Bivariate Normal Distribution (BVN) PDF
+ *
+ * Formula: P(x,y) = 1/(2π·σx·σy·√(1-ρ²)) · exp(-z/(2(1-ρ²)))
+ * where: z = (x-μx)²/σx² - 2ρ(x-μx)(y-μy)/(σx·σy) + (y-μy)²/σy²
+ *
+ * @param x - X coordinate
+ * @param y - Y coordinate
+ * @param muX - Mean in X direction (default: 0)
+ * @param muY - Mean in Y direction (default: 0)
+ * @param sigmaX - Standard deviation in X direction
+ * @param sigmaY - Standard deviation in Y direction
+ * @param rho - Correlation coefficient (default: 0 for circular)
+ * @returns Probability density at (x, y)
+ */
+// @ts-ignore - Reserved for future use
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function bivariateNormalPDF(
+  x: number,
+  y: number,
+  muX: number = 0,
+  muY: number = 0,
+  sigmaX: number = 1,
+  sigmaY: number = 1,
+  rho: number = 0
+): number {
+  const xNorm = (x - muX) / sigmaX;
+  const yNorm = (y - muY) / sigmaY;
+
+  const rhoSquared = rho * rho;
+  const denominator = 2 * Math.PI * sigmaX * sigmaY * Math.sqrt(1 - rhoSquared);
+
+  const z = (xNorm * xNorm - 2 * rho * xNorm * yNorm + yNorm * yNorm) / (2 * (1 - rhoSquared));
+
+  return Math.exp(-z) / denominator;
+}
+
+/**
+ * Calculate kernel density estimation from actual shot coordinates
+ * Uses Gaussian kernel to estimate probability density at a grid point
+ *
+ * FIXED: Proper normalization prevents "pillow effect" with many shots
+ * - Normalizes by kernel area (2π * bandwidth²)
+ * - Uses tighter bandwidth for sharper peaks
+ */
+function calculateDensityFromShots(
+  shots: Shot[],
+  gridX: number,
+  gridY: number,
+  bandwidth: number = 2.0
+): number {
+  if (shots.length === 0) return 0;
+
+  let density = 0;
+
+  shots.forEach(shot => {
+    const shotX = shot.distance * Math.cos(shot.angle);
+    const shotY = shot.distance * Math.sin(shot.angle);
+
+    // Gaussian kernel
+    const dx = gridX - shotX;
+    const dy = gridY - shotY;
+    const distSquared = (dx * dx + dy * dy) / (bandwidth * bandwidth);
+    density += Math.exp(-0.5 * distSquared);
+  });
+
+  // Proper KDE normalization: divide by (n * 2π * h²)
+  // This prevents density from growing linearly with number of shots
+  const normalizationFactor = shots.length * 2 * Math.PI * bandwidth * bandwidth;
+  return density / normalizationFactor;
+}
+
+// ============================================================================
+// 3D SURFACE GENERATION
+// ============================================================================
+
+/**
+ * Generate density surface mesh from actual shot coordinates
+ * Creates a triangulated 3D surface where height represents probability density
+ *
+ * @param shots - Array of shot data with distance and angle
+ * @param sigmaX - Standard deviation in X direction
+ * @param sigmaY - Standard deviation in Y direction
+ * @returns Vertices, colors, and indices for Three.js BufferGeometry
+ */
+function generateDensitySurfaceFromShots(
+  shots: Shot[],
+  sigmaX: number,
+  sigmaY: number
+): {
   vertices: Float32Array;
   colors: Float32Array;
   indices: Uint16Array;
 } {
-  const resolution = 60; // Higher resolution for smoother surface
-  const range = 3; // Show ±3σ range
-  const maxX = sigmaX * range;
-  const maxY = sigmaY * range;
+  const resolution = 60; // Higher resolution for smoother surface with visible triangular mesh
+  const rangeYards = 25; // Show ±25 yards
 
   const vertices: number[] = [];
   const colors: number[] = [];
   const indices: number[] = [];
 
-  // Bivariate Normal PDF
-  const bvnPDF = (x: number, y: number): number => {
-    const exponent = -0.5 * ((x * x) / (sigmaX * sigmaX) + (y * y) / (sigmaY * sigmaY));
-    return Math.exp(exponent) / (2 * Math.PI * sigmaX * sigmaY);
-  };
+  // Only generate surface if there are shots
+  if (shots.length > 0) {
+    // Calculate densities from actual shots
+    const densities: number[] = [];
+    let maxDensity = 0;
 
-  let maxDensity = bvnPDF(0, 0);
+    // Calculate bandwidth based on shot dispersion
+    // FIXED: Reduced bandwidth for sharper, more localized peaks
+    const bandwidth = Math.max(1.5, Math.sqrt(sigmaX * sigmaX + sigmaY * sigmaY) * 0.3);
 
-  // Generate grid points
-  for (let i = 0; i <= resolution; i++) {
-    for (let j = 0; j <= resolution; j++) {
-      // Position in yards
-      const x = -maxX + (2 * maxX * i) / resolution;
-      const y = -maxY + (2 * maxY * j) / resolution;
+    for (let i = 0; i <= resolution; i++) {
+      for (let j = 0; j <= resolution; j++) {
+        const x = -rangeYards + (2 * rangeYards * i) / resolution;
+        const y = -rangeYards + (2 * rangeYards * j) / resolution;
 
-      const density = bvnPDF(x, y);
-      const normalizedDensity = density / maxDensity;
+        const density = calculateDensityFromShots(shots, x, y, bandwidth);
+        densities.push(density);
+        maxDensity = Math.max(maxDensity, density);
+      }
+    }
 
-      // Scale for 3D visualization
-      const xScaled = (x / maxX) * 5;
-      const zScaled = (y / maxY) * 5;
-      const yScaled = normalizedDensity * 3; // Height represents probability density
+    // Generate vertices with heights based on density
+    let densityIdx = 0;
+    for (let i = 0; i <= resolution; i++) {
+      for (let j = 0; j <= resolution; j++) {
+        const x = -rangeYards + (2 * rangeYards * i) / resolution;
+        const y = -rangeYards + (2 * rangeYards * j) / resolution;
 
-      vertices.push(xScaled, yScaled, zScaled);
+        const density = densities[densityIdx];
+        const normalizedDensity = maxDensity > 0 ? density / maxDensity : 0;
 
-      // Color based on density (blue to red heatmap)
-      const [r, g, b] = densityToColor(normalizedDensity);
-      colors.push(r, g, b);
+        const xScaled = (x / rangeYards) * 5;
+        const zScaled = (y / rangeYards) * 5;
+        // Apply exponential scaling to emphasize peaks and reduce "puffiness"
+        // FIXED: Stronger power function creates sharper peaks with near-zero base
+        const yScaled = Math.pow(normalizedDensity, 1.5) * 3.0; // Much sharper peaks
 
-      // Generate triangle indices
-      if (i < resolution && j < resolution) {
-        const topLeft = i * (resolution + 1) + j;
-        const topRight = topLeft + 1;
-        const bottomLeft = (i + 1) * (resolution + 1) + j;
-        const bottomRight = bottomLeft + 1;
+        vertices.push(xScaled, yScaled, zScaled);
 
-        indices.push(topLeft, bottomLeft, topRight);
-        indices.push(topRight, bottomLeft, bottomRight);
+        // Color based on density
+        const [r, g, b] = densityToColor(normalizedDensity);
+        colors.push(r, g, b);
+
+        if (i < resolution && j < resolution) {
+          const topLeft = i * (resolution + 1) + j;
+          const topRight = topLeft + 1;
+          const bottomLeft = (i + 1) * (resolution + 1) + j;
+          const bottomRight = bottomLeft + 1;
+
+          indices.push(topLeft, bottomLeft, topRight);
+          indices.push(topRight, bottomLeft, bottomRight);
+        }
+
+        densityIdx++;
       }
     }
   }
@@ -86,56 +190,117 @@ function generateBVNSurface(sigmaX: number, sigmaY: number): {
   };
 }
 
-// Color mapping for probability density
+/**
+ * Maps normalized density values to colors
+ * Uses reversed gradient: White (low) → Bright Purple (high)
+ *
+ * @param normalized - Density value normalized to [0, 1]
+ * @returns RGB color tuple [r, g, b] where each component is in [0, 1]
+ */
 function densityToColor(normalized: number): [number, number, number] {
-  // Blue (low) -> Cyan -> Green -> Yellow -> Red (high)
-  if (normalized < 0.25) {
-    const t = normalized * 4;
-    return [0, t, 1]; // Blue to Cyan
-  } else if (normalized < 0.5) {
-    const t = (normalized - 0.25) * 4;
-    return [0, 1, 1 - t]; // Cyan to Green
-  } else if (normalized < 0.75) {
-    const t = (normalized - 0.5) * 4;
-    return [t, 1, 0]; // Green to Yellow
-  } else {
-    const t = (normalized - 0.75) * 4;
-    return [1, 1 - t, 0]; // Yellow to Red
-  }
+  // White (255, 255, 255) -> Bright Purple #604c9c (96, 76, 156)
+  // Linear interpolation from white to bright purple
+
+  const t = normalized;
+  return [
+    (255 + t * (96 - 255)) / 255,
+    (255 + t * (76 - 255)) / 255,
+    (255 + t * (156 - 255)) / 255
+  ];
 }
 
-// BVN Density Surface Component
-function BVNSurface({ sigmaX, sigmaY }: { sigmaX: number; sigmaY: number }) {
-  const meshRef = useRef<THREE.Mesh>(null);
+// ============================================================================
+// REACT THREE FIBER COMPONENTS
+// ============================================================================
 
+/**
+ * 3D Density Surface Component
+ * Renders the triangulated mesh that visualizes probability density
+ * Smoothly animates when new shots are added
+ *
+ * Key features for triangular mesh visualization:
+ * - Uses THREE.BufferGeometry with explicit vertex/face structure
+ * - Dual rendering: solid colored surface + wireframe overlay
+ * - FlatShading emphasizes individual triangular faces
+ */
+function DensitySurface({
+  shots,
+  sigmaX,
+  sigmaY,
+}: {
+  shots: Shot[];
+  sigmaX: number;
+  sigmaY: number;
+}) {
+  // Regenerate surface data whenever shots change
   const { vertices, colors, indices } = useMemo(
-    () => generateBVNSurface(sigmaX, sigmaY),
-    [sigmaX, sigmaY]
+    () => generateDensitySurfaceFromShots(shots, sigmaX, sigmaY),
+    [shots, sigmaX, sigmaY]
   );
+
+  // No animation - just use key to force re-render when shots change
+
+  // Only render if there are vertices to display
+  if (vertices.length === 0) {
+    return null;
+  }
 
   return (
-    <mesh ref={meshRef}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={vertices.length / 3}
-          array={vertices}
-          itemSize={3}
+    <group key={`surface-${shots.length}`}>
+      {/* Main colored surface with flat shading to show triangular faces */}
+      <mesh key={`mesh-${shots.length}`}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={vertices.length / 3}
+            array={vertices}
+            itemSize={3}
+          />
+          <bufferAttribute
+            attach="attributes-color"
+            count={colors.length / 3}
+            array={colors}
+            itemSize={3}
+          />
+          <bufferAttribute attach="index" count={indices.length} array={indices} itemSize={1} />
+        </bufferGeometry>
+        <meshStandardMaterial
+          vertexColors
+          side={THREE.DoubleSide}
+          flatShading={true} // Enable flat shading for visible triangle faces
+          polygonOffset={true}
+          polygonOffsetFactor={1}
+          polygonOffsetUnits={1}
         />
-        <bufferAttribute
-          attach="attributes-color"
-          count={colors.length / 3}
-          array={colors}
-          itemSize={3}
+      </mesh>
+
+      {/* Wireframe overlay to emphasize triangular mesh structure */}
+      <lineSegments key={`wireframe-${shots.length}`}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={vertices.length / 3}
+            array={vertices}
+            itemSize={3}
+          />
+          <bufferAttribute attach="index" count={indices.length} array={indices} itemSize={1} />
+        </bufferGeometry>
+        <lineBasicMaterial
+          color="#493b7c"
+          transparent
+          opacity={0.3}
+          linewidth={1}
         />
-        <bufferAttribute attach="index" count={indices.length} array={indices} itemSize={1} />
-      </bufferGeometry>
-      <meshStandardMaterial vertexColors side={THREE.DoubleSide} transparent opacity={0.8} />
-    </mesh>
+      </lineSegments>
+    </group>
   );
 }
 
-// Scatter plot of actual shots projected onto the ground plane
+/**
+ * Scatter Plot Component
+ * Displays actual shot positions on the ground plane with vertical lines
+ * Colors indicate profit (green) or loss (red)
+ */
 function ShotScatterPlot({ shots, sigmaX, sigmaY }: { shots: Shot[]; sigmaX: number; sigmaY: number }) {
   const range = 3;
   const maxX = sigmaX * range;
@@ -161,14 +326,9 @@ function ShotScatterPlot({ shots, sigmaX, sigmaY }: { shots: Shot[]; sigmaX: num
         return (
           <group key={idx}>
             {/* Dot on ground plane */}
-            <mesh position={[xScaled, 0, zScaled]}>
-              <sphereGeometry args={[0.08, 8, 8]} />
-              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} />
-            </mesh>
-            {/* Vertical line from ground to density surface */}
-            <mesh position={[xScaled, 0.5, zScaled]}>
-              <cylinderGeometry args={[0.02, 0.02, 1, 8]} />
-              <meshStandardMaterial color={color} transparent opacity={0.3} />
+            <mesh position={[xScaled, 0.05, zScaled]}>
+              <sphereGeometry args={[0.12, 16, 16]} />
+              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.7} />
             </mesh>
           </group>
         );
@@ -177,7 +337,11 @@ function ShotScatterPlot({ shots, sigmaX, sigmaY }: { shots: Shot[]; sigmaX: num
   );
 }
 
-// Contour circles on ground plane showing 1σ, 2σ, 3σ
+/**
+ * Ground Contours Component
+ * Displays concentric circles at 1σ, 2σ, and 3σ levels on the ground plane
+ * Provides visual reference for standard deviations
+ */
 function GroundContours({ sigmaX }: { sigmaX: number; sigmaY: number }) {
   const range = 3;
   const maxX = sigmaX * range;
@@ -204,8 +368,130 @@ function GroundContours({ sigmaX }: { sigmaX: number; sigmaY: number }) {
   );
 }
 
-// Axis labels for the 3D view
-function AxisLabels({ sigmaX, sigmaY }: { sigmaX: number; sigmaY: number }) {
+/**
+ * Marginal Distribution Curves Component
+ * Displays P(X) and P(Y) on vertical walls by numerically integrating the 3D density surface
+ * - P(X): Integral of density over all Y values for each X
+ * - P(Y): Integral of density over all X values for each Y
+ */
+function MarginalCurves({ shots, sigmaX, sigmaY }: { shots: Shot[]; sigmaX: number; sigmaY: number }) {
+  const rangeYards = 25;
+
+  // Generate marginal P(X) by integrating density over Y
+  const marginalXPoints = useMemo(() => {
+    const points: THREE.Vector3[] = [];
+    const samples = 100;
+
+    if (shots.length === 0) {
+      // Return empty when no shots
+      return points;
+    } else {
+      const bandwidth = Math.max(1.5, Math.sqrt(sigmaX * sigmaX + sigmaY * sigmaY) * 0.3);
+      const marginalDensities: number[] = [];
+      let maxDensity = 0;
+
+      // For each X position, integrate density over all Y values
+      for (let i = 0; i <= samples; i++) {
+        const x = -rangeYards + (2 * rangeYards * i) / samples;
+        let densitySum = 0;
+
+        // Integrate over Y axis (sum density at this X for all Y)
+        const ySamples = 50;
+        for (let j = 0; j <= ySamples; j++) {
+          const y = -rangeYards + (2 * rangeYards * j) / ySamples;
+          densitySum += calculateDensityFromShots(shots, x, y, bandwidth);
+        }
+
+        marginalDensities.push(densitySum);
+        maxDensity = Math.max(maxDensity, densitySum);
+      }
+
+      // Generate curve from integrated densities
+      for (let i = 0; i <= samples; i++) {
+        const x = -rangeYards + (2 * rangeYards * i) / samples;
+        const xScaled = (x / rangeYards) * 5;
+        const normalized = maxDensity > 0 ? marginalDensities[i] / maxDensity : 0;
+        const yScaled = Math.pow(normalized, 1.5) * 3.0; // Match surface scaling
+        points.push(new THREE.Vector3(xScaled, yScaled, -5));
+      }
+    }
+    return points;
+  }, [shots, sigmaX, sigmaY]);
+
+  // Generate marginal P(Y) by integrating density over X
+  const marginalYPoints = useMemo(() => {
+    const points: THREE.Vector3[] = [];
+    const samples = 100;
+
+    if (shots.length === 0) {
+      // Return empty when no shots
+      return points;
+    } else {
+      const bandwidth = Math.max(1.5, Math.sqrt(sigmaX * sigmaX + sigmaY * sigmaY) * 0.3);
+      const marginalDensities: number[] = [];
+      let maxDensity = 0;
+
+      // For each Y position, integrate density over all X values
+      for (let i = 0; i <= samples; i++) {
+        const y = -rangeYards + (2 * rangeYards * i) / samples;
+        let densitySum = 0;
+
+        // Integrate over X axis (sum density at this Y for all X)
+        const xSamples = 50;
+        for (let j = 0; j <= xSamples; j++) {
+          const x = -rangeYards + (2 * rangeYards * j) / xSamples;
+          densitySum += calculateDensityFromShots(shots, x, y, bandwidth);
+        }
+
+        marginalDensities.push(densitySum);
+        maxDensity = Math.max(maxDensity, densitySum);
+      }
+
+      // Generate curve from integrated densities
+      for (let i = 0; i <= samples; i++) {
+        const y = -rangeYards + (2 * rangeYards * i) / samples;
+        const zScaled = (y / rangeYards) * 5;
+        const normalized = maxDensity > 0 ? marginalDensities[i] / maxDensity : 0;
+        const yScaled = Math.pow(normalized, 1.5) * 3.0; // Match surface scaling
+        points.push(new THREE.Vector3(5, yScaled, zScaled));
+      }
+    }
+    return points;
+  }, [shots, sigmaX, sigmaY]);
+
+  // Only render if there are points
+  if (marginalXPoints.length === 0 || marginalYPoints.length === 0) {
+    return null;
+  }
+
+  return (
+    <group>
+      {/* Marginal P(X) on back wall (XZ-plane) - gradient from white to purple */}
+      <DreiLine
+        points={marginalXPoints}
+        color="#604c9c"
+        lineWidth={3}
+      />
+
+      {/* Marginal P(Y) on side wall (YZ-plane) - gradient from white to purple */}
+      <DreiLine
+        points={marginalYPoints}
+        color="#604c9c"
+        lineWidth={3}
+      />
+    </group>
+  );
+}
+
+// ============================================================================
+// HELPER COMPONENTS
+// ============================================================================
+
+/**
+ * Axis Labels Component
+ * Displays X, Y, Z axis labels and sigma annotations in 3D space
+ */
+function AxisLabels({ sigmaX, sigmaY, shotCount }: { sigmaX: number; sigmaY: number; shotCount: number }) {
   return (
     <>
       {/* X-axis label */}
@@ -241,21 +527,26 @@ function AxisLabels({ sigmaX, sigmaY }: { sigmaX: number; sigmaY: number }) {
         Y (yards)
       </Text>
 
-      {/* Sigma annotations */}
-      <Text
-        position={[0, 3.5, 0]}
-        fontSize={0.3}
-        color="#9e8cb4"
-        anchorX="center"
-        anchorY="middle"
-      >
-        σ_x = {sigmaX.toFixed(1)}y, σ_y = {sigmaY.toFixed(1)}y
-      </Text>
+      {/* Sigma annotations - only show when we have enough shots for meaningful statistics */}
+      {shotCount >= 2 && (
+        <Text
+          position={[0, 3.5, 0]}
+          fontSize={0.3}
+          color="#9e8cb4"
+          anchorX="center"
+          anchorY="middle"
+        >
+          σ_x = {sigmaX.toFixed(1)}y, σ_y = {sigmaY.toFixed(1)}y
+        </Text>
+      )}
     </>
   );
 }
 
-// Center marker (target hole)
+/**
+ * Center Marker Component
+ * Displays an animated marker at the target hole position (origin)
+ */
 function CenterMarker() {
   const markerRef = useRef<THREE.Mesh>(null);
 
@@ -273,30 +564,45 @@ function CenterMarker() {
   );
 }
 
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
+/**
+ * BVNHeatmap3D - Main Component
+ * 3D visualization of Bivariate Normal distribution built from actual shot data
+ *
+ * Features:
+ * - Triangulated mesh surface showing probability density via KDE
+ * - Marginal distributions P(X) and P(Y) integrated from 3D surface
+ * - Shot scatter plot on ground plane
+ * - Standard deviation contours (1σ, 2σ, 3σ)
+ * - Interactive controls for rotation, zoom, and pan
+ */
 export default function BVNHeatmap3D({
   sigmaX,
   sigmaY,
   shots,
 }: BVNHeatmap3DProps) {
   return (
-    <div className="w-full h-full flex flex-col">
-      <div className="bg-gradient-to-br from-[#604c9c]/10 to-[#493b7c]/10 backdrop-blur-xl p-3 rounded-xl border border-[#9e8cb4]/30 shadow-lg flex-1 flex flex-col">
-        <h3 className="text-xs font-medium text-[#9e8cb4] mb-2">
-          3D Distribution
-        </h3>
-
+    <div className="w-full h-full flex flex-col relative">
+      <div className="flex-1 flex flex-col relative">
         <div className="flex-1 min-h-0">
           <Canvas camera={{ position: [8, 5, 8], fov: 50 }}>
-            {/* Lighting */}
-            <ambientLight intensity={0.6} />
-            <directionalLight position={[10, 10, 5]} intensity={0.8} />
-            <pointLight position={[-10, 5, -5]} intensity={0.4} />
+            {/* Lighting - stronger for flat shading */}
+            <ambientLight intensity={0.5} />
+            <directionalLight position={[10, 10, 5]} intensity={1.0} />
+            <directionalLight position={[-5, 5, -5]} intensity={0.4} />
+            <pointLight position={[-10, 5, -5]} intensity={0.3} />
 
-            {/* BVN Probability Density Surface */}
-            <BVNSurface sigmaX={sigmaX} sigmaY={sigmaY} />
+            {/* Density Surface built from actual shots */}
+            <DensitySurface shots={shots} sigmaX={sigmaX} sigmaY={sigmaY} />
 
             {/* Ground contours (1σ, 2σ, 3σ circles) */}
             <GroundContours sigmaX={sigmaX} sigmaY={sigmaY} />
+
+            {/* Marginal distribution curves - integrated from 3D density */}
+            <MarginalCurves shots={shots} sigmaX={sigmaX} sigmaY={sigmaY} />
 
             {/* Shot scatter plot on ground */}
             <ShotScatterPlot shots={shots} sigmaX={sigmaX} sigmaY={sigmaY} />
@@ -320,7 +626,7 @@ export default function BVNHeatmap3D({
             />
 
             {/* Axis labels */}
-            <AxisLabels sigmaX={sigmaX} sigmaY={sigmaY} />
+            <AxisLabels sigmaX={sigmaX} sigmaY={sigmaY} shotCount={shots.length} />
 
             {/* Interactive controls */}
             <OrbitControls
@@ -333,32 +639,25 @@ export default function BVNHeatmap3D({
           </Canvas>
         </div>
 
-        {/* Legend */}
-        <div className="mt-2 flex flex-wrap justify-center gap-2 text-[10px]">
+        {/* Legend - floating at bottom */}
+        <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex flex-wrap justify-center gap-2 text-[10px]">
           <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-blue-500 rounded-sm"></div>
-            <span className="text-[#9e8cb4]/70">Low</span>
+            <div className="w-2 h-2 rounded-sm" style={{ background: 'linear-gradient(to right, #ffffff, #604c9c)' }}></div>
+            <span className="text-[var(--brand-lavender)]">Low → High Density</span>
+          </div>
+          <div className="h-px w-2 bg-[var(--brand-tan)]/20"></div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 rounded-full bg-[var(--brand-bright-purple)]"></div>
+            <span className="text-[var(--brand-lavender)]">Win</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-yellow-500 rounded-sm"></div>
-            <span className="text-[#9e8cb4]/70">Med</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-red-500 rounded-sm"></div>
-            <span className="text-[#9e8cb4]/70">High</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-green-500"></div>
-            <span className="text-[#9e8cb4]/70">Win</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-red-500"></div>
-            <span className="text-[#9e8cb4]/70">Loss</span>
+            <div className="w-2 h-2 rounded-full bg-[var(--brand-rose-copper)]"></div>
+            <span className="text-[var(--brand-lavender)]">Loss</span>
           </div>
         </div>
 
-        {/* Info text */}
-        <div className="mt-1.5 text-[10px] text-[#9e8cb4]/50 text-center">
+        {/* Info text - floating at bottom */}
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 text-[10px] text-white/40 text-center">
           <p>Drag to rotate • Scroll to zoom • Right-click to pan</p>
         </div>
       </div>

@@ -53,6 +53,10 @@ pub struct SkillProfile {
     pub batch_size: usize,
     /// Total number of shots taken for this skill profile
     pub shot_count: usize,
+    /// Total payout accumulated (for RTP tracking)
+    pub total_payout: f64,
+    /// Total shots counted for RTP calculation
+    pub total_shots_for_rtp: usize,
 }
 
 impl Player {
@@ -107,6 +111,8 @@ impl Player {
                 p_max_history: Vec::new(),
                 batch_size: 5, // Default batch size
                 shot_count: 0, // Start at zero shots
+                total_payout: 0.0, // Initialize payout tracking
+                total_shots_for_rtp: 0, // Initialize shot count for RTP
             });
         }
 
@@ -377,7 +383,7 @@ impl Player {
     /// let hole = Hole::new(1, 75, 17.95, 0.86, 5.0);
     ///
     /// // Player with rightward bias and better distance control
-    /// let p_max = player.calculate_p_max_bvn(&hole, 5.0, 2.0, 20.0, 12.0);
+    /// let p_max = player.calculate_p_max_bvn(&hole, 5.0, 2.0, 20.0, 12.0, None);
     /// assert!(p_max > 1.0);
     /// ```
     pub fn calculate_p_max_bvn(
@@ -387,6 +393,7 @@ impl Player {
         mu_y: f64,
         sigma_x: f64,
         sigma_y: f64,
+        actual_rtp_percent: Option<f64>, // Actual RTP% observed so far (for adaptive correction)
     ) -> f64 {
         use crate::math::distributions::bvn_pdf;
 
@@ -466,9 +473,39 @@ impl Player {
         let expected_payout = (1.0 - fat_tail_prob) * expected_payout_normal
             + fat_tail_prob * expected_payout_fat;
 
-        // P_max = RTP / expected_payout
+        // Base P_max = RTP / expected_payout
         let epsilon = 1e-10;
-        hole.rtp / (expected_payout + epsilon)
+        let base_p_max = hole.rtp / (expected_payout + epsilon);
+
+        // Apply adaptive correction if we have actual RTP data
+        if let Some(actual_rtp) = actual_rtp_percent {
+            let target_rtp = hole.rtp;
+            let rtp_error = actual_rtp - target_rtp;
+
+            // Adaptive correction with exponential damping
+            // - If RTP > target: reduce P_max (multiply by factor < 1)
+            // - If RTP < target: increase P_max (multiply by factor > 1)
+            // - Use exponential decay for stability: correction = exp(-α * error)
+            //
+            // α = 0.02 means:
+            //   - 5% overshoot → 90% of base P_max (10% reduction)
+            //   - 10% overshoot → 82% of base P_max (18% reduction)
+            //   - 20% overshoot → 67% of base P_max (33% reduction)
+            let alpha = 0.02;
+            let correction_factor = (-alpha * rtp_error).exp();
+
+            let corrected_p_max = base_p_max * correction_factor;
+
+            eprintln!(
+                "🎯 Adaptive P_max: base={:.2}x, actual_RTP={:.1}%, target_RTP={:.1}%, error={:.1}%, correction={:.3}x, final={:.2}x",
+                base_p_max, actual_rtp, target_rtp, rtp_error, correction_factor, corrected_p_max
+            );
+
+            corrected_p_max
+        } else {
+            // No RTP data yet, use base calculation
+            base_p_max
+        }
     }
 
     /// Add a 1D shot (radial distance only) to the batch
@@ -820,12 +857,19 @@ impl Player {
                 skill.shot_count, sigma_x_fast, sigma_y_fast, mu_x, mu_y
             );
 
-            // Calculate P_max using BVN distribution
+            // Calculate actual RTP% if we have enough data (need at least 20 shots)
+            let actual_rtp_percent = if skill.total_shots_for_rtp >= 20 {
+                Some((skill.total_payout / skill.total_shots_for_rtp as f64) * 100.0)
+            } else {
+                None
+            };
+
+            // Calculate P_max using BVN distribution with adaptive correction
             let calculated_p_max = {
                 // Clone hole to avoid lifetime issues
                 let hole_clone = hole.clone();
                 let _ = skill; // Drop mutable borrow
-                self.calculate_p_max_bvn(&hole_clone, mu_x, mu_y, sigma_x_fast, sigma_y_fast)
+                self.calculate_p_max_bvn(&hole_clone, mu_x, mu_y, sigma_x_fast, sigma_y_fast, actual_rtp_percent)
             };
 
             // Re-acquire mutable borrow for storage
@@ -879,6 +923,20 @@ impl Player {
             return 0.0;
         }
         self.lifetime_total_wagered / self.lifetime_wagers.len() as f64
+    }
+
+    /// Track payout for RTP calculation
+    ///
+    /// # Arguments
+    /// * `hole` - The hole being played
+    /// * `payout_multiplier` - The payout multiplier (e.g., 0.5 = 50% return)
+    ///
+    /// # Notes
+    /// This accumulates payout percentages (not dollar amounts) for RTP tracking
+    pub fn track_payout(&mut self, hole: &Hole, payout_multiplier: f64) {
+        let skill = self.get_skill_for_hole_mut(hole);
+        skill.total_payout += payout_multiplier * 100.0; // Convert to percentage
+        skill.total_shots_for_rtp += 1;
     }
 }
 
@@ -1120,7 +1178,7 @@ mod tests {
         let sigma_x = sigma;
         let sigma_y = sigma;
 
-        let p_max_bvn = player.calculate_p_max_bvn(hole, mu_x, mu_y, sigma_x, sigma_y);
+        let p_max_bvn = player.calculate_p_max_bvn(hole, mu_x, mu_y, sigma_x, sigma_y, None);
         let p_max_rayleigh = player.calculate_p_max(hole);
 
         // Should be within 30% (numerical integration uses different methods: 2D grid vs 1D trapezoidal)
@@ -1142,10 +1200,10 @@ mod tests {
         let hole = get_hole_by_id(4).unwrap();
 
         // No bias
-        let p_max_centered = player.calculate_p_max_bvn(hole, 0.0, 0.0, 25.0, 25.0);
+        let p_max_centered = player.calculate_p_max_bvn(hole, 0.0, 0.0, 25.0, 25.0, None);
 
         // Strong rightward bias (5 ft right on average)
-        let p_max_biased = player.calculate_p_max_bvn(hole, 5.0, 0.0, 25.0, 25.0);
+        let p_max_biased = player.calculate_p_max_bvn(hole, 5.0, 0.0, 25.0, 25.0, None);
 
         // Biased player is slightly farther from pin on average → lower expected payout → higher P_max
         assert!(
@@ -1163,10 +1221,10 @@ mod tests {
         let hole = get_hole_by_id(4).unwrap();
 
         // Good distance control, poor lateral: σ_x=30, σ_y=15
-        let p_max_distance_good = player.calculate_p_max_bvn(hole, 0.0, 0.0, 30.0, 15.0);
+        let p_max_distance_good = player.calculate_p_max_bvn(hole, 0.0, 0.0, 30.0, 15.0, None);
 
         // Poor distance control, good lateral: σ_x=15, σ_y=30
-        let p_max_lateral_good = player.calculate_p_max_bvn(hole, 0.0, 0.0, 15.0, 30.0);
+        let p_max_lateral_good = player.calculate_p_max_bvn(hole, 0.0, 0.0, 15.0, 30.0, None);
 
         // Both are valid, just testing that function handles elliptical distributions
         assert!(p_max_distance_good > 1.0 && p_max_distance_good < 20.0);
@@ -1198,7 +1256,7 @@ mod tests {
         ];
 
         for (mu_x, mu_y, sigma_x, sigma_y) in test_cases {
-            let p_max = player.calculate_p_max_bvn(hole, mu_x, mu_y, sigma_x, sigma_y);
+            let p_max = player.calculate_p_max_bvn(hole, mu_x, mu_y, sigma_x, sigma_y, None);
 
             // P_max should be positive and reasonable
             // Note: Very poor players (σ=40ft+) can have P_max > 20, which is mathematically correct
@@ -1221,7 +1279,7 @@ mod tests {
         let hole = get_hole_by_id(4).unwrap();
 
         // Calculate P_max with BVN (includes 2% fat-tail)
-        let p_max_with_fat = player.calculate_p_max_bvn(hole, 0.0, 0.0, 25.0, 25.0);
+        let p_max_with_fat = player.calculate_p_max_bvn(hole, 0.0, 0.0, 25.0, 25.0, None);
 
         // The fat-tail effect is already baked into the calculation,
         // so we just verify it produces sensible results

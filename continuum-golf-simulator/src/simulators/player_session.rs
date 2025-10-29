@@ -403,6 +403,9 @@ pub fn run_session(player: &mut Player, config: SessionConfig) -> SessionResult 
         // SECURITY FIX: Track wager for lifetime average (cross-session detection)
         player.track_wager(wager);
 
+        // Track payout for RTP calculation and adaptive P_max correction
+        player.track_payout(hole, payout_multiplier);
+
         // Add shot to batch (developer mode shots update MCMC identically to real shots)
         // SECURITY FIX: Use lifetime average wager if available, otherwise use session average
         let lifetime_avg = player.get_lifetime_avg_wager();
