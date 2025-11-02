@@ -383,7 +383,7 @@ impl Player {
     /// let hole = Hole::new(1, 75, 17.95, 0.86, 5.0);
     ///
     /// // Player with rightward bias and better distance control
-    /// let p_max = player.calculate_p_max_bvn(&hole, 5.0, 2.0, 20.0, 12.0, None);
+    /// let p_max = player.calculate_p_max_bvn(&hole, 5.0, 2.0, 20.0, 12.0, 0.0, None);
     /// assert!(p_max > 1.0);
     /// ```
     pub fn calculate_p_max_bvn(
@@ -393,6 +393,7 @@ impl Player {
         mu_y: f64,
         sigma_x: f64,
         sigma_y: f64,
+        rho: f64, // Correlation coefficient between x and y
         actual_rtp_percent: Option<f64>, // Actual RTP% observed so far (for adaptive correction)
     ) -> f64 {
         use crate::math::distributions::bvn_pdf;
@@ -432,7 +433,7 @@ impl Player {
                 };
 
                 // BVN probability density
-                let prob = bvn_pdf(x, y, mu_x, mu_y, sigma_x, sigma_y);
+                let prob = bvn_pdf(x, y, mu_x, mu_y, sigma_x, sigma_y, rho);
 
                 // Accumulate: payout × probability × area
                 expected_payout_normal += payout * prob * dx * dy;
@@ -464,7 +465,7 @@ impl Player {
                     (1.0 - r / d_max).powf(k)
                 };
 
-                let prob = bvn_pdf(x, y, mu_x, mu_y, sigma_x_fat, sigma_y_fat);
+                let prob = bvn_pdf(x, y, mu_x, mu_y, sigma_x_fat, sigma_y_fat, rho);
                 expected_payout_fat += payout * prob * dx_fat * dy_fat;
             }
         }
@@ -869,7 +870,7 @@ impl Player {
                 // Clone hole to avoid lifetime issues
                 let hole_clone = hole.clone();
                 let _ = skill; // Drop mutable borrow
-                self.calculate_p_max_bvn(&hole_clone, mu_x, mu_y, sigma_x_fast, sigma_y_fast, actual_rtp_percent)
+                self.calculate_p_max_bvn(&hole_clone, mu_x, mu_y, sigma_x_fast, sigma_y_fast, 0.0, actual_rtp_percent)
             };
 
             // Re-acquire mutable borrow for storage
@@ -1178,7 +1179,7 @@ mod tests {
         let sigma_x = sigma;
         let sigma_y = sigma;
 
-        let p_max_bvn = player.calculate_p_max_bvn(hole, mu_x, mu_y, sigma_x, sigma_y, None);
+        let p_max_bvn = player.calculate_p_max_bvn(hole, mu_x, mu_y, sigma_x, sigma_y, 0.0, None);
         let p_max_rayleigh = player.calculate_p_max(hole);
 
         // Should be within 30% (numerical integration uses different methods: 2D grid vs 1D trapezoidal)
@@ -1200,10 +1201,10 @@ mod tests {
         let hole = get_hole_by_id(4).unwrap();
 
         // No bias
-        let p_max_centered = player.calculate_p_max_bvn(hole, 0.0, 0.0, 25.0, 25.0, None);
+        let p_max_centered = player.calculate_p_max_bvn(hole, 0.0, 0.0, 25.0, 25.0, 0.0, None);
 
         // Strong rightward bias (5 ft right on average)
-        let p_max_biased = player.calculate_p_max_bvn(hole, 5.0, 0.0, 25.0, 25.0, None);
+        let p_max_biased = player.calculate_p_max_bvn(hole, 5.0, 0.0, 25.0, 25.0, 0.0, None);
 
         // Biased player is slightly farther from pin on average → lower expected payout → higher P_max
         assert!(
@@ -1221,10 +1222,10 @@ mod tests {
         let hole = get_hole_by_id(4).unwrap();
 
         // Good distance control, poor lateral: σ_x=30, σ_y=15
-        let p_max_distance_good = player.calculate_p_max_bvn(hole, 0.0, 0.0, 30.0, 15.0, None);
+        let p_max_distance_good = player.calculate_p_max_bvn(hole, 0.0, 0.0, 30.0, 15.0, 0.0, None);
 
         // Poor distance control, good lateral: σ_x=15, σ_y=30
-        let p_max_lateral_good = player.calculate_p_max_bvn(hole, 0.0, 0.0, 15.0, 30.0, None);
+        let p_max_lateral_good = player.calculate_p_max_bvn(hole, 0.0, 0.0, 15.0, 30.0, 0.0, None);
 
         // Both are valid, just testing that function handles elliptical distributions
         assert!(p_max_distance_good > 1.0 && p_max_distance_good < 20.0);
@@ -1256,7 +1257,7 @@ mod tests {
         ];
 
         for (mu_x, mu_y, sigma_x, sigma_y) in test_cases {
-            let p_max = player.calculate_p_max_bvn(hole, mu_x, mu_y, sigma_x, sigma_y, None);
+            let p_max = player.calculate_p_max_bvn(hole, mu_x, mu_y, sigma_x, sigma_y, 0.0, None);
 
             // P_max should be positive and reasonable
             // Note: Very poor players (σ=40ft+) can have P_max > 20, which is mathematically correct
@@ -1279,7 +1280,7 @@ mod tests {
         let hole = get_hole_by_id(4).unwrap();
 
         // Calculate P_max with BVN (includes 2% fat-tail)
-        let p_max_with_fat = player.calculate_p_max_bvn(hole, 0.0, 0.0, 25.0, 25.0, None);
+        let p_max_with_fat = player.calculate_p_max_bvn(hole, 0.0, 0.0, 25.0, 25.0, 0.0, None);
 
         // The fat-tail effect is already baked into the calculation,
         // so we just verify it produces sensible results

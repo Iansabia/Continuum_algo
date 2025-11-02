@@ -84,7 +84,7 @@ fn main() {
                     mu_x, mu_y, sigma_x, sigma_y);
 
                 // Calculate P_max using learned BVN distribution
-                let p_max = player.calculate_p_max_bvn(hole, mu_x, mu_y, sigma_x, sigma_y);
+                let p_max = player.calculate_p_max_bvn(hole, mu_x, mu_y, sigma_x, sigma_y, 0.0, None);
                 println!("         P_max = {:.2}×", p_max);
             }
         } else {
@@ -107,8 +107,8 @@ fn main() {
             sigma_y, sigma_y_true, sigma_y - sigma_y_true);
 
         // Calculate final P_max
-        let p_max_learned = player.calculate_p_max_bvn(hole, mu_x, mu_y, sigma_x, sigma_y);
-        let p_max_true = player.calculate_p_max_bvn(hole, mu_x_true, mu_y_true, sigma_x_true, sigma_y_true);
+        let p_max_learned = player.calculate_p_max_bvn(hole, mu_x, mu_y, sigma_x, sigma_y, 0.0, None);
+        let p_max_true = player.calculate_p_max_bvn(hole, mu_x_true, mu_y_true, sigma_x_true, sigma_y_true, 0.0, None);
 
         println!("P_max Comparison:");
         println!("  Using learned params: {:.2}×", p_max_learned);

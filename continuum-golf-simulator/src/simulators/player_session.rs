@@ -12,6 +12,7 @@ use crate::models::{
     player::Player,
     shot::{simulate_shot, ShotOutcome},
 };
+use crate::math::custom_distributions::CustomShapeDistribution;
 use crate::anti_cheat::{detect_cherry_picking, detect_sandbagging, AnomalyReport};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -29,6 +30,49 @@ pub enum SessionConfigError {
     InvalidConfig(String),
 }
 
+/// Mode for generating shot miss distances
+///
+/// This determines how shot outcomes are simulated in a session:
+/// - Standard: Uses perfect Rayleigh distribution with optional fat-tail events
+/// - CustomPattern: Uses pre-defined geometric patterns to demonstrate adaptation
+/// - BivariateNormal: Uses 2D bivariate normal distribution with custom parameters
+#[derive(Debug, Clone)]
+pub enum ShotGenerationMode {
+    /// Standard Rayleigh distribution with fat-tail events
+    /// This is the default production mode with mathematically correct RNG
+    Standard {
+        /// Probability of fat-tail event (typically 0.02 = 2%)
+        fat_tail_prob: f64,
+        /// Multiplier for fat-tail dispersion (typically 3.0)
+        fat_tail_mult: f64,
+    },
+
+    /// Custom geometric pattern for demo/testing
+    /// Used to show MCMC adaptation to non-standard distributions
+    /// Perfect for investor demonstrations and model validation
+    CustomPattern(CustomShapeDistribution),
+
+    /// Bivariate normal distribution for realistic 2D dispersion patterns
+    /// Used to simulate players with specific dispersion characteristics
+    BivariateNormal {
+        /// X-axis (lateral) standard deviation in feet
+        sigma_x: f64,
+        /// Y-axis (distance) standard deviation in feet
+        sigma_y: f64,
+        /// Correlation coefficient between x and y (-1.0 to 1.0)
+        rho: f64,
+    },
+}
+
+impl Default for ShotGenerationMode {
+    fn default() -> Self {
+        ShotGenerationMode::Standard {
+            fat_tail_prob: 0.02,
+            fat_tail_mult: 3.0,
+        }
+    }
+}
+
 /// Configuration for a player gaming session
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionConfig {
@@ -42,10 +86,24 @@ pub struct SessionConfig {
     pub hole_selection: HoleSelection,
     /// Optional developer mode settings for testing
     pub developer_mode: Option<DeveloperMode>,
-    /// Fat-tail probability (default: 0.02 = 2%)
+    /// Fat-tail probability (default: 0.02 = 2%) - DEPRECATED, use shot_generation_mode
+    #[serde(default = "default_fat_tail_prob")]
     pub fat_tail_prob: f64,
-    /// Fat-tail multiplier (default: 3.0)
+    /// Fat-tail multiplier (default: 3.0) - DEPRECATED, use shot_generation_mode
+    #[serde(default = "default_fat_tail_mult")]
     pub fat_tail_mult: f64,
+    /// Shot generation mode (standard RNG or custom pattern)
+    /// Note: Not serialized yet to maintain backwards compatibility
+    #[serde(skip)]
+    pub shot_generation_mode: Option<ShotGenerationMode>,
+}
+
+fn default_fat_tail_prob() -> f64 {
+    0.02
+}
+
+fn default_fat_tail_mult() -> f64 {
+    3.0
 }
 
 impl Default for SessionConfig {
@@ -58,6 +116,7 @@ impl Default for SessionConfig {
             developer_mode: None,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
+            shot_generation_mode: None, // Will use fat_tail_prob/mult by default
         }
     }
 }
@@ -342,6 +401,45 @@ impl SessionResult {
     }
 }
 
+/// Generate a miss distance based on the session configuration
+///
+/// This helper function determines which shot generation method to use:
+/// - Custom pattern mode if shot_generation_mode is set
+/// - Standard Rayleigh + fat-tail if using legacy parameters
+///
+/// # Arguments
+/// * `config` - Session configuration
+/// * `sigma` - Player's current skill parameter
+/// * `rng` - Random number generator
+///
+/// # Returns
+/// Tuple of (miss_distance, is_fat_tail)
+fn generate_miss_distance(
+    config: &SessionConfig,
+    sigma: f64,
+    rng: &mut impl Rng,
+) -> (f64, bool) {
+    match &config.shot_generation_mode {
+        Some(ShotGenerationMode::Standard { fat_tail_prob, fat_tail_mult }) => {
+            // Use standard RNG with configured fat-tail parameters
+            simulate_shot(sigma, *fat_tail_prob, *fat_tail_mult)
+        }
+        Some(ShotGenerationMode::CustomPattern(dist)) => {
+            // Use custom pattern distribution scaled by player's actual sigma
+            dist.sample_miss_distance(sigma, rng)
+        }
+        Some(ShotGenerationMode::BivariateNormal { .. }) => {
+            // BivariateNormal is used for tracking pattern metadata
+            // Fall back to standard generation with current sigma
+            simulate_shot(sigma, config.fat_tail_prob, config.fat_tail_mult)
+        }
+        None => {
+            // Backwards compatibility: use legacy fat_tail_prob/mult fields
+            simulate_shot(sigma, config.fat_tail_prob, config.fat_tail_mult)
+        }
+    }
+}
+
 /// Run a player gaming session simulation
 ///
 /// # Arguments
@@ -371,15 +469,18 @@ pub fn run_session(player: &mut Player, config: SessionConfig) -> SessionResult 
         // Calculate P_max for current skill level (using MCMC posterior median)
         let p_max = player.calculate_p_max(hole);
 
-        // Simulate or use manual miss distance
+        // Simulate miss distance based on mode
         let (miss_distance, is_fat_tail) = if let Some(ref dev_mode) = config.developer_mode {
+            // Developer mode: use manual miss distance if provided
             if let Some(manual_dist) = dev_mode.manual_miss_distance {
                 (manual_dist, false)
             } else {
-                simulate_shot(current_sigma, config.fat_tail_prob, config.fat_tail_mult)
+                // Developer mode without manual distance: use configured generation mode
+                generate_miss_distance(&config, current_sigma, &mut rng)
             }
         } else {
-            simulate_shot(current_sigma, config.fat_tail_prob, config.fat_tail_mult)
+            // Normal mode: use configured generation mode
+            generate_miss_distance(&config, current_sigma, &mut rng)
         };
 
         // Calculate payout

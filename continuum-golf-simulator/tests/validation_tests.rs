@@ -36,6 +36,7 @@ fn validate_rtp_by_distance() {
             developer_mode: None,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
+        shot_generation_mode: None,
         };
         let result = run_session(&mut player, config);
         short_wagered += result.total_wagered;
@@ -65,6 +66,7 @@ fn validate_rtp_by_distance() {
             developer_mode: None,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
+        shot_generation_mode: None,
         };
         let result = run_session(&mut player, config);
         mid_wagered += result.total_wagered;
@@ -94,6 +96,7 @@ fn validate_rtp_by_distance() {
             developer_mode: None,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
+        shot_generation_mode: None,
         };
         let result = run_session(&mut player, config);
         long_wagered += result.total_wagered;
@@ -136,6 +139,7 @@ fn validate_house_edge_by_distance() {
         developer_mode: None,
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
     let result_short = run_session(&mut player, config_short);
     let edge_short = 1.0 - (result_short.total_won / result_short.total_wagered);
@@ -158,6 +162,7 @@ fn validate_house_edge_by_distance() {
         developer_mode: None,
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
     let result_mid = run_session(&mut player, config_mid);
     let edge_mid = 1.0 - (result_mid.total_won / result_mid.total_wagered);
@@ -181,6 +186,7 @@ fn validate_house_edge_by_distance() {
         developer_mode: None,
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
     let result_long = run_session(&mut player, config_long);
     let edge_long = 1.0 - (result_long.total_won / result_long.total_wagered);
@@ -218,6 +224,7 @@ fn validate_fairness_all_handicaps() {
             developer_mode: None,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
+        shot_generation_mode: None,
         };
         let result = run_session(&mut player, config);
         let ev = result.net_gain_loss / NUM_SHOTS as f64;
@@ -348,6 +355,7 @@ fn validate_high_stakes_logic() {
         developer_mode: None,
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
 
     let normal_result = run_session(&mut player, normal_config);
@@ -364,6 +372,7 @@ fn validate_high_stakes_logic() {
         developer_mode: None,
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
 
     let high_stakes_result = run_session(&mut player, high_stakes_config);
@@ -459,6 +468,7 @@ fn validate_kalman_convergence_properties() {
             developer_mode: None,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
+        shot_generation_mode: None,
         };
 
         let result = run_session(&mut player, config);
@@ -553,6 +563,7 @@ fn validate_system_wide_rtp() {
                 developer_mode: None,
                 fat_tail_prob: 0.02,
                 fat_tail_mult: 3.0,
+        shot_generation_mode: None,
             };
 
             let result = run_session(&mut player, config);

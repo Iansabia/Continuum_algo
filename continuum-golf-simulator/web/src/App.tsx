@@ -1,7 +1,14 @@
+import { useState } from 'react';
 import PlayerSimulator from './components/PlayerSimulator';
+import PatternDrawingDemo from './components/PatternDrawingDemo';
+import VenueSimulator from './components/VenueSimulator';
 import AnimatedBackground from './components/AnimatedBackground';
 
+type TabType = 'simulator' | 'pattern-demo' | 'venue-sim';
+
 function App() {
+  const [activeTab, setActiveTab] = useState<TabType>('pattern-demo');
+
   return (
     <div className="h-screen w-screen overflow-hidden bg-black flex flex-col relative">
       {/* Animated Background - Global floating lines */}
@@ -25,12 +32,48 @@ function App() {
             Rust + WebAssembly
           </div>
         </div>
+
+        {/* Tab Navigation */}
+        <div className="relative flex gap-1 px-6 pb-3">
+          <button
+            onClick={() => setActiveTab('pattern-demo')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'pattern-demo'
+                ? 'bg-[#604c9c] text-[#dfc9ad] shadow-lg'
+                : 'bg-[#604c9c]/20 text-[#9e8cb4] hover:bg-[#604c9c]/40'
+            }`}
+          >
+            Pattern Drawing Demo
+          </button>
+          <button
+            onClick={() => setActiveTab('simulator')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'simulator'
+                ? 'bg-[#604c9c] text-[#dfc9ad] shadow-lg'
+                : 'bg-[#604c9c]/20 text-[#9e8cb4] hover:bg-[#604c9c]/40'
+            }`}
+          >
+            Player Simulator
+          </button>
+          <button
+            onClick={() => setActiveTab('venue-sim')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'venue-sim'
+                ? 'bg-[#604c9c] text-[#dfc9ad] shadow-lg'
+                : 'bg-[#604c9c]/20 text-[#9e8cb4] hover:bg-[#604c9c]/40'
+            }`}
+          >
+            Venue Simulation
+          </button>
+        </div>
       </header>
 
-      {/* Main Simulator - Responsive container */}
+      {/* Main Content - Responsive container */}
       <main className="flex-1 min-h-0 p-4 overflow-auto relative z-10">
         <div className="h-full max-w-[2000px] mx-auto">
-          <PlayerSimulator />
+          {activeTab === 'pattern-demo' && <PatternDrawingDemo />}
+          {activeTab === 'simulator' && <PlayerSimulator />}
+          {activeTab === 'venue-sim' && <VenueSimulator />}
         </div>
       </main>
     </div>

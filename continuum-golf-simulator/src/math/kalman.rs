@@ -736,7 +736,7 @@ mod tests {
             let mut x_coords = Vec::new();
             let mut y_coords = Vec::new();
             for _ in 0..10 {
-                let (x, y) = bvn_random(0.0, 0.0, true_sigma_x, true_sigma_y);
+                let (x, y) = bvn_random(0.0, 0.0, true_sigma_x, true_sigma_y, 0.0);
                 x_coords.push(x);
                 y_coords.push(y);
             }

@@ -119,7 +119,10 @@ function generateDensitySurfaceFromShots(
   indices: Uint16Array;
 } {
   const resolution = 60; // Higher resolution for smoother surface with visible triangular mesh
-  const rangeYards = 25; // Show ±25 yards
+  // ADAPTIVE RANGE: Scale view to 3σ (covers ~99.7% of distribution)
+  // This prevents "pillow effect" when sigma is large
+  const maxSigma = Math.max(sigmaX, sigmaY);
+  const rangeYards = Math.max(15, maxSigma * 3); // Minimum 15 yards, or 3× max sigma
 
   const vertices: number[] = [];
   const colors: number[] = [];
@@ -375,7 +378,9 @@ function GroundContours({ sigmaX }: { sigmaX: number; sigmaY: number }) {
  * - P(Y): Integral of density over all X values for each Y
  */
 function MarginalCurves({ shots, sigmaX, sigmaY }: { shots: Shot[]; sigmaX: number; sigmaY: number }) {
-  const rangeYards = 25;
+  // ADAPTIVE RANGE: Match the surface range
+  const maxSigma = Math.max(sigmaX, sigmaY);
+  const rangeYards = Math.max(15, maxSigma * 3);
 
   // Generate marginal P(X) by integrating density over Y
   const marginalXPoints = useMemo(() => {
@@ -494,7 +499,7 @@ function MarginalCurves({ shots, sigmaX, sigmaY }: { shots: Shot[]; sigmaX: numb
 function AxisLabels({ sigmaX, sigmaY, shotCount }: { sigmaX: number; sigmaY: number; shotCount: number }) {
   return (
     <>
-      {/* X-axis label */}
+      {/* 3D X-axis (right wall) = Golf Y (distance, forward-backward) */}
       <Text
         position={[6, 0, 0]}
         fontSize={0.4}
@@ -502,10 +507,10 @@ function AxisLabels({ sigmaX, sigmaY, shotCount }: { sigmaX: number; sigmaY: num
         anchorX="center"
         anchorY="middle"
       >
-        X (yards)
+        Y (distance)
       </Text>
 
-      {/* Y-axis label (height = probability density) */}
+      {/* 3D Y-axis = Probability density (height) */}
       <Text
         position={[0, 4, 0]}
         fontSize={0.4}
@@ -516,7 +521,7 @@ function AxisLabels({ sigmaX, sigmaY, shotCount }: { sigmaX: number; sigmaY: num
         Probability Density
       </Text>
 
-      {/* Z-axis label */}
+      {/* 3D Z-axis (back wall) = Golf X (lateral, left-right) */}
       <Text
         position={[0, 0, 6]}
         fontSize={0.4}
@@ -524,7 +529,7 @@ function AxisLabels({ sigmaX, sigmaY, shotCount }: { sigmaX: number; sigmaY: num
         anchorX="center"
         anchorY="middle"
       >
-        Y (yards)
+        X (lateral)
       </Text>
 
       {/* Sigma annotations - only show when we have enough shots for meaningful statistics */}

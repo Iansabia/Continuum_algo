@@ -29,7 +29,7 @@ fn main() {
     player.enable_bvn_mode_all(25.0);
     let p_max_2d = if let Some((mu_x, mu_y, sigma_x, sigma_y)) = player.get_bvn_state(hole.category) {
         println!("  2D state: μ_x={:.1}, μ_y={:.1}, σ_x={:.1}, σ_y={:.1}", mu_x, mu_y, sigma_x, sigma_y);
-        player.calculate_p_max_bvn(hole, mu_x, mu_y, sigma_x, sigma_y)
+        player.calculate_p_max_bvn(hole, mu_x, mu_y, sigma_x, sigma_y, 0.0, None)
     } else {
         0.0
     };
@@ -40,7 +40,7 @@ fn main() {
     println!("TEST 2: Tight dispersion");
     println!("  Parameters: μ_x=0, μ_y=0, σ_x=5, σ_y=5\n");
 
-    let p_max_bvn_tight = player.calculate_p_max_bvn(hole, 0.0, 0.0, 5.0, 5.0);
+    let p_max_bvn_tight = player.calculate_p_max_bvn(hole, 0.0, 0.0, 5.0, 5.0, 0.0, None);
     println!("  2D P_max: {:.2}×", p_max_bvn_tight);
     println!("  Expected: Very high (player very accurate)\n");
 
@@ -48,7 +48,7 @@ fn main() {
     println!("TEST 3: Wide dispersion");
     println!("  Parameters: μ_x=0, μ_y=0, σ_x=50, σ_y=50\n");
 
-    let p_max_bvn_wide = player.calculate_p_max_bvn(hole, 0.0, 0.0, 50.0, 50.0);
+    let p_max_bvn_wide = player.calculate_p_max_bvn(hole, 0.0, 0.0, 50.0, 50.0, 0.0, None);
     println!("  2D P_max: {:.2}×", p_max_bvn_wide);
     println!("  Expected: Low (player inaccurate)\n");
 
@@ -56,7 +56,7 @@ fn main() {
     println!("TEST 4: With bias");
     println!("  Parameters: μ_x=10, μ_y=-5, σ_x=20, σ_y=20\n");
 
-    let p_max_bvn_bias = player.calculate_p_max_bvn(hole, 10.0, -5.0, 20.0, 20.0);
+    let p_max_bvn_bias = player.calculate_p_max_bvn(hole, 10.0, -5.0, 20.0, 20.0, 0.0, None);
     println!("  2D P_max: {:.2}×", p_max_bvn_bias);
     println!("  Expected: Lower than centered (bias reduces hit probability)\n");
 
@@ -64,7 +64,7 @@ fn main() {
     println!("TEST 5: Elliptical dispersion");
     println!("  Parameters: μ_x=0, μ_y=0, σ_x=15, σ_y=35\n");
 
-    let p_max_bvn_ellipse = player.calculate_p_max_bvn(hole, 0.0, 0.0, 15.0, 35.0);
+    let p_max_bvn_ellipse = player.calculate_p_max_bvn(hole, 0.0, 0.0, 15.0, 35.0, 0.0, None);
     println!("  2D P_max: {:.2}×", p_max_bvn_ellipse);
     println!("  Expected: Between tight and wide\n");
 
@@ -72,7 +72,7 @@ fn main() {
     println!("TEST 6: VERY tight dispersion (σ=1)");
     println!("  Parameters: μ_x=0, μ_y=0, σ_x=1, σ_y=1\n");
 
-    let p_max_bvn_perfect = player.calculate_p_max_bvn(hole, 0.0, 0.0, 1.0, 1.0);
+    let p_max_bvn_perfect = player.calculate_p_max_bvn(hole, 0.0, 0.0, 1.0, 1.0, 0.0, None);
     println!("  2D P_max: {:.2}×", p_max_bvn_perfect);
     println!("  Expected: EXTREMELY high (near-perfect player)\n");
 

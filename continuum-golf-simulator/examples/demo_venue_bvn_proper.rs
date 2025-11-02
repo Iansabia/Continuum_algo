@@ -2,7 +2,7 @@
 //!
 //! This demo properly integrates BVN mode by:
 //! - Generating 2D (x,y) shot coordinates for BVN players
-//! - Using calculate_p_max_bvn() with learned 4D state
+//! - Using calculate_p_max_bvn(, None) with learned 4D state
 //! - Storing 2D coordinates in shot outcomes
 //! - Comparing actual 1D vs 2D simulation modes
 //!
@@ -221,7 +221,7 @@ fn run_venue_2d_mode(
 
             // Calculate 2D P_max using current learned BVN state
             let p_max = if let Some((mu_x, mu_y, sigma_x, sigma_y)) = player.get_bvn_state(hole.category) {
-                player.calculate_p_max_bvn(hole, mu_x, mu_y, sigma_x, sigma_y)
+                player.calculate_p_max_bvn(hole, mu_x, mu_y, sigma_x, sigma_y, 0.0, None)
             } else {
                 // Fallback (shouldn't happen)
                 player.calculate_p_max(hole)

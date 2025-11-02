@@ -39,6 +39,7 @@ fn test_sandbagging_attack() {
         }),
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
 
     let sandbagging_result = run_session(&mut player, sandbagging_config);
@@ -61,6 +62,7 @@ fn test_sandbagging_attack() {
         developer_mode: None, // Real shots now
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
 
     let exploit_result = run_session(&mut player, exploit_config);
@@ -136,6 +138,7 @@ fn test_gradual_skill_manipulation() {
             developer_mode,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
+        shot_generation_mode: None,
         };
 
         run_session(&mut player, config);
@@ -194,6 +197,7 @@ fn test_sudden_skill_jump_detection() {
         }),
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
 
     let baseline_result = run_session(&mut player, baseline_config);
@@ -214,6 +218,7 @@ fn test_sudden_skill_jump_detection() {
         developer_mode: None, // Real shots from skilled player
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
 
     let cheat_result = run_session(&mut player, cheat_config);
@@ -297,6 +302,7 @@ fn test_bet_timing_exploitation() {
             developer_mode,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
+        shot_generation_mode: None,
         };
 
         let result = run_session(&mut player, config);
@@ -373,6 +379,7 @@ fn test_multi_account_collusion() {
             }),
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
+        shot_generation_mode: None,
         };
 
         let result = run_session(&mut accounts[idx], config);
@@ -438,6 +445,7 @@ fn test_session_interruption_exploitation() {
             developer_mode,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
+        shot_generation_mode: None,
         };
 
         let result = run_session(&mut player, config);
@@ -498,6 +506,7 @@ fn test_maximum_exploitation_attempt() {
             }),
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
+        shot_generation_mode: None,
         };
         run_session(&mut player, config);
     }
@@ -530,6 +539,7 @@ fn test_maximum_exploitation_attempt() {
             developer_mode,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
+        shot_generation_mode: None,
         };
 
         let result = run_session(&mut player, config);

@@ -33,6 +33,7 @@ fn test_rtp_validation_10k_shots() {
                 developer_mode: None,
                 fat_tail_prob: 0.02,
                 fat_tail_mult: 3.0,
+        shot_generation_mode: None,
             };
 
             let result = run_session(&mut player, config);
@@ -85,6 +86,7 @@ fn test_kalman_convergence_50_shots() {
         developer_mode: None,
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
 
     let result = run_session(&mut player, config);
@@ -139,6 +141,7 @@ fn test_fairness_equal_ev() {
         developer_mode: None,
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
     let result_low = run_session(&mut player_low, config_low);
     let ev_low = result_low.net_gain_loss / (NUM_SHOTS as f64);
@@ -157,6 +160,7 @@ fn test_fairness_equal_ev() {
         developer_mode: None,
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
     let result_high = run_session(&mut player_high, config_high);
     let ev_high = result_high.net_gain_loss / (NUM_SHOTS as f64);
@@ -315,6 +319,7 @@ fn test_high_stakes_update_logic() {
         developer_mode: None,
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
 
     let initial_result = run_session(&mut player, normal_config);
@@ -332,6 +337,7 @@ fn test_high_stakes_update_logic() {
         developer_mode: None,
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
 
     let high_stakes_result = run_session(&mut player, high_stakes_config);
@@ -388,6 +394,7 @@ fn test_breakeven_radius() {
         }),
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
 
     let result = run_session(&mut player, config);
@@ -426,6 +433,7 @@ fn test_fat_tail_impact() {
         developer_mode: None,
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
 
     let result = run_session(&mut player, config);

@@ -169,26 +169,35 @@ pub fn rayleigh_variance(sigma: f64) -> f64 {
 /// * `mu_y` - Mean distance position (feet, positive = long, negative = short)
 /// * `sigma_x` - Standard deviation in lateral direction (feet)
 /// * `sigma_y` - Standard deviation in distance direction (feet)
+/// * `rho` - Correlation coefficient between x and y (-1 ≤ ρ ≤ 1)
 ///
 /// # Returns
 /// A random (x, y) coordinate pair in feet from pin
 ///
 /// # Formula
-/// (x, y) ~ BVN(μ_x, μ_y, σ_x, σ_y) with independent components:
-/// - x ~ N(μ_x, σ_x²)
-/// - y ~ N(μ_y, σ_y²)
+/// (x, y) ~ BVN(μ_x, μ_y, σ_x, σ_y, ρ)
+/// - When ρ = 0: x and y are independent
+/// - When ρ > 0: positive correlation (diagonal patterns)
+/// - When ρ < 0: negative correlation (anti-diagonal patterns)
+///
+/// Uses Cholesky decomposition for correlated sampling:
+/// - Generate independent Z₀, Z₁ ~ N(0,1)
+/// - Transform: X = μ_x + σ_x × Z₀
+/// - Transform: Y = μ_y + σ_y × (ρ × Z₀ + √(1-ρ²) × Z₁)
 ///
 /// # Example
 /// ```
 /// use continuum_golf_simulator::math::distributions::bvn_random;
 ///
-/// // Player with 3 ft right bias, no distance bias
-/// // Lateral precision: 10 ft, Distance precision: 8 ft
-/// let (x, y) = bvn_random(3.0, 0.0, 10.0, 8.0);
+/// // Player with diagonal miss pattern (positive correlation)
+/// let (x, y) = bvn_random(0.0, 0.0, 10.0, 8.0, 0.7);
+///
+/// // Player with uncorrelated misses
+/// let (x, y) = bvn_random(3.0, 0.0, 10.0, 8.0, 0.0);
 ///
 /// println!("Shot landed at ({:.1}, {:.1}) ft from pin", x, y);
 /// ```
-pub fn bvn_random(mu_x: f64, mu_y: f64, sigma_x: f64, sigma_y: f64) -> (f64, f64) {
+pub fn bvn_random(mu_x: f64, mu_y: f64, sigma_x: f64, sigma_y: f64, rho: f64) -> (f64, f64) {
     let mut rng = rand::thread_rng();
 
     // Box-Muller transform for two independent N(0,1) samples
@@ -198,9 +207,11 @@ pub fn bvn_random(mu_x: f64, mu_y: f64, sigma_x: f64, sigma_y: f64) -> (f64, f64
     let z0 = (-2.0 * u1.ln()).sqrt() * (2.0 * PI * u2).cos();
     let z1 = (-2.0 * u1.ln()).sqrt() * (2.0 * PI * u2).sin();
 
-    // Scale by standard deviations and shift by means
+    // Cholesky decomposition for correlated sampling
+    // Covariance matrix: [[σ_x², ρσ_xσ_y], [ρσ_xσ_y, σ_y²]]
+    // Cholesky factor L: [[σ_x, 0], [ρσ_y, σ_y√(1-ρ²)]]
     let x = mu_x + sigma_x * z0;
-    let y = mu_y + sigma_y * z1;
+    let y = mu_y + sigma_y * (rho * z0 + (1.0 - rho * rho).sqrt() * z1);
 
     (x, y)
 }
@@ -217,35 +228,48 @@ pub fn bvn_random(mu_x: f64, mu_y: f64, sigma_x: f64, sigma_y: f64) -> (f64, f64
 /// * `mu_y` - Mean distance position
 /// * `sigma_x` - Lateral standard deviation
 /// * `sigma_y` - Distance standard deviation
+/// * `rho` - Correlation coefficient between x and y (-1 ≤ ρ ≤ 1)
 ///
 /// # Returns
 /// Probability density at point (x, y)
 ///
 /// # Formula
-/// f(x,y) = (1 / (2π σ_x σ_y)) × exp(-0.5 × [(x-μ_x)²/σ_x² + (y-μ_y)²/σ_y²])
+/// f(x,y) = 1/(2πσ_xσ_y√(1-ρ²)) × exp(-z/(2(1-ρ²)))
+/// where z = (x-μ_x)²/σ_x² - 2ρ(x-μ_x)(y-μ_y)/(σ_xσ_y) + (y-μ_y)²/σ_y²
 ///
 /// # Example
 /// ```
 /// use continuum_golf_simulator::math::distributions::bvn_pdf;
 ///
-/// // Probability density at pin (0,0) for unbiased player
-/// let prob = bvn_pdf(0.0, 0.0, 0.0, 0.0, 10.0, 8.0);
+/// // Probability density at pin (0,0) for player with diagonal pattern
+/// let prob = bvn_pdf(0.0, 0.0, 0.0, 0.0, 10.0, 8.0, 0.7);
 /// assert!(prob > 0.0);
+///
+/// // Uncorrelated case (ρ = 0)
+/// let prob_uncorr = bvn_pdf(0.0, 0.0, 0.0, 0.0, 10.0, 8.0, 0.0);
+/// assert!(prob_uncorr > 0.0);
 /// ```
-pub fn bvn_pdf(x: f64, y: f64, mu_x: f64, mu_y: f64, sigma_x: f64, sigma_y: f64) -> f64 {
+pub fn bvn_pdf(x: f64, y: f64, mu_x: f64, mu_y: f64, sigma_x: f64, sigma_y: f64, rho: f64) -> f64 {
     if sigma_x <= 0.0 || sigma_y <= 0.0 {
         return 0.0;
     }
+
+    // Clamp rho to valid range to prevent numerical issues
+    let rho = rho.clamp(-0.9999, 0.9999);
 
     // Standardized deviations
     let dx = (x - mu_x) / sigma_x;
     let dy = (y - mu_y) / sigma_y;
 
-    // Exponent term
-    let exp_term = (-0.5 * (dx * dx + dy * dy)).exp();
+    // Quadratic form with correlation term
+    let z = dx * dx - 2.0 * rho * dx * dy + dy * dy;
 
-    // Normalization constant
-    let norm = 1.0 / (2.0 * PI * sigma_x * sigma_y);
+    // Compute exponent with correlation adjustment
+    let rho_sq = rho * rho;
+    let exp_term = (-z / (2.0 * (1.0 - rho_sq))).exp();
+
+    // Normalization constant includes correlation factor
+    let norm = 1.0 / (2.0 * PI * sigma_x * sigma_y * (1.0 - rho_sq).sqrt());
 
     norm * exp_term
 }
@@ -260,6 +284,7 @@ pub fn bvn_pdf(x: f64, y: f64, mu_x: f64, mu_y: f64, sigma_x: f64, sigma_y: f64)
 /// * `mu_y` - Mean distance position
 /// * `sigma_x` - Base lateral standard deviation
 /// * `sigma_y` - Base distance standard deviation
+/// * `rho` - Correlation coefficient
 /// * `fat_tail_prob` - Probability of extreme mishit (default: 0.02)
 /// * `fat_tail_mult` - Multiplier for dispersions (default: 3.0)
 ///
@@ -270,7 +295,7 @@ pub fn bvn_pdf(x: f64, y: f64, mu_x: f64, mu_y: f64, sigma_x: f64, sigma_y: f64)
 /// ```
 /// use continuum_golf_simulator::math::distributions::fat_tail_shot_bvn;
 ///
-/// let ((x, y), is_extreme) = fat_tail_shot_bvn(0.0, 0.0, 10.0, 8.0, 0.02, 3.0);
+/// let ((x, y), is_extreme) = fat_tail_shot_bvn(0.0, 0.0, 10.0, 8.0, 0.7, 0.02, 3.0);
 /// if is_extreme {
 ///     println!("Extreme mishit at ({:.1}, {:.1})!", x, y);
 /// }
@@ -280,6 +305,7 @@ pub fn fat_tail_shot_bvn(
     mu_y: f64,
     sigma_x: f64,
     sigma_y: f64,
+    rho: f64,
     fat_tail_prob: f64,
     fat_tail_mult: f64,
 ) -> ((f64, f64), bool) {
@@ -287,12 +313,12 @@ pub fn fat_tail_shot_bvn(
     let roll: f64 = rng.gen();
 
     if roll < fat_tail_prob {
-        // Fat-tail event: multiply both sigmas
-        let (x, y) = bvn_random(mu_x, mu_y, sigma_x * fat_tail_mult, sigma_y * fat_tail_mult);
+        // Fat-tail event: multiply both sigmas (correlation preserved)
+        let (x, y) = bvn_random(mu_x, mu_y, sigma_x * fat_tail_mult, sigma_y * fat_tail_mult, rho);
         ((x, y), true)
     } else {
         // Normal shot
-        let (x, y) = bvn_random(mu_x, mu_y, sigma_x, sigma_y);
+        let (x, y) = bvn_random(mu_x, mu_y, sigma_x, sigma_y, rho);
         ((x, y), false)
     }
 }
@@ -311,23 +337,32 @@ pub fn bvn_mean(mu_x: f64, mu_y: f64) -> (f64, f64) {
 
 /// Get the covariance matrix of a Bivariate Normal distribution
 ///
-/// For independent x and y components (no correlation), the covariance
-/// matrix is diagonal.
+/// Constructs the full 2×2 covariance matrix including correlation.
 ///
 /// # Arguments
 /// * `sigma_x` - Lateral standard deviation
 /// * `sigma_y` - Distance standard deviation
+/// * `rho` - Correlation coefficient between x and y
 ///
 /// # Returns
-/// 2×2 covariance matrix [[σ_x², 0], [0, σ_y²]]
+/// 2×2 covariance matrix [[σ_x², ρσ_xσ_y], [ρσ_xσ_y, σ_y²]]
 ///
-/// # Note
-/// This assumes independence (ρ = 0). Future versions may add correlation.
-pub fn bvn_covariance(sigma_x: f64, sigma_y: f64) -> [[f64; 2]; 2] {
+/// # Example
+/// ```
+/// use continuum_golf_simulator::math::distributions::bvn_covariance;
+///
+/// // Positively correlated (diagonal pattern)
+/// let cov_diag = bvn_covariance(10.0, 8.0, 0.7);
+///
+/// // Uncorrelated (circular/elliptical pattern)
+/// let cov_uncorr = bvn_covariance(10.0, 8.0, 0.0);
+/// ```
+pub fn bvn_covariance(sigma_x: f64, sigma_y: f64, rho: f64) -> [[f64; 2]; 2] {
     let var_x = sigma_x * sigma_x;
     let var_y = sigma_y * sigma_y;
+    let cov_xy = rho * sigma_x * sigma_y;
 
-    [[var_x, 0.0], [0.0, var_y]]
+    [[var_x, cov_xy], [cov_xy, var_y]]
 }
 
 // ============================================================================
@@ -528,9 +563,10 @@ mod tests {
         let mu_y = -2.0; // 2 ft short bias
         let sigma_x = 10.0;
         let sigma_y = 8.0;
+        let rho = 0.0; // No correlation
 
         let samples: Vec<(f64, f64)> = (0..10000)
-            .map(|_| bvn_random(mu_x, mu_y, sigma_x, sigma_y))
+            .map(|_| bvn_random(mu_x, mu_y, sigma_x, sigma_y, rho))
             .collect();
 
         let mean_x = samples.iter().map(|(x, _)| x).sum::<f64>() / samples.len() as f64;
@@ -547,9 +583,10 @@ mod tests {
         let mu_y = 0.0;
         let sigma_x = 10.0;
         let sigma_y = 8.0;
+        let rho = 0.0; // No correlation
 
         let samples: Vec<(f64, f64)> = (0..10000)
-            .map(|_| bvn_random(mu_x, mu_y, sigma_x, sigma_y))
+            .map(|_| bvn_random(mu_x, mu_y, sigma_x, sigma_y, rho))
             .collect();
 
         let mean_x = samples.iter().map(|(x, _)| x).sum::<f64>() / samples.len() as f64;
@@ -577,10 +614,11 @@ mod tests {
         // the radial distance sqrt(x² + y²) should follow Rayleigh(σ)
 
         let sigma = 30.0;
+        let rho = 0.0; // No correlation
 
         // Generate BVN samples with no bias and equal dispersions
         let bvn_samples: Vec<(f64, f64)> = (0..10000)
-            .map(|_| bvn_random(0.0, 0.0, sigma, sigma))
+            .map(|_| bvn_random(0.0, 0.0, sigma, sigma, rho))
             .collect();
 
         // Convert to radial distances
@@ -609,28 +647,30 @@ mod tests {
         let mu_y = 0.0;
         let sigma_x = 10.0;
         let sigma_y = 8.0;
+        let rho = 0.0; // No correlation
 
         // PDF should be maximum at the mean
-        let pdf_at_mean = bvn_pdf(mu_x, mu_y, mu_x, mu_y, sigma_x, sigma_y);
-        let pdf_away = bvn_pdf(mu_x + 5.0, mu_y + 5.0, mu_x, mu_y, sigma_x, sigma_y);
+        let pdf_at_mean = bvn_pdf(mu_x, mu_y, mu_x, mu_y, sigma_x, sigma_y, rho);
+        let pdf_away = bvn_pdf(mu_x + 5.0, mu_y + 5.0, mu_x, mu_y, sigma_x, sigma_y, rho);
 
         assert!(pdf_at_mean > pdf_away);
 
         // PDF should be positive everywhere
-        assert!(bvn_pdf(0.0, 0.0, mu_x, mu_y, sigma_x, sigma_y) > 0.0);
-        assert!(bvn_pdf(10.0, 10.0, mu_x, mu_y, sigma_x, sigma_y) > 0.0);
+        assert!(bvn_pdf(0.0, 0.0, mu_x, mu_y, sigma_x, sigma_y, rho) > 0.0);
+        assert!(bvn_pdf(10.0, 10.0, mu_x, mu_y, sigma_x, sigma_y, rho) > 0.0);
 
         // PDF should be 0 for invalid sigmas
-        assert_eq!(bvn_pdf(0.0, 0.0, mu_x, mu_y, 0.0, sigma_y), 0.0);
-        assert_eq!(bvn_pdf(0.0, 0.0, mu_x, mu_y, sigma_x, -1.0), 0.0);
+        assert_eq!(bvn_pdf(0.0, 0.0, mu_x, mu_y, 0.0, sigma_y, rho), 0.0);
+        assert_eq!(bvn_pdf(0.0, 0.0, mu_x, mu_y, sigma_x, -1.0, rho), 0.0);
     }
 
     #[test]
     fn test_bvn_fat_tail_frequency() {
         // Test that fat-tail events occur at approximately the specified rate
         let trials = 10000;
+        let rho = 0.0; // No correlation
         let fat_tail_count = (0..trials)
-            .map(|_| fat_tail_shot_bvn(0.0, 0.0, 10.0, 8.0, 0.02, 3.0))
+            .map(|_| fat_tail_shot_bvn(0.0, 0.0, 10.0, 8.0, rho, 0.02, 3.0))
             .filter(|(_, is_fat)| *is_fat)
             .count();
 
@@ -645,12 +685,86 @@ mod tests {
         assert_eq!(mean_x, 3.0);
         assert_eq!(mean_y, -2.0);
 
-        // Test covariance function
-        let cov = bvn_covariance(10.0, 8.0);
+        // Test covariance function with no correlation
+        let cov = bvn_covariance(10.0, 8.0, 0.0);
         assert_eq!(cov[0][0], 100.0); // σ_x² = 10² = 100
         assert_eq!(cov[1][1], 64.0); // σ_y² = 8² = 64
         assert_eq!(cov[0][1], 0.0); // No correlation
         assert_eq!(cov[1][0], 0.0); // No correlation
+
+        // Test covariance function with positive correlation
+        let cov_pos = bvn_covariance(10.0, 8.0, 0.5);
+        assert_eq!(cov_pos[0][0], 100.0); // σ_x² = 10² = 100
+        assert_eq!(cov_pos[1][1], 64.0); // σ_y² = 8² = 64
+        assert_eq!(cov_pos[0][1], 40.0); // ρσ_xσ_y = 0.5 × 10 × 8 = 40
+        assert_eq!(cov_pos[1][0], 40.0); // Symmetric
+    }
+
+    #[test]
+    fn test_bvn_correlation() {
+        // Test that bvn_random produces samples with correct correlation
+        let mu_x = 0.0;
+        let mu_y = 0.0;
+        let sigma_x = 10.0;
+        let sigma_y = 10.0;
+        let rho = 0.8; // Strong positive correlation
+
+        let samples: Vec<(f64, f64)> = (0..10000)
+            .map(|_| bvn_random(mu_x, mu_y, sigma_x, sigma_y, rho))
+            .collect();
+
+        let mean_x = samples.iter().map(|(x, _)| x).sum::<f64>() / samples.len() as f64;
+        let mean_y = samples.iter().map(|(_, y)| y).sum::<f64>() / samples.len() as f64;
+
+        // Compute sample covariance
+        let cov_xy: f64 = samples
+            .iter()
+            .map(|(x, y)| (x - mean_x) * (y - mean_y))
+            .sum::<f64>()
+            / samples.len() as f64;
+
+        // Compute sample standard deviations
+        let var_x: f64 = samples
+            .iter()
+            .map(|(x, _)| (x - mean_x).powi(2))
+            .sum::<f64>()
+            / samples.len() as f64;
+        let var_y: f64 = samples
+            .iter()
+            .map(|(_, y)| (y - mean_y).powi(2))
+            .sum::<f64>()
+            / samples.len() as f64;
+
+        let sample_sigma_x = var_x.sqrt();
+        let sample_sigma_y = var_y.sqrt();
+
+        // Compute sample correlation
+        let sample_rho = cov_xy / (sample_sigma_x * sample_sigma_y);
+
+        // Sample correlation should be close to 0.8
+        assert_relative_eq!(sample_rho, rho, epsilon = 0.05);
+    }
+
+    #[test]
+    fn test_bvn_pdf_with_correlation() {
+        // Test that PDF with correlation is correctly computed
+        let mu_x = 0.0;
+        let mu_y = 0.0;
+        let sigma_x = 10.0;
+        let sigma_y = 10.0;
+
+        // At the mean, PDF with any correlation should be higher than PDF away from mean
+        let pdf_at_mean_corr = bvn_pdf(mu_x, mu_y, mu_x, mu_y, sigma_x, sigma_y, 0.7);
+        let pdf_away_corr = bvn_pdf(5.0, 5.0, mu_x, mu_y, sigma_x, sigma_y, 0.7);
+
+        assert!(pdf_at_mean_corr > pdf_away_corr);
+
+        // For a positively correlated distribution, points along the diagonal (x ≈ y)
+        // should have higher probability than points off the diagonal
+        let pdf_diagonal = bvn_pdf(5.0, 5.0, mu_x, mu_y, sigma_x, sigma_y, 0.8);
+        let pdf_off_diagonal = bvn_pdf(5.0, -5.0, mu_x, mu_y, sigma_x, sigma_y, 0.8);
+
+        assert!(pdf_diagonal > pdf_off_diagonal);
     }
 
     // ========================================================================

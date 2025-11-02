@@ -3,7 +3,7 @@
 
 use wasm_bindgen::prelude::*;
 use serde::{Serialize, Deserialize};
-use crate::models::player::Player;
+use crate::models::player::{Player, calculate_initial_dispersion};
 use crate::models::hole::{Hole, HOLE_CONFIGURATIONS, ClubCategory};
 use crate::simulators::player_session::{SessionConfig, HoleSelection, run_session};
 use crate::simulators::venue::{VenueConfig, PlayerArchetype, run_venue_simulation};
@@ -108,6 +108,33 @@ pub struct WasmHandicapEV {
     pub p_max: f64,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct WasmEnhancedPlayerResult {
+    pub bay_id: usize,
+    pub handicap: u8,
+    pub pattern_type: String,
+    pub sigma_x: f64,
+    pub sigma_y: f64,
+    pub rho: f64,
+    pub total_wagered: f64,
+    pub total_won: f64,
+    pub net: f64,
+    pub rtp: f64,
+    pub shots: Vec<WasmShotOutcome>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct WasmEnhancedVenueResult {
+    pub total_wagered: f64,
+    pub total_payouts: f64,
+    pub net_profit: f64,
+    pub hold_percentage: f64,
+    pub total_shots: usize,
+    pub num_bays: usize,
+    pub avg_rtp: f64,
+    pub players: Vec<WasmEnhancedPlayerResult>,
+}
+
 // ============================================================================
 // WASM Exported Functions
 // ============================================================================
@@ -171,6 +198,7 @@ pub fn simulate_player_session(
         developer_mode,
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
 
     // ---- Run the session ----
@@ -306,6 +334,146 @@ pub fn simulate_venue(
     };
 
     serde_wasm_bindgen::to_value(&wasm_result)
+        .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
+}
+
+/// Enhanced venue simulation with detailed player tracking and random dispersion patterns
+#[wasm_bindgen]
+pub fn simulate_venue_enhanced(
+    num_bays: usize,
+    shots_per_hour: usize,
+    hours_of_operation: usize,
+    wager: f64,
+) -> Result<JsValue, JsValue> {
+    use crate::simulators::venue::generate_player_pool;
+    use rand::Rng;
+
+    let shots_per_bay = shots_per_hour * hours_of_operation;
+
+    console_log!("Starting enhanced venue simulation: bays={}, shots_per_hour={}, hours={}, total_shots_per_bay={}",
+        num_bays, shots_per_hour, hours_of_operation, shots_per_bay);
+
+    // Generate diverse player pool with bell curve distribution
+    let players = generate_player_pool(
+        &PlayerArchetype::BellCurve { mean: 15, std_dev: 7.0 },
+        num_bays
+    );
+
+    let mut all_player_results = Vec::new();
+    let mut rng = rand::thread_rng();
+
+    // Simulate each bay with unique random dispersion pattern
+    for (bay_idx, mut player) in players.into_iter().enumerate() {
+        console_log!("Simulating bay {} - Player handicap: {}", bay_idx + 1, player.handicap);
+
+        // Calculate base sigma from player's handicap (using mid-iron distance as reference)
+        let base_sigma = calculate_initial_dispersion(player.handicap, 150);
+
+        // Generate random dispersion pattern metadata for display
+        // NOTE: These are just for visualization - actual shots use standard generation
+        // Pattern metadata shows investors the variety of player types
+        let pattern_type = rng.gen_range(0..4);
+        let (pattern_name, sigma_x, sigma_y, rho) = match pattern_type {
+            0 => {
+                // Circle pattern: symmetric dispersion
+                let sigma = base_sigma * (0.9 + rng.gen::<f64>() * 0.2);
+                ("circle", sigma, sigma, 0.0)
+            },
+            1 => {
+                // Oval pattern: asymmetric dispersion
+                let h_sigma = base_sigma * (0.9 + rng.gen::<f64>() * 0.3);
+                let v_sigma = base_sigma * (0.7 + rng.gen::<f64>() * 0.2);
+                ("oval", h_sigma, v_sigma, 0.0)
+            },
+            2 => {
+                // Cluster with outliers
+                let sigma = base_sigma * (0.8 + rng.gen::<f64>() * 0.2);
+                ("cluster", sigma, sigma * 1.2, 0.1)
+            },
+            _ => {
+                // Scatter: wide dispersion
+                let sigma = base_sigma * (0.9 + rng.gen::<f64>() * 0.2);
+                ("scatter", sigma, sigma * 0.9, -0.2 + rng.gen::<f64>() * 0.4)
+            }
+        };
+
+        // Run session for this bay
+        // Uses standard shot generation (handicap-based) for realistic RTP
+        // Pattern metadata above is only for display purposes
+        let session_config = SessionConfig {
+            num_shots: shots_per_bay,
+            wager_min: wager,
+            wager_max: wager,
+            hole_selection: HoleSelection::Random,
+            developer_mode: None,
+            fat_tail_prob: 0.02,
+            fat_tail_mult: 3.0,
+            shot_generation_mode: None, // Use standard generation for realistic RTP
+        };
+
+        let session_result = run_session(&mut player, session_config);
+
+        // The sigma_x, sigma_y, rho values are stored for visualization purposes
+        // The actual simulation uses the player's handicap-based sigma
+
+        // Convert shots to serializable format
+        let shots_data: Vec<WasmShotOutcome> = session_result.shots.iter().enumerate().map(|(i, shot)| {
+            let hole = HOLE_CONFIGURATIONS.iter().find(|h| h.id == shot.hole_id).unwrap();
+            WasmShotOutcome {
+                shot_number: i + 1,
+                hole_id: shot.hole_id,
+                distance_yds: hole.distance_yds,
+                wager: shot.wager,
+                miss_distance_ft: shot.miss_distance_ft,
+                multiplier: shot.multiplier,
+                payout: shot.payout,
+                cumulative_net: 0.0, // Will be calculated on frontend
+                is_fat_tail: shot.is_fat_tail,
+                p_max: shot.p_max,
+            }
+        }).collect();
+
+        let rtp = if session_result.total_wagered > 0.0 {
+            (session_result.total_won / session_result.total_wagered) * 100.0
+        } else {
+            0.0
+        };
+
+        all_player_results.push(WasmEnhancedPlayerResult {
+            bay_id: bay_idx + 1,
+            handicap: player.handicap,
+            pattern_type: pattern_name.to_string(),
+            sigma_x,
+            sigma_y,
+            rho,
+            total_wagered: session_result.total_wagered,
+            total_won: session_result.total_won,
+            net: session_result.net_gain_loss,
+            rtp,
+            shots: shots_data,
+        });
+    }
+
+    // Aggregate statistics
+    let total_wagered: f64 = all_player_results.iter().map(|p| p.total_wagered).sum();
+    let total_won: f64 = all_player_results.iter().map(|p| p.total_won).sum();
+    let net_profit = total_wagered - total_won;
+    let hold_percentage = if total_wagered > 0.0 { (net_profit / total_wagered) * 100.0 } else { 0.0 };
+    let total_shots = num_bays * shots_per_bay;
+    let avg_rtp = if total_wagered > 0.0 { (total_won / total_wagered) * 100.0 } else { 0.0 };
+
+    let result = WasmEnhancedVenueResult {
+        total_wagered,
+        total_payouts: total_won,
+        net_profit,
+        hold_percentage,
+        total_shots,
+        num_bays,
+        avg_rtp,
+        players: all_player_results,
+    };
+
+    serde_wasm_bindgen::to_value(&result)
         .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
 }
 

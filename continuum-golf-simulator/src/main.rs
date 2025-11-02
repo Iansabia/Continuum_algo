@@ -284,6 +284,7 @@ fn run_player_command(
         developer_mode: None,
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
 
     // Run simulation with progress bar
@@ -651,6 +652,7 @@ fn run_convergence_validation(verbose: bool) {
         developer_mode: None,
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
+        shot_generation_mode: None,
     };
 
     let result = run_session(&mut player, config);

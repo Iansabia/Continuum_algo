@@ -281,6 +281,7 @@ mod tests {
             developer_mode: None,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
+            shot_generation_mode: None,
         };
         let result = run_session(&mut player, config);
         
@@ -356,6 +357,7 @@ mod tests {
             developer_mode: None,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
+            shot_generation_mode: None,
         };
         let _result = run_session(&mut player, config);
         
@@ -405,6 +407,7 @@ mod tests {
             developer_mode: None,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
+            shot_generation_mode: None,
         };
         let result = run_session(&mut player, config);
         
