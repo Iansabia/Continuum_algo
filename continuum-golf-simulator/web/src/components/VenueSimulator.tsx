@@ -401,6 +401,98 @@ export default function VenueSimulator() {
                 </div>
               </div>
             )}
+
+            {/* Pattern Visualization */}
+            {selectedPlayer && selectedPlayer.boundary_points && (
+              <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-xl p-3 border border-[var(--brand-tan)]/20">
+                <h3 className="text-sm font-semibold text-[var(--brand-tan)] mb-2">
+                  Shot Pattern
+                </h3>
+                <div className="flex justify-center">
+                  <canvas
+                    ref={(canvas) => {
+                      if (canvas && selectedPlayer.boundary_points) {
+                        const ctx = canvas.getContext('2d');
+                        if (!ctx) return;
+
+                        const width = 200;
+                        const height = 200;
+                        canvas.width = width;
+                        canvas.height = height;
+
+                        // Clear canvas
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                        ctx.fillRect(0, 0, width, height);
+
+                        // Find bounds
+                        const points = selectedPlayer.boundary_points;
+                        const xs = points.map(p => p[0]);
+                        const ys = points.map(p => p[1]);
+                        const minX = Math.min(...xs);
+                        const maxX = Math.max(...xs);
+                        const minY = Math.min(...ys);
+                        const maxY = Math.max(...ys);
+
+                        // Add padding
+                        const padding = 20;
+                        const rangeX = maxX - minX;
+                        const rangeY = maxY - minY;
+                        const maxRange = Math.max(rangeX, rangeY);
+                        const scale = (width - 2 * padding) / maxRange;
+
+                        // Center the pattern
+                        const centerX = width / 2;
+                        const centerY = height / 2;
+                        const patternCenterX = (minX + maxX) / 2;
+                        const patternCenterY = (minY + maxY) / 2;
+
+                        // Draw target (hole)
+                        ctx.fillStyle = 'var(--brand-tan)';
+                        ctx.beginPath();
+                        ctx.arc(centerX, centerY, 3, 0, 2 * Math.PI);
+                        ctx.fill();
+
+                        // Draw pattern boundary
+                        ctx.strokeStyle = 'var(--brand-bright-purple)';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        points.forEach((point, i) => {
+                          const x = centerX + (point[0] - patternCenterX) * scale;
+                          const y = centerY - (point[1] - patternCenterY) * scale; // Flip Y
+                          if (i === 0) {
+                            ctx.moveTo(x, y);
+                          } else {
+                            ctx.lineTo(x, y);
+                          }
+                        });
+                        ctx.closePath();
+                        ctx.stroke();
+
+                        // Fill pattern with semi-transparent color
+                        ctx.fillStyle = 'rgba(156, 108, 210, 0.2)';
+                        ctx.fill();
+
+                        // Draw axes
+                        ctx.strokeStyle = 'var(--brand-lavender)';
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([2, 2]);
+                        ctx.beginPath();
+                        ctx.moveTo(centerX, 0);
+                        ctx.lineTo(centerX, height);
+                        ctx.moveTo(0, centerY);
+                        ctx.lineTo(width, centerY);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                      }
+                    }}
+                    className="border border-[var(--brand-lavender)]/30 rounded-lg"
+                  />
+                </div>
+                <div className="text-xs text-[var(--brand-lavender)] text-center mt-2">
+                  Organic pattern boundary (100 points)
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Right Column - Shot Distribution & RTP Over Time */}
