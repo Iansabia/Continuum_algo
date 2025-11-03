@@ -5,3 +5,4 @@ pub mod distributions;
 pub mod integration;
 pub mod kalman;
 pub mod mcmc;
+pub mod organic_patterns;

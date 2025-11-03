@@ -116,6 +116,7 @@ pub struct WasmEnhancedPlayerResult {
     pub sigma_x: f64,
     pub sigma_y: f64,
     pub rho: f64,
+    pub boundary_points: Option<Vec<(f64, f64)>>,  // Organic pattern boundary for visualization
     pub total_wagered: f64,
     pub total_won: f64,
     pub net: f64,
@@ -346,7 +347,6 @@ pub fn simulate_venue_enhanced(
     wager: f64,
 ) -> Result<JsValue, JsValue> {
     use crate::simulators::venue::generate_player_pool;
-    use rand::Rng;
 
     let shots_per_bay = shots_per_hour * hours_of_operation;
 
@@ -369,37 +369,26 @@ pub fn simulate_venue_enhanced(
         // Calculate base sigma from player's handicap (using mid-iron distance as reference)
         let base_sigma = calculate_initial_dispersion(player.handicap, 150);
 
-        // Generate random dispersion pattern metadata for display
-        // NOTE: These are just for visualization - actual shots use standard generation
-        // Pattern metadata shows investors the variety of player types
-        let pattern_type = rng.gen_range(0..4);
-        let (pattern_name, sigma_x, sigma_y, rho) = match pattern_type {
-            0 => {
-                // Circle pattern: symmetric dispersion
-                let sigma = base_sigma * (0.9 + rng.gen::<f64>() * 0.2);
-                ("circle", sigma, sigma, 0.0)
-            },
-            1 => {
-                // Oval pattern: asymmetric dispersion
-                let h_sigma = base_sigma * (0.9 + rng.gen::<f64>() * 0.3);
-                let v_sigma = base_sigma * (0.7 + rng.gen::<f64>() * 0.2);
-                ("oval", h_sigma, v_sigma, 0.0)
-            },
-            2 => {
-                // Cluster with outliers
-                let sigma = base_sigma * (0.8 + rng.gen::<f64>() * 0.2);
-                ("cluster", sigma, sigma * 1.2, 0.1)
-            },
-            _ => {
-                // Scatter: wide dispersion
-                let sigma = base_sigma * (0.9 + rng.gen::<f64>() * 0.2);
-                ("scatter", sigma, sigma * 0.9, -0.2 + rng.gen::<f64>() * 0.4)
-            }
-        };
+        // Generate random organic pattern for this player
+        // Pattern size is based on handicap, but actual shape is randomized
+        use crate::math::organic_patterns::OrganicPatternGenerator;
+        use crate::simulators::player_session::ShotGenerationMode;
 
-        // Run session for this bay
-        // Uses standard shot generation (handicap-based) for realistic RTP
-        // Pattern metadata above is only for display purposes
+        let pattern_generator = OrganicPatternGenerator::create_random(&mut rng, base_sigma);
+        let organic_pattern = pattern_generator.generate();
+        let bvn_params = organic_pattern.to_bvn_parameters();
+
+        console_log!("Bay {} pattern: σ_x={:.1}, σ_y={:.1}, ρ={:.3}",
+            bay_idx + 1, bvn_params.sigma_x, bvn_params.sigma_y, bvn_params.rho);
+
+        // Store pattern metadata for display
+        let pattern_name = "organic";
+        let sigma_x = bvn_params.sigma_x;
+        let sigma_y = bvn_params.sigma_y;
+        let rho = bvn_params.rho;
+
+        // Run session for this bay with organic pattern generation
+        // Pattern size determines effective skill (not stated handicap)
         let session_config = SessionConfig {
             num_shots: shots_per_bay,
             wager_min: wager,
@@ -408,7 +397,10 @@ pub fn simulate_venue_enhanced(
             developer_mode: None,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
-            shot_generation_mode: None, // Use standard generation for realistic RTP
+            shot_generation_mode: Some(ShotGenerationMode::OrganicPattern {
+                pattern: organic_pattern.clone(),
+                bvn_params,
+            }),
         };
 
         let session_result = run_session(&mut player, session_config);
@@ -446,6 +438,7 @@ pub fn simulate_venue_enhanced(
             sigma_x,
             sigma_y,
             rho,
+            boundary_points: Some(organic_pattern.boundary_points.clone()),
             total_wagered: session_result.total_wagered,
             total_won: session_result.total_won,
             net: session_result.net_gain_loss,

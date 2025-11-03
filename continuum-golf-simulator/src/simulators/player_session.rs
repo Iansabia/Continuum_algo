@@ -62,6 +62,16 @@ pub enum ShotGenerationMode {
         /// Correlation coefficient between x and y (-1.0 to 1.0)
         rho: f64,
     },
+
+    /// Organic pattern using randomly generated shape
+    /// Simulates realistic human-drawn dispersion patterns
+    /// Pattern size determines effective player skill (not stated handicap)
+    OrganicPattern {
+        /// Pattern metadata (for display/logging)
+        pattern: crate::math::organic_patterns::OrganicPattern,
+        /// BVN parameters extracted from pattern
+        bvn_params: crate::math::organic_patterns::BVNParameters,
+    },
 }
 
 impl Default for ShotGenerationMode {
@@ -432,6 +442,24 @@ fn generate_miss_distance(
             // BivariateNormal is used for tracking pattern metadata
             // Fall back to standard generation with current sigma
             simulate_shot(sigma, config.fat_tail_prob, config.fat_tail_mult)
+        }
+        Some(ShotGenerationMode::OrganicPattern { pattern: _pattern, bvn_params }) => {
+            // Use organic pattern's BVN parameters for shot generation
+            use crate::math::distributions::fat_tail_shot_bvn;
+
+            let ((x, y), is_fat_tail) = fat_tail_shot_bvn(
+                bvn_params.mu_x,
+                bvn_params.mu_y,
+                bvn_params.sigma_x,
+                bvn_params.sigma_y,
+                bvn_params.rho,
+                config.fat_tail_prob,
+                config.fat_tail_mult,
+            );
+
+            // Convert 2D shot to radial distance for legacy compatibility
+            let miss_distance = (x * x + y * y).sqrt();
+            (miss_distance, is_fat_tail)
         }
         None => {
             // Backwards compatibility: use legacy fat_tail_prob/mult fields
