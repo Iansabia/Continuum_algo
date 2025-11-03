@@ -102,52 +102,6 @@ pub fn fat_tail_shot(sigma: f64, fat_tail_prob: f64, fat_tail_mult: f64) -> (f64
 ///
 /// Used for numerical integration when calculating P_max.
 ///
-/// # Arguments
-/// * `d` - Miss distance
-/// * `sigma` - Scale parameter
-///
-/// # Returns
-/// Probability density at distance d
-///
-/// # Formula
-/// f(d | σ) = (d / σ²) * exp(-d² / 2σ²)
-pub fn rayleigh_pdf(d: f64, sigma: f64) -> f64 {
-    if d < 0.0 || sigma <= 0.0 {
-        return 0.0;
-    }
-
-    let sigma_sq = sigma * sigma;
-    (d / sigma_sq) * (-(d * d) / (2.0 * sigma_sq)).exp()
-}
-
-/// Calculate the expected value (mean) of a Rayleigh distribution
-///
-/// # Arguments
-/// * `sigma` - Scale parameter
-///
-/// # Returns
-/// Expected miss distance
-///
-/// # Formula
-/// E[d] = σ * sqrt(π/2)
-pub fn rayleigh_mean(sigma: f64) -> f64 {
-    sigma * (PI / 2.0).sqrt()
-}
-
-/// Calculate the variance of a Rayleigh distribution
-///
-/// # Arguments
-/// * `sigma` - Scale parameter
-///
-/// # Returns
-/// Variance of miss distance
-///
-/// # Formula
-/// Var[d] = σ² * (4 - π) / 2
-pub fn rayleigh_variance(sigma: f64) -> f64 {
-    sigma * sigma * (4.0 - PI) / 2.0
-}
-
 // ============================================================================
 // Bivariate Normal Distribution (BVN) Functions
 // ============================================================================

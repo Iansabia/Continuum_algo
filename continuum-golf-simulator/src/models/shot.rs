@@ -7,7 +7,7 @@
 // - Metadata for analysis
 
 use serde::{Deserialize, Serialize};
-use crate::math::distributions::{rayleigh_random, fat_tail_shot};
+// Removed unused Rayleigh imports - now using BVN for all shot generation
 
 /// Result of a single shot attempt
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -118,46 +118,6 @@ impl ShotOutcome {
     pub fn is_ace(&self) -> bool {
         self.miss_distance_ft < 0.1 // Within 1 inch
     }
-}
-
-/// Simulate a shot with optional fat-tail behavior
-///
-/// # Arguments
-/// * `sigma` - Player's skill parameter (Rayleigh σ)
-/// * `fat_tail_prob` - Probability of fat-tail event (typically 0.02 = 2%)
-/// * `fat_tail_mult` - Multiplier for fat-tail dispersion (typically 3.0)
-///
-/// # Returns
-/// Tuple of (miss_distance_ft, is_fat_tail)
-///
-/// # Example
-/// ```
-/// use continuum_golf_simulator::models::shot::simulate_shot;
-///
-/// let (miss, is_fat_tail) = simulate_shot(30.0, 0.02, 3.0);
-/// assert!(miss >= 0.0);
-/// ```
-pub fn simulate_shot(sigma: f64, fat_tail_prob: f64, fat_tail_mult: f64) -> (f64, bool) {
-    fat_tail_shot(sigma, fat_tail_prob, fat_tail_mult)
-}
-
-/// Simulate a standard shot without fat-tail behavior
-///
-/// # Arguments
-/// * `sigma` - Player's skill parameter (Rayleigh σ)
-///
-/// # Returns
-/// Miss distance in feet
-///
-/// # Example
-/// ```
-/// use continuum_golf_simulator::models::shot::simulate_standard_shot;
-///
-/// let miss = simulate_standard_shot(30.0);
-/// assert!(miss >= 0.0);
-/// ```
-pub fn simulate_standard_shot(sigma: f64) -> f64 {
-    rayleigh_random(sigma)
 }
 
 /// Shot record for batch processing

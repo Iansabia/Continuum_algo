@@ -6,7 +6,8 @@
 /// - Fairness verification (EV equality across handicaps)
 /// - Kalman filter convergence analysis
 
-use crate::models::{hole::Hole, player::Player, shot::simulate_shot};
+use crate::models::{hole::Hole, player::Player};
+use crate::math::distributions::fat_tail_shot_bvn;
 use crate::simulators::player_session::SessionResult;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -26,14 +27,16 @@ pub fn calculate_expected_value(
     let p_max = player.calculate_p_max(hole);
     
     let mut total_net = 0.0;
-    
+
     for _ in 0..trials {
-        let (miss_distance, _is_fat_tail) = simulate_shot(sigma, 0.02, 3.0);
+        // Use BVN with symmetric parameters (equivalent to radial distribution)
+        let ((x, y), _is_fat_tail) = fat_tail_shot_bvn(0.0, 0.0, sigma, sigma, 0.0, 0.02, 3.0);
+        let miss_distance = (x * x + y * y).sqrt();
         let payout = hole.calculate_payout(miss_distance, p_max);
         let net = payout - wager;
         total_net += net;
     }
-    
+
     total_net / trials as f64
 }
 
@@ -69,7 +72,9 @@ pub fn validate_rtp_across_skills(
         let wager = 10.0; // Fixed wager for testing
         
         for _ in 0..trials_per_handicap {
-            let (miss_distance, _is_fat_tail) = simulate_shot(sigma, 0.02, 3.0);
+            // Use BVN with symmetric parameters (equivalent to radial distribution)
+            let ((x, y), _is_fat_tail) = fat_tail_shot_bvn(0.0, 0.0, sigma, sigma, 0.0, 0.02, 3.0);
+            let miss_distance = (x * x + y * y).sqrt();
             let payout_multiplier = hole.calculate_payout(miss_distance, p_max);
 
             total_wagered += wager;

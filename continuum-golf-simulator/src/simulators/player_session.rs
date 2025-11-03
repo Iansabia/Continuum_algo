@@ -10,7 +10,7 @@
 use crate::models::{
     hole::{get_hole_by_id, Hole, HOLE_CONFIGURATIONS},
     player::Player,
-    shot::{simulate_shot, ShotOutcome},
+    shot::ShotOutcome,
 };
 use crate::math::custom_distributions::CustomShapeDistribution;
 use crate::anti_cheat::{detect_cherry_picking, detect_sandbagging, AnomalyReport};
@@ -429,24 +429,43 @@ fn generate_miss_distance(
     sigma: f64,
     rng: &mut impl Rng,
 ) -> (f64, bool) {
+    use crate::math::distributions::fat_tail_shot_bvn;
+
     match &config.shot_generation_mode {
         Some(ShotGenerationMode::Standard { fat_tail_prob, fat_tail_mult }) => {
-            // Use standard RNG with configured fat-tail parameters
-            simulate_shot(sigma, *fat_tail_prob, *fat_tail_mult)
+            // Use BVN with symmetric parameters (equivalent to Rayleigh when rho=0)
+            let ((x, y), is_fat_tail) = fat_tail_shot_bvn(
+                0.0,    // mu_x: no lateral bias
+                0.0,    // mu_y: no distance bias
+                sigma,  // sigma_x: same as player's sigma
+                sigma,  // sigma_y: symmetric dispersion
+                0.0,    // rho: no correlation (equivalent to Rayleigh)
+                *fat_tail_prob,
+                *fat_tail_mult,
+            );
+            let miss_distance = (x * x + y * y).sqrt();
+            (miss_distance, is_fat_tail)
         }
         Some(ShotGenerationMode::CustomPattern(dist)) => {
             // Use custom pattern distribution scaled by player's actual sigma
             dist.sample_miss_distance(sigma, rng)
         }
-        Some(ShotGenerationMode::BivariateNormal { .. }) => {
-            // BivariateNormal is used for tracking pattern metadata
-            // Fall back to standard generation with current sigma
-            simulate_shot(sigma, config.fat_tail_prob, config.fat_tail_mult)
+        Some(ShotGenerationMode::BivariateNormal { sigma_x, sigma_y, rho }) => {
+            // Use explicit BVN parameters from configuration (no bias)
+            let ((x, y), is_fat_tail) = fat_tail_shot_bvn(
+                0.0,      // mu_x: no lateral bias
+                0.0,      // mu_y: no distance bias
+                *sigma_x,
+                *sigma_y,
+                *rho,
+                config.fat_tail_prob,
+                config.fat_tail_mult,
+            );
+            let miss_distance = (x * x + y * y).sqrt();
+            (miss_distance, is_fat_tail)
         }
         Some(ShotGenerationMode::OrganicPattern { pattern: _pattern, bvn_params }) => {
             // Use organic pattern's BVN parameters for shot generation
-            use crate::math::distributions::fat_tail_shot_bvn;
-
             let ((x, y), is_fat_tail) = fat_tail_shot_bvn(
                 bvn_params.mu_x,
                 bvn_params.mu_y,
@@ -456,14 +475,18 @@ fn generate_miss_distance(
                 config.fat_tail_prob,
                 config.fat_tail_mult,
             );
-
             // Convert 2D shot to radial distance for legacy compatibility
             let miss_distance = (x * x + y * y).sqrt();
             (miss_distance, is_fat_tail)
         }
         None => {
-            // Backwards compatibility: use legacy fat_tail_prob/mult fields
-            simulate_shot(sigma, config.fat_tail_prob, config.fat_tail_mult)
+            // Default: use BVN with symmetric parameters (no bias, no correlation)
+            let ((x, y), is_fat_tail) = fat_tail_shot_bvn(
+                0.0, 0.0, sigma, sigma, 0.0,
+                config.fat_tail_prob, config.fat_tail_mult,
+            );
+            let miss_distance = (x * x + y * y).sqrt();
+            (miss_distance, is_fat_tail)
         }
     }
 }
@@ -494,8 +517,29 @@ pub fn run_session(player: &mut Player, config: SessionConfig) -> SessionResult 
         // Get player's current skill for this hole's category (using MCMC estimator)
         let current_sigma = player.get_current_sigma(hole);
 
-        // Calculate P_max for current skill level (using MCMC posterior median)
-        let p_max = player.calculate_p_max(hole);
+        // Calculate P_max using BVN distribution (unified across all modes)
+        let p_max = match &config.shot_generation_mode {
+            Some(ShotGenerationMode::OrganicPattern { bvn_params, .. }) => {
+                // Use organic pattern's BVN parameters
+                player.calculate_p_max_bvn(
+                    hole,
+                    bvn_params.mu_x,
+                    bvn_params.mu_y,
+                    bvn_params.sigma_x,
+                    bvn_params.sigma_y,
+                    bvn_params.rho,
+                    None, // No adaptive correction
+                )
+            }
+            Some(ShotGenerationMode::BivariateNormal { sigma_x, sigma_y, rho }) => {
+                // Use explicit BVN parameters (no bias)
+                player.calculate_p_max_bvn(hole, 0.0, 0.0, *sigma_x, *sigma_y, *rho, None)
+            }
+            _ => {
+                // Standard mode or None: symmetric BVN (equivalent to Rayleigh when rho=0)
+                player.calculate_p_max_bvn(hole, 0.0, 0.0, current_sigma, current_sigma, 0.0, None)
+            }
+        };
 
         // Simulate miss distance based on mode
         let (miss_distance, is_fat_tail) = if let Some(ref dev_mode) = config.developer_mode {
@@ -589,7 +633,7 @@ pub fn run_session(player: &mut Player, config: SessionConfig) -> SessionResult 
         .skill_profiles
         .iter()
         .map(|(cat, profile)| {
-            (format!("{:?}", cat), profile.kalman_filter.estimate)
+            (format!("{:?}", cat), profile.cached_sigma)
         })
         .collect();
 

@@ -2,7 +2,7 @@
 //
 // This library provides a high-performance golf wagering simulator that models:
 // - Proprietary odds engine with dynamic P_max calculations
-// - Player skill adaptation using Kalman filtering
+// - Player skill adaptation using MCMC Bayesian inference
 // - Venue economics and tournament simulations
 //
 // The simulator ensures fairness (equal EV across all handicaps) while maintaining
@@ -20,7 +20,7 @@ pub mod config;
 pub mod wasm;
 
 // Re-export commonly used types
-pub use math::{distributions, integration, kalman};
+pub use math::{distributions, integration};
 pub use models::{hole, player, shot};
 pub use simulators::{player_session, venue, tournament};
 pub use analytics::{metrics, export};

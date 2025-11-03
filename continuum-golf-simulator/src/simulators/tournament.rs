@@ -9,8 +9,8 @@
 use crate::models::{
     hole::get_hole_by_id,
     player::Player,
-    shot::simulate_shot,
 };
+use crate::math::distributions::fat_tail_shot_bvn;
 use crate::simulators::venue::generate_player_pool;
 use crate::simulators::venue::PlayerArchetype;
 use serde::{Deserialize, Serialize};
@@ -145,9 +145,10 @@ fn simulate_player_tournament_attempts(player: &Player, config: &TournamentConfi
             for _ in 0..config.attempts_per_player {
                 // Base distance inversely related to handicap
                 let base_distance = 250.0 - (player.handicap as f64 * 3.0);
-                // Add some randomness
+                // Add some randomness using BVN
                 let variance = 20.0;
-                let (random_offset, _) = simulate_shot(variance, 0.02, 3.0);
+                let ((x, y), _) = fat_tail_shot_bvn(0.0, 0.0, variance, variance, 0.0, 0.02, 3.0);
+                let random_offset = (x * x + y * y).sqrt();
                 let distance = base_distance + random_offset - variance;
                 best_distance = best_distance.max(distance);
             }
@@ -157,11 +158,13 @@ fn simulate_player_tournament_attempts(player: &Player, config: &TournamentConfi
             // For closest to pin, use actual shot simulation
             let hole = get_hole_by_id(hole_id).expect("Invalid hole_id");
             let skill_profile = player.get_skill_for_hole(hole);
-            let sigma = skill_profile.kalman_filter.estimate;
+            let sigma = skill_profile.cached_sigma;
 
             let mut best_miss = f64::MAX;
             for _ in 0..config.attempts_per_player {
-                let (miss_distance, _) = simulate_shot(sigma, 0.02, 3.0);
+                // Use BVN with symmetric parameters
+                let ((x, y), _) = fat_tail_shot_bvn(0.0, 0.0, sigma, sigma, 0.0, 0.02, 3.0);
+                let miss_distance = (x * x + y * y).sqrt();
                 best_miss = best_miss.min(miss_distance);
             }
             best_miss
