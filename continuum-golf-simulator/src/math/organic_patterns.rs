@@ -25,7 +25,7 @@ pub struct OrganicPattern {
 
 impl OrganicPattern {
     /// Convert organic pattern to BVN parameters
-    /// Uses bounding box analysis like PatternDrawingDemo
+    /// Uses variance-based sigma calculation for accurate dispersion modeling
     pub fn to_bvn_parameters(&self) -> BVNParameters {
         let points = &self.boundary_points;
 
@@ -40,30 +40,47 @@ impl OrganicPattern {
             };
         }
 
-        // Calculate bounding box
-        let xs: Vec<f64> = points.iter().map(|(x, _)| *x).collect();
-        let ys: Vec<f64> = points.iter().map(|(_, y)| *y).collect();
+        let n = points.len() as f64;
 
-        let min_x = xs.iter().copied().fold(f64::INFINITY, f64::min);
-        let max_x = xs.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-        let min_y = ys.iter().copied().fold(f64::INFINITY, f64::min);
-        let max_y = ys.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        // Calculate means (centroids of pattern boundary)
+        let mean_x: f64 = points.iter().map(|(x, _)| x).sum::<f64>() / n;
+        let mean_y: f64 = points.iter().map(|(_, y)| y).sum::<f64>() / n;
 
-        // Pattern dimensions
-        let width = max_x - min_x;
-        let height = max_y - min_y;
+        // Calculate variances from boundary points
+        // Boundary represents ~2σ extent, so we use variance directly
+        let var_x: f64 = points.iter()
+            .map(|(x, _)| (x - mean_x).powi(2))
+            .sum::<f64>() / n;
+        let var_y: f64 = points.iter()
+            .map(|(_, y)| (y - mean_y).powi(2))
+            .sum::<f64>() / n;
 
-        // BVN parameters: σ = radius/2 (95% containment)
-        // width = 2R, so R = width/2, σ = R/2 = width/4
-        let sigma_x = width / 4.0;
-        let sigma_y = height / 4.0;
+        // Standard deviations (sigma values)
+        // Boundary points are distributed around radius R
+        // For a circle, std_dev(boundary) = R/√2
+        // Pattern generation uses R = 2*target_sigma, so:
+        // std_dev(boundary) = 2*sigma/√2 = sqrt(2)*sigma
+        // Therefore: sigma = std_dev(boundary) / sqrt(2)
+        let sigma_x = var_x.sqrt() / 2_f64.sqrt();
+        let sigma_y = var_y.sqrt() / 2_f64.sqrt();
 
         // Bias from center offset
         let mu_x = self.center_offset.0;
         let mu_y = self.center_offset.1;
 
-        // Estimate correlation from point cloud shape
-        let rho = self.estimate_correlation(points);
+        // Calculate correlation coefficient
+        let cov_xy: f64 = points.iter()
+            .map(|(x, y)| (x - mean_x) * (y - mean_y))
+            .sum::<f64>() / n;
+
+        let rho = if sigma_x > 1e-6 && sigma_y > 1e-6 {
+            cov_xy / (sigma_x * sigma_y)
+        } else {
+            0.0
+        };
+
+        // Clamp correlation to valid range
+        let rho = rho.clamp(-0.99, 0.99);
 
         BVNParameters {
             mu_x,
@@ -74,44 +91,6 @@ impl OrganicPattern {
         }
     }
 
-    /// Estimate correlation coefficient from point cloud
-    /// Calculates sample correlation like PatternDrawingDemo
-    fn estimate_correlation(&self, points: &[(f64, f64)]) -> f64 {
-        let n = points.len() as f64;
-
-        if n < 2.0 {
-            return 0.0;
-        }
-
-        // Calculate means
-        let mean_x: f64 = points.iter().map(|(x, _)| x).sum::<f64>() / n;
-        let mean_y: f64 = points.iter().map(|(_, y)| y).sum::<f64>() / n;
-
-        // Calculate variances
-        let var_x: f64 = points.iter()
-            .map(|(x, _)| (x - mean_x).powi(2))
-            .sum::<f64>() / n;
-        let var_y: f64 = points.iter()
-            .map(|(_, y)| (y - mean_y).powi(2))
-            .sum::<f64>() / n;
-
-        // Calculate covariance
-        let cov_xy: f64 = points.iter()
-            .map(|(x, y)| (x - mean_x) * (y - mean_y))
-            .sum::<f64>() / n;
-
-        let sigma_x = var_x.sqrt();
-        let sigma_y = var_y.sqrt();
-
-        let rho = if sigma_x > 1e-6 && sigma_y > 1e-6 {
-            cov_xy / (sigma_x * sigma_y)
-        } else {
-            0.0
-        };
-
-        // Clamp to valid range (avoid numerical issues)
-        rho.clamp(-0.99, 0.99)
-    }
 }
 
 /// Generator for organic shot dispersion patterns
@@ -282,6 +261,10 @@ mod tests {
         // Test different target sigmas
         let target_sigmas = vec![15.0, 25.0, 35.0, 50.0];
 
+        println!("\n=== Organic Pattern Sigma Analysis ===");
+        println!("Target σ | Actual σ_x | Actual σ_y | Avg σ | Error %");
+        println!("---------|------------|------------|-------|--------");
+
         for target_sigma in target_sigmas {
             let gen = OrganicPatternGenerator::create_random(&mut rng, target_sigma);
             let pattern = gen.generate();
@@ -290,6 +273,10 @@ mod tests {
             // Average sigma should be close to target
             let avg_sigma = (bvn_params.sigma_x + bvn_params.sigma_y) / 2.0;
             let error = (avg_sigma - target_sigma).abs() / target_sigma;
+
+            println!("{:8.1} | {:10.2} | {:10.2} | {:5.2} | {:6.1}%",
+                target_sigma, bvn_params.sigma_x, bvn_params.sigma_y,
+                avg_sigma, error * 100.0);
 
             // Allow 30% error due to irregularity and bounding box estimation
             assert!(error < 0.3,
