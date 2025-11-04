@@ -470,6 +470,98 @@ pub fn simulate_venue_enhanced(
         .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
 }
 
+/// Simulate a single bay for parallel processing via Web Workers
+#[wasm_bindgen]
+pub fn simulate_single_bay(
+    bay_id: usize,
+    handicap: u8,
+    shots_per_bay: usize,
+    wager: f64,
+) -> Result<JsValue, JsValue> {
+    use crate::math::organic_patterns::OrganicPatternGenerator;
+    use crate::simulators::player_session::ShotGenerationMode;
+
+    console_log!("Worker simulating bay {} - handicap: {}", bay_id, handicap);
+
+    // Create player
+    let mut player = Player::new(format!("bay_{}", bay_id), handicap);
+    let mut rng = rand::thread_rng();
+
+    // Calculate base sigma from player's handicap
+    let base_sigma = calculate_initial_dispersion(player.handicap, 150);
+
+    // Generate random organic pattern
+    let pattern_generator = OrganicPatternGenerator::create_random(&mut rng, base_sigma);
+    let organic_pattern = pattern_generator.generate();
+    let bvn_params = organic_pattern.to_bvn_parameters();
+
+    // Extract values before moving bvn_params
+    let sigma_x = bvn_params.sigma_x;
+    let sigma_y = bvn_params.sigma_y;
+    let rho = bvn_params.rho;
+
+    console_log!("Bay {} pattern: σ_x={:.1}, σ_y={:.1}, ρ={:.3}",
+        bay_id, sigma_x, sigma_y, rho);
+
+    // Run session
+    let session_config = SessionConfig {
+        num_shots: shots_per_bay,
+        wager_min: wager,
+        wager_max: wager,
+        hole_selection: HoleSelection::Random,
+        developer_mode: None,
+        fat_tail_prob: 0.02,
+        fat_tail_mult: 3.0,
+        shot_generation_mode: Some(ShotGenerationMode::OrganicPattern {
+            pattern: organic_pattern.clone(),
+            bvn_params,
+        }),
+    };
+
+    let session_result = run_session(&mut player, session_config);
+
+    // Convert shots to serializable format
+    let shots_data: Vec<WasmShotOutcome> = session_result.shots.iter().enumerate().map(|(i, shot)| {
+        let hole = HOLE_CONFIGURATIONS.iter().find(|h| h.id == shot.hole_id).unwrap();
+        WasmShotOutcome {
+            shot_number: i + 1,
+            hole_id: shot.hole_id,
+            distance_yds: hole.distance_yds,
+            wager: shot.wager,
+            miss_distance_ft: shot.miss_distance_ft,
+            multiplier: shot.multiplier,
+            payout: shot.payout,
+            cumulative_net: 0.0,
+            is_fat_tail: shot.is_fat_tail,
+            p_max: shot.p_max,
+        }
+    }).collect();
+
+    let rtp = if session_result.total_wagered > 0.0 {
+        (session_result.total_won / session_result.total_wagered) * 100.0
+    } else {
+        0.0
+    };
+
+    let result = WasmEnhancedPlayerResult {
+        bay_id,
+        handicap: player.handicap,
+        pattern_type: "organic".to_string(),
+        sigma_x,
+        sigma_y,
+        rho,
+        boundary_points: Some(organic_pattern.boundary_points.clone()),
+        total_wagered: session_result.total_wagered,
+        total_won: session_result.total_won,
+        net: session_result.net_gain_loss,
+        rtp,
+        shots: shots_data,
+    };
+
+    serde_wasm_bindgen::to_value(&result)
+        .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
+}
+
 #[wasm_bindgen]
 pub fn validate_fairness(hole_id: u8) -> Result<JsValue, JsValue> {
     console_log!("Validating fairness for hole {}", hole_id);

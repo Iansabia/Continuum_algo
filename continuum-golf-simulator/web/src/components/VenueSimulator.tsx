@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { LineChart, Line, Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ScatterChart, Scatter, ZAxis } from 'recharts';
 import init from '../wasm/continuum_golf_simulator';
+import { WorkerPool } from '../workers/worker-pool';
+import type { BaySimulationRequest } from '../workers/venue-worker';
 
 interface Shot {
   shot_number: number;
@@ -50,36 +52,101 @@ export default function VenueSimulator() {
   const [venueResult, setVenueResult] = useState<VenueResult | null>(null);
   const [selectedBay, setSelectedBay] = useState<number | null>(null);
   const [wasmReady, setWasmReady] = useState(false);
+  const [simulationProgress, setSimulationProgress] = useState({ completed: 0, total: 0 });
+  const workerPoolRef = useRef<WorkerPool | null>(null);
 
-  // Initialize WASM module
+  // Initialize WASM module and worker pool
   useEffect(() => {
     init()
       .then(() => {
         setWasmReady(true);
         console.log('✅ WASM module initialized for Venue Simulator');
+
+        // Initialize worker pool (will use navigator.hardwareConcurrency)
+        workerPoolRef.current = new WorkerPool();
       })
       .catch((error) => {
         console.error('❌ Failed to initialize WASM:', error);
       });
+
+    // Cleanup worker pool on unmount
+    return () => {
+      if (workerPoolRef.current) {
+        workerPoolRef.current.terminate();
+        workerPoolRef.current = null;
+      }
+    };
   }, []);
 
   const runSimulation = async () => {
-    if (!wasmReady) {
-      alert('WASM module not ready. Please wait...');
+    if (!wasmReady || !workerPoolRef.current) {
+      alert('System not ready. Please wait...');
       return;
     }
 
     setIsSimulating(true);
+    setSimulationProgress({ completed: 0, total: numBays });
 
     try {
-      // Dynamically import WASM module
-      const { simulate_venue_enhanced } = await import('../wasm/continuum_golf_simulator');
+      const shotsPerBay = shotsPerHour * hoursOfOperation;
 
-      // Run enhanced venue simulation
-      const result = simulate_venue_enhanced(numBays, shotsPerHour, hoursOfOperation, wager);
+      console.log(`🚀 Starting parallel venue simulation: ${numBays} bays × ${shotsPerBay} shots`);
+      console.log(`Using ${navigator.hardwareConcurrency || 8} CPU cores`);
+
+      // Generate player handicaps (bell curve distribution)
+      const handicaps: number[] = [];
+      for (let i = 0; i < numBays; i++) {
+        // Normal distribution: mean=15, std_dev=7
+        const u1 = Math.random();
+        const u2 = Math.random();
+        const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+        const handicap = Math.round(Math.max(0, Math.min(30, 15 + 7 * z)));
+        handicaps.push(handicap);
+      }
+
+      // Create simulation requests for each bay
+      const requests: BaySimulationRequest[] = handicaps.map((handicap, index) => ({
+        bayId: index + 1,
+        handicap,
+        shotsPerBay,
+        wager,
+      }));
+
+      // Run parallel simulation using worker pool
+      const startTime = performance.now();
+
+      const playerResults = await workerPoolRef.current.simulateBays(
+        requests,
+        (completed, total) => {
+          setSimulationProgress({ completed, total });
+          console.log(`Progress: ${completed}/${total} bays completed`);
+        }
+      );
+
+      const endTime = performance.now();
+      console.log(`✅ Simulation completed in ${((endTime - startTime) / 1000).toFixed(2)}s`);
+
+      // Aggregate results
+      const totalWagered = playerResults.reduce((sum, p) => sum + p.total_wagered, 0);
+      const totalPayouts = playerResults.reduce((sum, p) => sum + p.total_won, 0);
+      const netProfit = totalWagered - totalPayouts;
+      const holdPercentage = totalWagered > 0 ? (netProfit / totalWagered) * 100 : 0;
+      const totalShots = numBays * shotsPerBay;
+      const avgRtp = totalWagered > 0 ? (totalPayouts / totalWagered) * 100 : 0;
+
+      const result: VenueResult = {
+        total_wagered: totalWagered,
+        total_payouts: totalPayouts,
+        net_profit: netProfit,
+        hold_percentage: holdPercentage,
+        total_shots: totalShots,
+        num_bays: numBays,
+        avg_rtp: avgRtp,
+        players: playerResults,
+      };
 
       console.log('Venue simulation result:', result);
-      setVenueResult(result as VenueResult);
+      setVenueResult(result);
 
       // Select first bay by default
       if (result.players && result.players.length > 0) {
@@ -90,6 +157,7 @@ export default function VenueSimulator() {
       alert('Failed to run simulation. Please check console for details.');
     } finally {
       setIsSimulating(false);
+      setSimulationProgress({ completed: 0, total: 0 });
     }
   };
 
@@ -623,20 +691,41 @@ export default function VenueSimulator() {
           <div className="w-full max-w-md px-8">
             <div className="text-center mb-6">
               <div className="text-[var(--brand-tan)] text-xl font-bold mb-2">Simulating Venue...</div>
-              <p className="text-[var(--brand-lavender)] text-sm">
+              <p className="text-[var(--brand-lavender)] text-sm mb-2">
                 Running {numBays} bays × {shotsPerHour * hoursOfOperation} shots
+              </p>
+              <p className="text-[var(--brand-dark-gold)] text-xs">
+                Using {navigator.hardwareConcurrency || 8} CPU cores in parallel
               </p>
             </div>
 
-            {/* Animated Loading Bar */}
-            <div className="relative h-3 bg-[var(--brand-deep-purple)]/30 rounded-full overflow-hidden border border-[var(--brand-tan)]/20">
-              <div className="absolute inset-0 bg-gradient-to-r from-[var(--brand-bright-purple)] via-[var(--brand-lavender)] to-[var(--brand-dark-gold)] animate-pulse"></div>
+            {/* Progress Bar */}
+            <div className="relative h-3 bg-[var(--brand-deep-purple)]/30 rounded-full overflow-hidden border border-[var(--brand-tan)]/20 mb-3">
               <div
-                className="absolute inset-0 bg-gradient-to-r from-[var(--brand-bright-purple)] to-[var(--brand-dark-gold)] animate-[shimmer_1.5s_ease-in-out_infinite]"
+                className="absolute inset-0 bg-gradient-to-r from-[var(--brand-bright-purple)] to-[var(--brand-dark-gold)] transition-all duration-300"
                 style={{
-                  backgroundSize: '200% 100%',
+                  width: `${simulationProgress.total > 0 ? (simulationProgress.completed / simulationProgress.total) * 100 : 0}%`,
                 }}
               ></div>
+              <div
+                className="absolute inset-0 bg-gradient-to-r from-[var(--brand-bright-purple)] to-[var(--brand-dark-gold)] animate-[shimmer_1.5s_ease-in-out_infinite] opacity-50"
+                style={{
+                  backgroundSize: '200% 100%',
+                  width: `${simulationProgress.total > 0 ? (simulationProgress.completed / simulationProgress.total) * 100 : 100}%`,
+                }}
+              ></div>
+            </div>
+
+            {/* Progress Text */}
+            <div className="text-center mb-6">
+              <p className="text-[var(--brand-lavender)] text-sm font-semibold">
+                {simulationProgress.completed} / {simulationProgress.total} bays completed
+                {simulationProgress.total > 0 && (
+                  <span className="ml-2 text-[var(--brand-dark-gold)]">
+                    ({Math.round((simulationProgress.completed / simulationProgress.total) * 100)}%)
+                  </span>
+                )}
+              </p>
             </div>
 
             {/* Loading Animation */}
