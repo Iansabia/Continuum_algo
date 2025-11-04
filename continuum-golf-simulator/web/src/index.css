@@ -111,3 +111,13 @@ body {
   -webkit-backdrop-filter: blur(30px);
   border: 1px solid rgba(223, 201, 173, 0.2);
 }
+
+/* Loading animation shimmer effect */
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}

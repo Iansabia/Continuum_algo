@@ -22,6 +22,7 @@ interface PlayerResult {
   sigma_x: number;
   sigma_y: number;
   rho: number;
+  boundary_points?: Array<[number, number]>;
   total_wagered: number;
   total_won: number;
   net: number;
@@ -103,15 +104,28 @@ export default function VenueSimulator() {
     net: p.net,
   })) || [];
 
-  const patternDistribution = venueResult?.players.reduce((acc, p) => {
-    acc[p.pattern_type] = (acc[p.pattern_type] || 0) + 1;
+  // Calculate hole profitability across all bays
+  const holeProfitability = venueResult?.players.reduce((acc, player) => {
+    player.shots.forEach(shot => {
+      const holeKey = `${shot.distance_yds}y`;
+      if (!acc[holeKey]) {
+        acc[holeKey] = { distance: shot.distance_yds, profit: 0, count: 0 };
+      }
+      acc[holeKey].profit += (shot.wager - shot.payout);
+      acc[holeKey].count += 1;
+    });
     return acc;
-  }, {} as Record<string, number>);
+  }, {} as Record<string, { distance: number; profit: number; count: number }>);
 
-  const patternData = patternDistribution ? Object.entries(patternDistribution).map(([pattern, count]) => ({
-    pattern: pattern.charAt(0).toUpperCase() + pattern.slice(1),
-    count,
-  })) : [];
+  const holeProfitData = holeProfitability
+    ? Object.values(holeProfitability)
+        .sort((a, b) => a.distance - b.distance)
+        .map(({ distance, profit, count }) => ({
+          hole: `${distance}y`,
+          avgProfit: profit / count,
+          totalProfit: profit,
+        }))
+    : [];
 
   const handicapDistribution = venueResult?.players.map(p => ({
     handicap: p.handicap,
@@ -243,21 +257,23 @@ export default function VenueSimulator() {
               </div>
             </div>
 
-            {/* Pattern Distribution */}
+            {/* Hole Profitability */}
             <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-xl p-3 border border-[var(--brand-tan)]/20 flex-1 min-h-0 flex flex-col">
-              <h3 className="text-sm font-semibold text-[var(--brand-tan)] mb-2">Pattern Distribution</h3>
+              <h3 className="text-sm font-semibold text-[var(--brand-tan)] mb-2">Hole Profitability</h3>
               <div className="flex-1 min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={patternData}>
+                  <BarChart data={holeProfitData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--brand-lavender)" opacity={0.1} />
                     <XAxis
-                      dataKey="pattern"
+                      dataKey="hole"
                       stroke="var(--brand-lavender)"
                       tick={{ fontSize: 10, fill: 'var(--brand-lavender)' }}
+                      label={{ value: 'Distance', position: 'insideBottom', offset: -5, fill: 'var(--brand-lavender)' }}
                     />
                     <YAxis
                       stroke="var(--brand-lavender)"
                       tick={{ fontSize: 10, fill: 'var(--brand-lavender)' }}
+                      label={{ value: 'Avg Profit ($)', angle: -90, position: 'insideLeft', fill: 'var(--brand-lavender)' }}
                     />
                     <Tooltip
                       contentStyle={{
@@ -266,8 +282,9 @@ export default function VenueSimulator() {
                         borderRadius: '8px',
                         color: 'var(--brand-tan)',
                       }}
+                      formatter={(value: number) => [`$${value.toFixed(2)}`, 'Avg Profit']}
                     />
-                    <Bar dataKey="count" fill="var(--brand-bright-purple)" />
+                    <Bar dataKey="avgProfit" fill="var(--brand-dark-gold)" name="Avg Profit per Shot" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -426,8 +443,8 @@ export default function VenueSimulator() {
 
                         // Find bounds
                         const points = selectedPlayer.boundary_points;
-                        const xs = points.map(p => p[0]);
-                        const ys = points.map(p => p[1]);
+                        const xs = points.map((p: [number, number]) => p[0]);
+                        const ys = points.map((p: [number, number]) => p[1]);
                         const minX = Math.min(...xs);
                         const maxX = Math.max(...xs);
                         const minY = Math.min(...ys);
@@ -456,7 +473,7 @@ export default function VenueSimulator() {
                         ctx.strokeStyle = 'var(--brand-bright-purple)';
                         ctx.lineWidth = 2;
                         ctx.beginPath();
-                        points.forEach((point, i) => {
+                        points.forEach((point: [number, number], i: number) => {
                           const x = centerX + (point[0] - patternCenterX) * scale;
                           const y = centerY - (point[1] - patternCenterY) * scale; // Flip Y
                           if (i === 0) {
@@ -597,6 +614,37 @@ export default function VenueSimulator() {
               </svg>
             </div>
             <p className="text-[var(--brand-lavender)] text-sm">Configure simulation parameters and click "Run Simulation"</p>
+          </div>
+        </div>
+      )}
+
+      {isSimulating && (
+        <div className="relative flex-1 flex items-center justify-center">
+          <div className="w-full max-w-md px-8">
+            <div className="text-center mb-6">
+              <div className="text-[var(--brand-tan)] text-xl font-bold mb-2">Simulating Venue...</div>
+              <p className="text-[var(--brand-lavender)] text-sm">
+                Running {numBays} bays × {shotsPerHour * hoursOfOperation} shots
+              </p>
+            </div>
+
+            {/* Animated Loading Bar */}
+            <div className="relative h-3 bg-[var(--brand-deep-purple)]/30 rounded-full overflow-hidden border border-[var(--brand-tan)]/20">
+              <div className="absolute inset-0 bg-gradient-to-r from-[var(--brand-bright-purple)] via-[var(--brand-lavender)] to-[var(--brand-dark-gold)] animate-pulse"></div>
+              <div
+                className="absolute inset-0 bg-gradient-to-r from-[var(--brand-bright-purple)] to-[var(--brand-dark-gold)] animate-[shimmer_1.5s_ease-in-out_infinite]"
+                style={{
+                  backgroundSize: '200% 100%',
+                }}
+              ></div>
+            </div>
+
+            {/* Loading Animation */}
+            <div className="mt-6 flex justify-center space-x-2">
+              <div className="w-3 h-3 bg-[var(--brand-bright-purple)] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+              <div className="w-3 h-3 bg-[var(--brand-lavender)] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+              <div className="w-3 h-3 bg-[var(--brand-dark-gold)] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+            </div>
           </div>
         </div>
       )}
