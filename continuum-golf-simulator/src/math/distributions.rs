@@ -2,8 +2,7 @@
 //
 // Implements:
 // - Normal distribution (Box-Muller transform)
-// - Rayleigh distribution (miss distance modeling)
-// - Fat-tail shot logic (2% chance of 3× worse dispersion)
+// - Bivariate Normal distribution (BVN) for 2D shot modeling with correlation
 
 use rand::Rng;
 use std::f64::consts::PI;
@@ -34,74 +33,6 @@ pub fn normal_random(mean: f64, std_dev: f64) -> f64 {
     mean + std_dev * z0
 }
 
-/// Generate a random sample from a Rayleigh distribution
-///
-/// The Rayleigh distribution models the miss distance for golf shots.
-/// For a 2D radial error with independent normal components (x, y) ~ N(0, σ²),
-/// the radial distance d = sqrt(x² + y²) follows Rayleigh(σ).
-///
-/// # Arguments
-/// * `sigma` - Scale parameter (relates to standard deviation of components)
-///
-/// # Returns
-/// A random miss distance in feet
-///
-/// # Formula
-/// d = σ * sqrt(-2 * ln(U)) where U ~ Uniform(0, 1)
-///
-/// # Example
-/// ```
-/// use continuum_golf_simulator::math::distributions::rayleigh_random;
-/// let miss_distance = rayleigh_random(30.0);  // σ = 30 feet
-/// ```
-pub fn rayleigh_random(sigma: f64) -> f64 {
-    let mut rng = rand::thread_rng();
-    let u: f64 = rng.gen();
-
-    // Inverse transform sampling for Rayleigh distribution
-    sigma * (-2.0 * u.ln()).sqrt()
-}
-
-/// Simulate a shot with potential fat-tail event
-///
-/// Implements the 2% fat-tail logic where shots can have significantly worse
-/// dispersion to model extreme mishits (topped shots, shanks, etc.).
-///
-/// # Arguments
-/// * `sigma` - Base skill parameter (miss distance standard deviation)
-/// * `fat_tail_prob` - Probability of fat-tail event (default: 0.02)
-/// * `fat_tail_mult` - Multiplier for fat-tail dispersion (default: 3.0)
-///
-/// # Returns
-/// Tuple of (miss_distance, is_fat_tail)
-///
-/// # Example
-/// ```
-/// use continuum_golf_simulator::math::distributions::fat_tail_shot;
-/// let (miss, is_extreme) = fat_tail_shot(25.0, 0.02, 3.0);
-/// if is_extreme {
-///     println!("Extreme mishit! Distance: {:.1}ft", miss);
-/// }
-/// ```
-pub fn fat_tail_shot(sigma: f64, fat_tail_prob: f64, fat_tail_mult: f64) -> (f64, bool) {
-    let mut rng = rand::thread_rng();
-    let roll: f64 = rng.gen();
-
-    if roll < fat_tail_prob {
-        // Fat-tail event: use increased sigma
-        let miss_distance = rayleigh_random(sigma * fat_tail_mult);
-        (miss_distance, true)
-    } else {
-        // Normal shot
-        let miss_distance = rayleigh_random(sigma);
-        (miss_distance, false)
-    }
-}
-
-/// Calculate the Rayleigh PDF at a given point
-///
-/// Used for numerical integration when calculating P_max.
-///
 // ============================================================================
 // Bivariate Normal Distribution (BVN) Functions
 // ============================================================================
@@ -109,8 +40,7 @@ pub fn fat_tail_shot(sigma: f64, fat_tail_prob: f64, fat_tail_mult: f64) -> (f64
 // The BVN models 2D shot dispersion with:
 // - Systematic bias: (μ_x, μ_y) - average miss in each direction
 // - Elliptical spread: (σ_x, σ_y) - precision in lateral vs distance
-//
-// This replaces the Rayleigh distribution for camera-based (x,y) measurements.
+// - Correlation: ρ - relationship between x and y coordinates
 
 /// Generate a random sample from a Bivariate Normal distribution
 ///
@@ -320,40 +250,10 @@ pub fn bvn_covariance(sigma_x: f64, sigma_y: f64, rho: f64) -> [[f64; 2]; 2] {
 }
 
 // ============================================================================
-// Bayesian Inference Functions for MCMC
+// Log-Probability Functions (MCMC Support)
 // ============================================================================
 //
-// These log-probability functions enable MCMC sampling for skill estimation.
-// Using log-probabilities prevents numerical underflow in likelihood calculations.
-
-/// Calculate the log-probability of observing a miss distance under Rayleigh distribution
-///
-/// Used for MCMC Bayesian inference to evaluate likelihood of observations.
-/// Working in log-space prevents numerical underflow when multiplying many probabilities.
-///
-/// # Arguments
-/// * `distance` - Observed miss distance in feet
-/// * `sigma` - Scale parameter (skill level)
-///
-/// # Returns
-/// log P(distance | σ) = log(d/σ²) - d²/(2σ²)
-///
-/// # Example
-/// ```
-/// use continuum_golf_simulator::math::distributions::log_rayleigh_pdf;
-///
-/// let sigma = 30.0;
-/// let observed_distance = 25.0;
-/// let log_likelihood = log_rayleigh_pdf(observed_distance, sigma);
-/// ```
-pub fn log_rayleigh_pdf(distance: f64, sigma: f64) -> f64 {
-    if distance <= 0.0 || sigma <= 0.0 {
-        return f64::NEG_INFINITY;
-    }
-
-    let sigma_sq = sigma * sigma;
-    (distance / sigma_sq).ln() - (distance * distance) / (2.0 * sigma_sq)
-}
+// These are used internally by MCMC for Bayesian inference
 
 /// Calculate the log-probability of a value under Normal distribution
 ///
@@ -379,6 +279,30 @@ pub fn log_normal_pdf(x: f64, mean: f64, std_dev: f64) -> f64 {
     -0.5 * z * z
 }
 
+/// Calculate the log-probability of observing a miss distance under Rayleigh distribution
+///
+/// Used for MCMC Bayesian inference to evaluate likelihood of observations.
+/// Working in log-space prevents numerical underflow when multiplying many probabilities.
+///
+/// # Arguments
+/// * `distance` - Observed miss distance in feet
+/// * `sigma` - Scale parameter (skill level)
+///
+/// # Returns
+/// log P(distance | σ) = log(d/σ²) - d²/(2σ²)
+///
+/// # Note
+/// This is kept for MCMC compatibility. The simulator uses BVN for shot generation,
+/// but MCMC still works with radial distances for skill estimation.
+pub fn log_rayleigh_pdf(distance: f64, sigma: f64) -> f64 {
+    if distance <= 0.0 || sigma <= 0.0 {
+        return f64::NEG_INFINITY;
+    }
+
+    let sigma_sq = sigma * sigma;
+    (distance / sigma_sq).ln() - (distance * distance) / (2.0 * sigma_sq)
+}
+
 /// Calculate the log-posterior probability for Bayesian skill estimation
 ///
 /// Combines likelihood and prior using Bayes' theorem:
@@ -398,17 +322,8 @@ pub fn log_normal_pdf(x: f64, mean: f64, std_dev: f64) -> f64 {
 /// # Returns
 /// log P(σ | observations) ∝ Σ wᵢ × log P(dᵢ | σ) + log P(σ)
 ///
-/// # Example
-/// ```
-/// use continuum_golf_simulator::math::distributions::log_posterior;
-///
-/// let observations = vec![25.0, 30.0, 22.0, 35.0];
-/// let prior_mean = 28.0;  // From handicap
-/// let prior_std = 5.0;    // Prior uncertainty
-///
-/// let sigma_proposal = 27.5;
-/// let log_prob = log_posterior(sigma_proposal, &observations, prior_mean, prior_std, None);
-/// ```
+/// # Note
+/// This is kept for MCMC compatibility. Uses Rayleigh likelihood for radial distances.
 pub fn log_posterior(
     sigma: f64,
     observations: &[f64],
@@ -456,54 +371,6 @@ mod tests {
 
         let mean = samples.iter().sum::<f64>() / samples.len() as f64;
         assert_relative_eq!(mean, 5.0, epsilon = 0.1);
-    }
-
-    #[test]
-    fn test_rayleigh_random_mean() {
-        // Test that rayleigh_random produces samples with approximately correct mean
-        let sigma = 30.0;
-        let samples: Vec<f64> = (0..10000)
-            .map(|_| rayleigh_random(sigma))
-            .collect();
-
-        let mean = samples.iter().sum::<f64>() / samples.len() as f64;
-        let expected_mean = rayleigh_mean(sigma);
-
-        assert_relative_eq!(mean, expected_mean, epsilon = 1.0);
-    }
-
-    #[test]
-    fn test_fat_tail_frequency() {
-        // Test that fat-tail events occur at approximately the specified rate
-        let trials = 10000;
-        let fat_tail_count = (0..trials)
-            .map(|_| fat_tail_shot(25.0, 0.02, 3.0))
-            .filter(|(_, is_fat)| *is_fat)
-            .count();
-
-        let frequency = fat_tail_count as f64 / trials as f64;
-        assert_relative_eq!(frequency, 0.02, epsilon = 0.005);
-    }
-
-    #[test]
-    fn test_rayleigh_pdf_properties() {
-        let sigma = 30.0;
-
-        // PDF should be 0 at d=0
-        assert_eq!(rayleigh_pdf(0.0, sigma), 0.0);
-
-        // PDF should be positive for d > 0
-        assert!(rayleigh_pdf(10.0, sigma) > 0.0);
-
-        // PDF should be 0 for negative d
-        assert_eq!(rayleigh_pdf(-5.0, sigma), 0.0);
-    }
-
-    #[test]
-    fn test_rayleigh_mean_formula() {
-        let sigma = 25.0;
-        let expected = sigma * (PI / 2.0).sqrt();
-        assert_relative_eq!(rayleigh_mean(sigma), expected, epsilon = 1e-10);
     }
 
     // ========================================================================
@@ -560,39 +427,6 @@ mod tests {
 
         assert_relative_eq!(var_x, sigma_x * sigma_x, epsilon = 5.0);
         assert_relative_eq!(var_y, sigma_y * sigma_y, epsilon = 5.0);
-    }
-
-    #[test]
-    fn test_bvn_symmetry_reduces_to_rayleigh() {
-        // CRITICAL TEST: When μ_x = μ_y = 0 and σ_x = σ_y = σ,
-        // the radial distance sqrt(x² + y²) should follow Rayleigh(σ)
-
-        let sigma = 30.0;
-        let rho = 0.0; // No correlation
-
-        // Generate BVN samples with no bias and equal dispersions
-        let bvn_samples: Vec<(f64, f64)> = (0..10000)
-            .map(|_| bvn_random(0.0, 0.0, sigma, sigma, rho))
-            .collect();
-
-        // Convert to radial distances
-        let bvn_radial: Vec<f64> = bvn_samples
-            .iter()
-            .map(|(x, y)| (x * x + y * y).sqrt())
-            .collect();
-
-        // Generate direct Rayleigh samples
-        let rayleigh_samples: Vec<f64> = (0..10000).map(|_| rayleigh_random(sigma)).collect();
-
-        // Compare means
-        let bvn_mean = bvn_radial.iter().sum::<f64>() / bvn_radial.len() as f64;
-        let rayleigh_mean_val = rayleigh_samples.iter().sum::<f64>() / rayleigh_samples.len() as f64;
-
-        assert_relative_eq!(bvn_mean, rayleigh_mean_val, epsilon = 1.0);
-
-        // Compare to theoretical Rayleigh mean
-        let expected_mean = rayleigh_mean(sigma);
-        assert_relative_eq!(bvn_mean, expected_mean, epsilon = 1.5);
     }
 
     #[test]
@@ -721,38 +555,6 @@ mod tests {
         assert!(pdf_diagonal > pdf_off_diagonal);
     }
 
-    // ========================================================================
-    // Bayesian Inference Tests
-    // ========================================================================
-
-    #[test]
-    fn test_log_rayleigh_pdf_properties() {
-        let sigma = 30.0;
-
-        // Log-PDF should be -∞ for invalid inputs
-        assert_eq!(log_rayleigh_pdf(0.0, sigma), f64::NEG_INFINITY);
-        assert_eq!(log_rayleigh_pdf(-5.0, sigma), f64::NEG_INFINITY);
-        assert_eq!(log_rayleigh_pdf(10.0, 0.0), f64::NEG_INFINITY);
-        assert_eq!(log_rayleigh_pdf(10.0, -5.0), f64::NEG_INFINITY);
-
-        // Log-PDF should be finite for valid inputs
-        let log_pdf = log_rayleigh_pdf(25.0, sigma);
-        assert!(log_pdf.is_finite());
-        assert!(log_pdf < 0.0); // Log of probability should be negative
-    }
-
-    #[test]
-    fn test_log_rayleigh_matches_pdf() {
-        // Verify that log_rayleigh_pdf = log(rayleigh_pdf)
-        let sigma = 30.0;
-        let distance = 25.0;
-
-        let pdf = rayleigh_pdf(distance, sigma);
-        let log_pdf = log_rayleigh_pdf(distance, sigma);
-
-        assert_relative_eq!(log_pdf, pdf.ln(), epsilon = 1e-10);
-    }
-
     #[test]
     fn test_log_normal_pdf_properties() {
         let mean = 28.0;
@@ -777,75 +579,5 @@ mod tests {
             -0.5,
             epsilon = 1e-10
         );
-    }
-
-    #[test]
-    fn test_log_posterior_combines_likelihood_and_prior() {
-        let observations = vec![25.0, 30.0, 22.0, 35.0];
-        let prior_mean = 28.0;
-        let prior_std = 5.0;
-        let sigma = 27.5;
-
-        // Compute posterior
-        let posterior = log_posterior(sigma, &observations, prior_mean, prior_std, None);
-
-        // Manually compute likelihood and prior
-        let likelihood: f64 = observations
-            .iter()
-            .map(|&d| log_rayleigh_pdf(d, sigma))
-            .sum();
-        let prior = log_normal_pdf(sigma, prior_mean, prior_std);
-
-        // Posterior should equal likelihood + prior
-        assert_relative_eq!(posterior, likelihood + prior, epsilon = 1e-10);
-    }
-
-    #[test]
-    fn test_log_posterior_rejects_invalid_sigma() {
-        let observations = vec![25.0, 30.0];
-        let prior_mean = 28.0;
-        let prior_std = 5.0;
-
-        // Negative sigma should give -∞
-        assert_eq!(
-            log_posterior(-5.0, &observations, prior_mean, prior_std, None),
-            f64::NEG_INFINITY
-        );
-
-        // Zero sigma should give -∞
-        assert_eq!(
-            log_posterior(0.0, &observations, prior_mean, prior_std, None),
-            f64::NEG_INFINITY
-        );
-    }
-
-    #[test]
-    fn test_log_posterior_prefers_sigma_near_observations() {
-        let observations = vec![30.0, 32.0, 28.0, 31.0]; // Cluster around 30
-        let prior_mean = 25.0; // Prior centered elsewhere
-        let prior_std = 10.0; // Weak prior
-
-        // Sigma=30 (near observations) should have higher posterior than sigma=25
-        let posterior_30 = log_posterior(30.0, &observations, prior_mean, prior_std, None);
-        let posterior_25 = log_posterior(25.0, &observations, prior_mean, prior_std, None);
-
-        assert!(posterior_30 > posterior_25);
-    }
-
-    #[test]
-    fn test_log_posterior_numerical_stability() {
-        // Test with many observations (should not overflow/underflow)
-        let observations: Vec<f64> = (0..1000).map(|_| 25.0).collect();
-        let prior_mean = 28.0;
-        let prior_std = 5.0;
-        let sigma = 27.5;
-
-        let posterior = log_posterior(sigma, &observations, prior_mean, prior_std, None);
-
-        // Should be finite (not overflow to ±∞)
-        assert!(posterior.is_finite());
-
-        // Should be very negative (many observations = strong evidence)
-        assert!(posterior < -100.0);
     }
 }

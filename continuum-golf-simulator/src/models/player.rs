@@ -689,7 +689,7 @@ mod tests {
         let hole = get_hole_by_id(1).unwrap(); // 75yd wedge
 
         let skill = player.get_skill_for_hole(hole);
-        assert!(skill.kalman_filter.estimate > 0.0);
+        assert!(skill.cached_sigma > 0.0);
     }
 
     #[test]

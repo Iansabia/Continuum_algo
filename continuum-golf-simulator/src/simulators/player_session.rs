@@ -3,7 +3,7 @@
 //! Simulates individual player gaming sessions with:
 //! - Configurable shot counts and wager ranges
 //! - Flexible hole selection strategies
-//! - Real-time Kalman filter updates for skill tracking
+//! - Real-time MCMC updates for skill tracking
 //! - Batch processing and high-stakes shot detection
 //! - Developer mode for manual testing
 
@@ -266,12 +266,12 @@ pub struct SessionResult {
     pub net_gain_loss: f64,
     /// All shot outcomes in chronological order
     pub shots: Vec<ShotOutcome>,
-    /// Final skill profiles after all Kalman updates
+    /// Final skill profiles after all MCMC updates
     pub final_skill_profiles: HashMap<String, f64>, // ClubCategory -> sigma
     /// Actual house edge for this session
     pub session_house_edge: f64,
-    /// Number of Kalman updates performed
-    pub num_kalman_updates: usize,
+    /// Number of skill updates performed
+    pub num_kalman_updates: usize, // Keep variable name for backward compatibility
     /// Number of high-stakes shots (triggered immediate updates)
     pub num_high_stakes_shots: usize,
     /// Anti-cheat detection report for cherry-picking

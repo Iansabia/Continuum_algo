@@ -289,9 +289,11 @@ mod tests {
 
     #[test]
     fn test_simulate_shot_produces_valid_distances() {
+        use crate::math::distributions::fat_tail_shot_bvn;
         // Run 100 simulations to ensure all are valid
         for _ in 0..100 {
-            let (miss, is_fat_tail) = simulate_shot(30.0, 0.02, 3.0);
+            let ((x, y), is_fat_tail) = fat_tail_shot_bvn(0.0, 0.0, 30.0, 30.0, 0.0, 0.02, 3.0);
+            let miss = (x * x + y * y).sqrt();
 
             assert!(miss >= 0.0, "Miss distance should be non-negative");
             assert!(miss < 500.0, "Miss distance should be reasonable");
@@ -303,9 +305,11 @@ mod tests {
 
     #[test]
     fn test_simulate_standard_shot() {
+        use crate::math::distributions::bvn_random;
         // Run 100 simulations
         for _ in 0..100 {
-            let miss = simulate_standard_shot(30.0);
+            let (x, y) = bvn_random(0.0, 0.0, 30.0, 30.0, 0.0);
+            let miss = (x * x + y * y).sqrt();
             assert!(miss >= 0.0);
             assert!(miss < 500.0);
         }
@@ -313,12 +317,13 @@ mod tests {
 
     #[test]
     fn test_fat_tail_frequency() {
+        use crate::math::distributions::fat_tail_shot_bvn;
         // Run many simulations and check that ~2% are fat-tail
         let n = 10000;
         let mut fat_tail_count = 0;
 
         for _ in 0..n {
-            let (_, is_fat_tail) = simulate_shot(30.0, 0.02, 3.0);
+            let (_, is_fat_tail) = fat_tail_shot_bvn(0.0, 0.0, 30.0, 30.0, 0.0, 0.02, 3.0);
             if is_fat_tail {
                 fat_tail_count += 1;
             }

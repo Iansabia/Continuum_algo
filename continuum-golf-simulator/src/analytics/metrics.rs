@@ -4,7 +4,7 @@
 /// - Expected value calculations (Monte Carlo simulation)
 /// - RTP validation across different skill levels
 /// - Fairness verification (EV equality across handicaps)
-/// - Kalman filter convergence analysis
+/// - Skill estimation convergence analysis
 
 use crate::models::{hole::Hole, player::Player};
 use crate::math::distributions::fat_tail_shot_bvn;
@@ -166,7 +166,7 @@ pub fn calculate_fairness_metric(
     }
 }
 
-/// Kalman filter convergence analysis report
+/// Skill estimation convergence analysis report
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConvergenceReport {
     pub club_category: String,
@@ -180,11 +180,11 @@ pub struct ConvergenceReport {
     pub shots_to_80_percent: Option<usize>,
 }
 
-/// Analyze Kalman filter convergence from a session
+/// Analyze skill estimation convergence from a session
 ///
 /// Note: Currently uses simplified analysis based on final state.
 /// For production, track convergence during simulation.
-pub fn analyze_kalman_convergence(
+pub fn analyze_kalman_convergence( // Keep name for backward compatibility
     _session: &SessionResult,
 ) -> HashMap<String, ConvergenceReport> {
     let mut reports = HashMap::new();
