@@ -9,17 +9,22 @@ export default defineConfig({
     react(),
     wasm(),
     {
-      name: 'copy-landing-page',
+      name: 'copy-index-page',
       closeBundle() {
         copyFileSync(
-          resolve(__dirname, 'landing.html'),
-          resolve(__dirname, 'dist/landing.html')
+          resolve(__dirname, 'index.html'),
+          resolve(__dirname, 'dist/index.html')
         );
       }
     }
   ],
   build: {
     target: 'esnext',
+    rollupOptions: {
+      input: {
+        app: resolve(__dirname, 'app.html')
+      }
+    },
     commonjsOptions: {
       include: [/recharts/, /node_modules/],
     },
