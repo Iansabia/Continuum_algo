@@ -1,0 +1,20 @@
+{
+  "name": "continuum-golf-simulator",
+  "type": "module",
+  "collaborators": [
+    "Ian Sabia"
+  ],
+  "description": "Continuum Golf wagering simulator in Rust - models odds engine, Kalman filter skill adaptation, and venue economics",
+  "version": "0.1.0",
+  "license": "MIT",
+  "files": [
+    "continuum_golf_simulator_bg.wasm",
+    "continuum_golf_simulator.js",
+    "continuum_golf_simulator.d.ts"
+  ],
+  "main": "continuum_golf_simulator.js",
+  "types": "continuum_golf_simulator.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
