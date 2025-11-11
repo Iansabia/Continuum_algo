@@ -1,0 +1,2396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Continuum Golf - iPhone App Mockup</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --accent-purple: #604c9c;
+            --accent-purple-light: #7d66b8;
+            --accent-gold: #dfc9ad;
+            --accent-gold-light: #ead9c4;
+            --accent-blue: #4a90e2;
+            --accent-blue-light: #6ba3e8;
+            --success-green: #34c759;
+            --text-primary: #000000;
+            --text-secondary: #8e8e93;
+            --text-tertiary: #c7c7cc;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f2f2f7;
+            --border-light: #e5e5ea;
+        }
+
+        /* Logo */
+        .logo {
+            font-size: 20px;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-small {
+            font-size: 14px;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.3px;
+        }
+
+        /* Icon replacements */
+        .icon {
+            width: 20px;
+            height: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .icon-signal {
+            width: 16px;
+            height: 12px;
+            background: linear-gradient(to top,
+                var(--text-primary) 0%, var(--text-primary) 25%,
+                transparent 25%, transparent 50%,
+                var(--text-primary) 50%, var(--text-primary) 75%,
+                transparent 75%, transparent 100%);
+            background-size: 4px 100%;
+            background-position: 0 100%, 5px 60%, 10px 30%;
+            background-repeat: no-repeat;
+        }
+
+        .icon-battery {
+            width: 24px;
+            height: 11px;
+            border: 2px solid var(--text-primary);
+            border-radius: 2px;
+            position: relative;
+        }
+
+        .icon-battery::before {
+            content: '';
+            position: absolute;
+            right: -4px;
+            top: 2px;
+            width: 2px;
+            height: 3px;
+            background: var(--text-primary);
+            border-radius: 0 1px 1px 0;
+        }
+
+        .icon-battery::after {
+            content: '';
+            position: absolute;
+            left: 2px;
+            top: 1px;
+            width: 16px;
+            height: 3px;
+            background: var(--text-primary);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #2d2d44 100%);
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        /* iPhone 15 Pro Max Frame */
+        .iphone-frame {
+            width: 430px;
+            height: 932px;
+            background: linear-gradient(145deg, #2a2a2a 0%, #1f1f1f 100%);
+            border-radius: 55px;
+            padding: 8px;
+            box-shadow:
+                0 0 0 2px #3a3a3a,
+                0 0 0 4px #2a2a2a,
+                0 60px 120px rgba(0, 0, 0, 0.9),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            position: relative;
+            transform: scale(0.95);
+        }
+
+        /* Dynamic Island */
+        .dynamic-island {
+            position: absolute;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 126px;
+            height: 37px;
+            background: #000;
+            border-radius: 19px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .island-camera {
+            width: 10px;
+            height: 10px;
+            background: #0a0a0f;
+            border-radius: 50%;
+            margin-right: 20px;
+        }
+
+        .island-sensor {
+            width: 25px;
+            height: 3px;
+            background: #0a0a0f;
+            border-radius: 2px;
+        }
+
+        /* Screen */
+        .iphone-screen {
+            width: 100%;
+            height: 100%;
+            background: var(--bg-primary);
+            border-radius: 48px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* App Container */
+        .app-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            background: linear-gradient(to bottom, #fafafa 0%, #ffffff 100%);
+        }
+
+        .app-screen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #fafafa 0%, #ffffff 100%);
+            display: none;
+            flex-direction: column;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+
+        .app-screen.active {
+            display: flex;
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .app-screen.exiting {
+            display: flex;
+            opacity: 0;
+            transform: translateX(-100%);
+        }
+
+        /* Status Bar */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 60px 28px 16px 28px;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .status-time {
+            flex: 1;
+        }
+
+        .status-icons {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        /* Profile Header */
+        .profile-header {
+            padding: 0 28px 24px 28px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .profile-avatar {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 700;
+            color: white;
+            box-shadow: 0 4px 12px rgba(96, 76, 156, 0.3);
+        }
+
+        .profile-info {
+            flex: 1;
+        }
+
+        .profile-greeting {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .profile-name {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .profile-badge {
+            padding: 6px 12px;
+            background: linear-gradient(135deg, var(--success-green), #30d158);
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* App Content */
+        .app-content {
+            flex: 1;
+            padding: 0 28px 28px 28px;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        /* Home Screen */
+        .hero-card {
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            border-radius: 24px;
+            padding: 28px;
+            margin-bottom: 24px;
+            box-shadow: 0 8px 24px rgba(96, 76, 156, 0.25);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+
+        .hero-label {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .hero-value {
+            font-size: 52px;
+            font-weight: 900;
+            color: white;
+            letter-spacing: -2px;
+            line-height: 1;
+        }
+
+        .hero-trend {
+            font-size: 15px;
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 600;
+            margin-top: 8px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border: 1px solid var(--border-light);
+        }
+
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 800;
+            color: white;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .stat-icon::before {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+        }
+
+        .stat-card:nth-child(1) .stat-icon {
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+        }
+
+        .stat-card:nth-child(2) .stat-icon {
+            background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-light));
+        }
+
+        .stat-card:nth-child(3) .stat-icon {
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-blue-light));
+        }
+
+        .stat-card:nth-child(4) .stat-icon {
+            background: linear-gradient(135deg, var(--success-green), #30d158);
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .quick-actions {
+            margin-bottom: 24px;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+        }
+
+        .action-button {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border: 1px solid var(--border-light);
+        }
+
+        .action-button:active {
+            transform: scale(0.98);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+        }
+
+        .action-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            font-weight: 700;
+            color: white;
+            position: relative;
+        }
+
+        .action-icon::before {
+            content: '';
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+        }
+
+        .action-text {
+            flex: 1;
+        }
+
+        .action-title {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+
+        .action-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .action-arrow {
+            font-size: 18px;
+            color: var(--text-tertiary);
+        }
+
+        /* Shot Simulator Screen */
+        .sim-header {
+            padding: 0 28px 20px 28px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sim-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .sim-subtitle {
+            font-size: 15px;
+            color: var(--text-secondary);
+        }
+
+        .screen-logo {
+            font-size: 18px;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+            margin-bottom: 12px;
+        }
+
+        .hole-badge-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .hole-badge {
+            padding: 8px 16px;
+            background: white;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            border: 1px solid var(--border-light);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+        }
+
+        .hole-badge.primary {
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            color: white;
+            border: none;
+        }
+
+        .target-container {
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%);
+            border-radius: 28px;
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 24px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .target-rings {
+            position: relative;
+            width: 300px;
+            height: 300px;
+        }
+
+        .ring {
+            position: absolute;
+            border: 1.5px solid rgba(255, 255, 255, 0.12);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .ring-1 { width: 100%; height: 100%; }
+        .ring-2 { width: 75%; height: 75%; }
+        .ring-3 { width: 50%; height: 50%; }
+        .ring-4 { width: 25%; height: 25%; border-color: rgba(255, 255, 255, 0.2); }
+
+        .center-marker {
+            width: 16px;
+            height: 16px;
+            background: white;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.8), 0 0 60px rgba(255, 255, 255, 0.4);
+        }
+
+        .shot-marker {
+            width: 12px;
+            height: 12px;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            border: 2px solid white;
+            border-radius: 50%;
+            position: absolute;
+            animation: shotPulse 2.5s infinite ease-in-out;
+            box-shadow: 0 0 20px rgba(96, 76, 156, 0.6);
+        }
+
+        @keyframes shotPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.3); opacity: 0.6; }
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .stat-pill {
+            background: white;
+            border-radius: 16px;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border: 1px solid var(--border-light);
+        }
+
+        .stat-pill-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .stat-pill-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .wager-section {
+            background: white;
+            border-radius: 24px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+            border: 1px solid var(--border-light);
+        }
+
+        .wager-label {
+            font-size: 15px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .wager-input-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .wager-dollar-sign {
+            position: absolute;
+            left: 20px;
+            font-size: 32px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            pointer-events: none;
+        }
+
+        .wager-input {
+            width: 100%;
+            font-size: 48px;
+            font-weight: 800;
+            color: var(--text-primary);
+            border: 2px solid var(--border-light);
+            border-radius: 20px;
+            padding: 20px 20px 20px 52px;
+            text-align: left;
+            background: var(--bg-secondary);
+            transition: all 0.2s ease;
+        }
+
+        .wager-input:focus {
+            outline: none;
+            border-color: var(--accent-purple);
+            background: white;
+            box-shadow: 0 0 0 4px rgba(96, 76, 156, 0.1);
+        }
+
+        .quick-amount-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .quick-amount-btn {
+            padding: 12px;
+            background: white;
+            border: 2px solid var(--border-light);
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .quick-amount-btn:active {
+            transform: scale(0.95);
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            color: white;
+            border-color: var(--accent-purple);
+        }
+
+        .shoot-button {
+            width: 100%;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            border: none;
+            border-radius: 20px;
+            padding: 20px;
+            font-size: 18px;
+            font-weight: 700;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 8px 24px rgba(96, 76, 156, 0.3);
+            letter-spacing: 0.5px;
+        }
+
+        .shoot-button:active {
+            transform: scale(0.98);
+            box-shadow: 0 4px 16px rgba(96, 76, 156, 0.4);
+        }
+
+        /* Stats Screen */
+        .stats-hero {
+            text-align: center;
+            padding: 32px 0 40px 0;
+        }
+
+        .stats-hero-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .stats-hero-value {
+            font-size: 64px;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -3px;
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+
+        .stats-hero-trend {
+            font-size: 15px;
+            color: var(--success-green);
+            font-weight: 600;
+        }
+
+        .detail-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 32px;
+        }
+
+        .detail-stat {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border: 1px solid var(--border-light);
+        }
+
+        .detail-stat-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .detail-stat-value {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-primary);
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 24px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+            border: 1px solid var(--border-light);
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .chart-title {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .chart-period {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .bar-chart {
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            height: 140px;
+            padding: 0 4px;
+        }
+
+        .bar-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .bar {
+            width: 100%;
+            background: var(--bg-secondary);
+            border-radius: 8px 8px 0 0;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .bar.positive {
+            background: linear-gradient(to top, var(--accent-purple), var(--accent-purple-light));
+            box-shadow: 0 -4px 12px rgba(96, 76, 156, 0.2);
+        }
+
+        .bar-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        /* Hole Selection Screen */
+        .holes-header {
+            padding: 0 28px 20px 28px;
+        }
+
+        .holes-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .holes-subtitle {
+            font-size: 15px;
+            color: var(--text-secondary);
+        }
+
+        .holes-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .hole-card {
+            background: white;
+            border-radius: 24px;
+            padding: 24px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 2px solid var(--border-light);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .hole-card:active {
+            transform: scale(0.96);
+        }
+
+        .hole-card.selected {
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            border-color: var(--accent-purple);
+            box-shadow: 0 8px 24px rgba(96, 76, 156, 0.3);
+        }
+
+        .hole-card.selected .hole-number,
+        .hole-card.selected .hole-label,
+        .hole-card.selected .hole-club,
+        .hole-card.selected .payout-label,
+        .hole-card.selected .payout-value {
+            color: white;
+        }
+
+        .hole-number {
+            font-size: 52px;
+            font-weight: 900;
+            color: var(--text-primary);
+            letter-spacing: -2px;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+
+        .hole-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .hole-club {
+            display: inline-block;
+            padding: 6px 14px;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+        }
+
+        .hole-card.selected .hole-club {
+            background: rgba(255, 255, 255, 0.25);
+            color: white;
+        }
+
+        .hole-divider {
+            height: 1px;
+            background: var(--border-light);
+            margin-bottom: 12px;
+        }
+
+        .hole-card.selected .hole-divider {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        .payout-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .payout-value {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--text-primary);
+        }
+
+        .continue-button {
+            width: 100%;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            border: none;
+            border-radius: 20px;
+            padding: 20px;
+            font-size: 18px;
+            font-weight: 700;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 8px 24px rgba(96, 76, 156, 0.3);
+            letter-spacing: 0.5px;
+        }
+
+        /* Navigation Dots */
+        .nav-dots {
+            position: absolute;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 6px;
+            z-index: 100;
+        }
+
+        .nav-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--text-tertiary);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .nav-dot.active {
+            width: 24px;
+            border-radius: 3px;
+            background: var(--text-primary);
+        }
+
+        /* Navigation Arrows */
+        .nav-arrows {
+            position: fixed;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 16px;
+            z-index: 200;
+        }
+
+        .nav-arrow {
+            width: 52px;
+            height: 52px;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: white;
+            font-size: 22px;
+            font-weight: bold;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        }
+
+        .nav-arrow:hover {
+            background: rgba(0, 0, 0, 0.95);
+            transform: scale(1.05);
+        }
+
+        /* Instructions */
+        .instructions {
+            position: fixed;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(20px);
+            padding: 12px 24px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.9);
+            text-align: center;
+            z-index: 300;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Home Indicator */
+        .home-indicator {
+            position: absolute;
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 140px;
+            height: 5px;
+            background: var(--text-primary);
+            border-radius: 3px;
+            opacity: 0.25;
+        }
+
+        /* Scrollbar */
+        .app-content::-webkit-scrollbar {
+            width: 3px;
+        }
+
+        .app-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .app-content::-webkit-scrollbar-thumb {
+            background: var(--border-light);
+            border-radius: 2px;
+        }
+
+        /* Venues Screen */
+        .venues-header {
+            padding: 0 28px 20px 28px;
+        }
+
+        .venues-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .venues-subtitle {
+            font-size: 15px;
+            color: var(--text-secondary);
+        }
+
+        .map-container {
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+            border-radius: 28px;
+            height: 320px;
+            margin-bottom: 24px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+        }
+
+        .map-grid {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image:
+                repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.1) 0px, rgba(255, 255, 255, 0.1) 1px, transparent 1px, transparent 40px),
+                repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.1) 0px, rgba(255, 255, 255, 0.1) 1px, transparent 1px, transparent 40px);
+        }
+
+        .map-marker {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            box-shadow: 0 4px 12px rgba(96, 76, 156, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            animation: markerBounce 2s infinite ease-in-out;
+        }
+
+        .map-marker::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+            transform: rotate(45deg);
+        }
+
+        @keyframes markerBounce {
+            0%, 100% { transform: rotate(-45deg) translateY(0); }
+            50% { transform: rotate(-45deg) translateY(-8px); }
+        }
+
+        .marker-1 { top: 35%; left: 25%; animation-delay: 0s; }
+        .marker-2 { top: 50%; left: 45%; animation-delay: 0.4s; }
+        .marker-3 { top: 25%; left: 60%; animation-delay: 0.8s; }
+        .marker-4 { top: 60%; left: 70%; animation-delay: 1.2s; }
+        .marker-5 { top: 70%; left: 30%; animation-delay: 1.6s; }
+
+        .your-location {
+            position: absolute;
+            top: 45%;
+            left: 50%;
+            width: 16px;
+            height: 16px;
+            background: #2196F3;
+            border: 4px solid white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 0 8px rgba(33, 150, 243, 0.2), 0 4px 8px rgba(0, 0, 0, 0.2);
+            animation: locationPulse 2s infinite;
+        }
+
+        @keyframes locationPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.4), 0 4px 8px rgba(0, 0, 0, 0.2); }
+            50% { box-shadow: 0 0 0 16px rgba(33, 150, 243, 0), 0 4px 8px rgba(0, 0, 0, 0.2); }
+        }
+
+        .venue-list {
+            margin-bottom: 20px;
+        }
+
+        .venue-card {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 12px;
+            display: flex;
+            gap: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border: 1px solid var(--border-light);
+        }
+
+        .venue-icon {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 700;
+            color: white;
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .venue-icon::before {
+            content: '';
+            position: absolute;
+            width: 28px;
+            height: 28px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+        }
+
+        .venue-info {
+            flex: 1;
+        }
+
+        .venue-name {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .venue-address {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .venue-meta {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .venue-distance {
+            font-size: 12px;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .venue-status {
+            padding: 4px 10px;
+            background: rgba(52, 199, 89, 0.15);
+            color: var(--success-green);
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Home Simulator Screen */
+        .connect-header {
+            padding: 0 28px 20px 28px;
+        }
+
+        .connect-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .connect-subtitle {
+            font-size: 15px;
+            color: var(--text-secondary);
+        }
+
+        .setup-card {
+            background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-light));
+            border-radius: 24px;
+            padding: 28px;
+            margin-bottom: 24px;
+            box-shadow: 0 8px 24px rgba(223, 201, 173, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .setup-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.15) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+
+        .setup-icon {
+            font-size: 48px;
+            font-weight: 700;
+            color: rgba(0, 0, 0, 0.8);
+            margin-bottom: 16px;
+        }
+
+        .setup-label {
+            font-size: 13px;
+            color: rgba(0, 0, 0, 0.7);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .setup-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: rgba(0, 0, 0, 0.9);
+        }
+
+        .connection-options {
+            margin-bottom: 24px;
+        }
+
+        .connection-card {
+            background: white;
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border: 2px solid var(--border-light);
+        }
+
+        .connection-card:active {
+            transform: scale(0.98);
+            border-color: var(--accent-purple);
+        }
+
+        .connection-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            font-weight: 700;
+            color: white;
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .connection-icon::before {
+            content: '';
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+        }
+
+        .connection-card:nth-child(1) .connection-icon {
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+        }
+
+        .connection-card:nth-child(2) .connection-icon {
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-blue-light));
+        }
+
+        .connection-info {
+            flex: 1;
+        }
+
+        .connection-title {
+            font-size: 19px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .connection-description {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        .qr-card {
+            background: white;
+            border-radius: 24px;
+            padding: 28px;
+            text-align: center;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+            border: 1px solid var(--border-light);
+            margin-bottom: 20px;
+        }
+
+        .qr-placeholder {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 20px;
+            background: linear-gradient(135deg, var(--bg-secondary), #e8e8ed);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            letter-spacing: 1px;
+            border: 2px dashed var(--border-light);
+        }
+
+        .qr-label {
+            font-size: 15px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .qr-code {
+            font-size: 24px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 2px;
+        }
+
+        /* Multiplayer Screen */
+        .multiplayer-header {
+            padding: 0 28px 20px 28px;
+        }
+
+        .multiplayer-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .multiplayer-subtitle {
+            font-size: 15px;
+            color: var(--text-secondary);
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            background: var(--bg-secondary);
+            padding: 4px;
+            border-radius: 16px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 12px;
+            background: transparent;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .mode-btn.active {
+            background: white;
+            color: var(--accent-purple);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .player-list {
+            margin-bottom: 24px;
+        }
+
+        .player-item {
+            background: white;
+            border-radius: 20px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border: 2px solid var(--border-light);
+        }
+
+        .player-item.current-user {
+            border-color: var(--accent-purple);
+            background: linear-gradient(to right, rgba(96, 76, 156, 0.05), white);
+        }
+
+        .player-avatar {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 700;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .player-item:nth-child(2) .player-avatar {
+            background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-light));
+        }
+
+        .player-item:nth-child(3) .player-avatar {
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-blue-light));
+        }
+
+        .player-details {
+            flex: 1;
+        }
+
+        .player-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+
+        .player-status {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .player-score {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--text-primary);
+        }
+
+        .wager-create-card {
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            border-radius: 24px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 8px 24px rgba(96, 76, 156, 0.25);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .wager-create-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+
+        .wager-create-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 16px;
+        }
+
+        .wager-options {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .wager-option {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+        }
+
+        .wager-option:active {
+            transform: scale(0.95);
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .wager-option-icon {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .wager-option-label {
+            font-size: 14px;
+            font-weight: 700;
+            color: white;
+        }
+
+        .active-wagers {
+            margin-bottom: 20px;
+        }
+
+        .wager-card {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border: 1px solid var(--border-light);
+        }
+
+        .wager-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .wager-type {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--accent-purple);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .wager-amount {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--text-primary);
+        }
+
+        .wager-vs {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .wager-player {
+            flex: 1;
+            text-align: center;
+        }
+
+        .wager-player-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .wager-vs-icon {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-secondary);
+        }
+
+        .wager-actions {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .wager-btn {
+            padding: 10px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .wager-btn-accept {
+            background: linear-gradient(135deg, var(--success-green), #30d158);
+            color: white;
+        }
+
+        .wager-btn-decline {
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+        }
+
+        .invite-button {
+            width: 100%;
+            background: white;
+            border: 2px solid var(--accent-purple);
+            border-radius: 20px;
+            padding: 20px;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--accent-purple);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 12px;
+        }
+
+        .invite-button:active {
+            transform: scale(0.98);
+            background: var(--bg-secondary);
+        }
+
+        @media (max-width: 768px) {
+            .iphone-frame {
+                transform: scale(0.75);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="instructions">
+        ← → Navigate Screens
+    </div>
+
+    <div class="iphone-frame">
+        <div class="dynamic-island">
+            <div class="island-camera"></div>
+            <div class="island-sensor"></div>
+        </div>
+
+        <div class="iphone-screen">
+            <div class="app-container">
+                <!-- Screen 1: Home/Dashboard -->
+                <div class="app-screen active" data-screen="1">
+                    <div class="status-bar">
+                        <div class="logo-small">CONTINUUM</div>
+                        <div class="status-icons">
+                            <div class="icon-signal"></div>
+                            <div class="icon-battery"></div>
+                        </div>
+                    </div>
+
+                    <div class="profile-header">
+                        <div class="profile-avatar">JD</div>
+                        <div class="profile-info">
+                            <div class="profile-greeting">Good Morning</div>
+                            <div class="profile-name">John Doe</div>
+                        </div>
+                        <div class="profile-badge">Pro</div>
+                    </div>
+
+                    <div class="app-content">
+                        <div class="hero-card">
+                            <div class="hero-label">Today's Earnings</div>
+                            <div class="hero-value">+$247</div>
+                            <div class="hero-trend">↗ +18% from yesterday</div>
+                        </div>
+
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-icon">●</div>
+                                <div class="stat-value">34</div>
+                                <div class="stat-label">Shots Played</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">✓</div>
+                                <div class="stat-value">68%</div>
+                                <div class="stat-label">Win Rate</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">↑</div>
+                                <div class="stat-value">89%</div>
+                                <div class="stat-label">Return to Player</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">★</div>
+                                <div class="stat-value">12.4x</div>
+                                <div class="stat-label">Best Payout</div>
+                            </div>
+                        </div>
+
+                        <div class="quick-actions">
+                            <div class="section-title">Quick Actions</div>
+
+                            <div class="action-button">
+                                <div class="action-icon">▶</div>
+                                <div class="action-text">
+                                    <div class="action-title">New Session</div>
+                                    <div class="action-subtitle">Start playing now</div>
+                                </div>
+                                <div class="action-arrow">›</div>
+                            </div>
+
+                            <div class="action-button">
+                                <div class="action-icon">◉</div>
+                                <div class="action-text">
+                                    <div class="action-title">View Statistics</div>
+                                    <div class="action-subtitle">Detailed performance</div>
+                                </div>
+                                <div class="action-arrow">›</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="home-indicator"></div>
+                </div>
+
+                <!-- Screen 2: Shot Simulator -->
+                <div class="app-screen" data-screen="2">
+                    <div class="status-bar">
+                        <div class="logo-small">CONTINUUM</div>
+                        <div class="status-icons">
+                            <div class="icon-signal"></div>
+                            <div class="icon-battery"></div>
+                        </div>
+                    </div>
+
+                    <div class="sim-header">
+                        <div class="sim-title">Shot Simulator</div>
+                        <div class="sim-subtitle">Hole 4 · Mid Iron</div>
+                    </div>
+
+                    <div class="app-content">
+                        <div class="hole-badge-row">
+                            <div class="hole-badge primary">150 Yards</div>
+                            <div class="hole-badge">Max Payout: 8.2x</div>
+                        </div>
+
+                        <div class="target-container">
+                            <div class="target-rings">
+                                <div class="ring ring-1"></div>
+                                <div class="ring ring-2"></div>
+                                <div class="ring ring-3"></div>
+                                <div class="ring ring-4"></div>
+                                <div class="center-marker"></div>
+                                <div class="shot-marker" style="top: 30%; left: 58%;"></div>
+                                <div class="shot-marker" style="top: 58%; left: 42%; animation-delay: 0.8s;"></div>
+                                <div class="shot-marker" style="top: 46%; left: 54%; animation-delay: 1.6s;"></div>
+                                <div class="shot-marker" style="top: 35%; left: 45%; animation-delay: 2.4s;"></div>
+                                <div class="shot-marker" style="top: 52%; left: 60%; animation-delay: 3.2s;"></div>
+                                <div class="shot-marker" style="top: 42%; left: 48%; animation-delay: 4s;"></div>
+                                <div class="shot-marker" style="top: 55%; left: 52%; animation-delay: 4.8s;"></div>
+                                <div class="shot-marker" style="top: 38%; left: 56%; animation-delay: 5.6s;"></div>
+                                <div class="shot-marker" style="top: 48%; left: 44%; animation-delay: 6.4s;"></div>
+                                <div class="shot-marker" style="top: 44%; left: 58%; animation-delay: 7.2s;"></div>
+                                <div class="shot-marker" style="top: 50%; left: 46%; animation-delay: 8s;"></div>
+                                <div class="shot-marker" style="top: 40%; left: 50%; animation-delay: 8.8s;"></div>
+                            </div>
+                        </div>
+
+                        <div class="stats-row">
+                            <div class="stat-pill">
+                                <span class="stat-pill-label">Skill (σ)</span>
+                                <span class="stat-pill-value">26 ft</span>
+                            </div>
+                            <div class="stat-pill">
+                                <span class="stat-pill-label">Confidence</span>
+                                <span class="stat-pill-value">92%</span>
+                            </div>
+                        </div>
+
+                        <div class="wager-section">
+                            <label class="wager-label">Wager Amount</label>
+                            <div class="wager-input-container">
+                                <span class="wager-dollar-sign">$</span>
+                                <input type="number" class="wager-input" value="15" min="5" max="500">
+                            </div>
+                            <div class="quick-amount-buttons">
+                                <button class="quick-amount-btn">$5</button>
+                                <button class="quick-amount-btn">$10</button>
+                                <button class="quick-amount-btn">$25</button>
+                            </div>
+                        </div>
+
+                        <button class="shoot-button">TAKE SHOT</button>
+                    </div>
+
+                    <div class="home-indicator"></div>
+                </div>
+
+                <!-- Screen 3: Session Stats -->
+                <div class="app-screen" data-screen="3">
+                    <div class="status-bar">
+                        <div class="logo-small">CONTINUUM</div>
+                        <div class="status-icons">
+                            <div class="icon-signal"></div>
+                            <div class="icon-battery"></div>
+                        </div>
+                    </div>
+
+                    <div class="profile-header">
+                        <div class="profile-avatar">JD</div>
+                        <div class="profile-info">
+                            <div class="profile-greeting">Session Summary</div>
+                            <div class="profile-name">John Doe</div>
+                        </div>
+                    </div>
+
+                    <div class="app-content">
+                        <div class="stats-hero">
+                            <div class="stats-hero-label">Net Profit</div>
+                            <div class="stats-hero-value">+$247</div>
+                            <div class="stats-hero-trend">↗ Excellent performance</div>
+                        </div>
+
+                        <div class="detail-stats">
+                            <div class="detail-stat">
+                                <div class="detail-stat-label">Wagered</div>
+                                <div class="detail-stat-value">$340</div>
+                            </div>
+                            <div class="detail-stat">
+                                <div class="detail-stat-label">Won</div>
+                                <div class="detail-stat-value">$587</div>
+                            </div>
+                            <div class="detail-stat">
+                                <div class="detail-stat-label">RTP</div>
+                                <div class="detail-stat-value">89%</div>
+                            </div>
+                            <div class="detail-stat">
+                                <div class="detail-stat-label">House Edge</div>
+                                <div class="detail-stat-value">11%</div>
+                            </div>
+                        </div>
+
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <div class="chart-title">Performance Trend</div>
+                                <div class="chart-period">Last 5 batches</div>
+                            </div>
+                            <div class="bar-chart">
+                                <div class="bar-item">
+                                    <div class="bar" style="height: 50%;"></div>
+                                    <div class="bar-label">1-7</div>
+                                </div>
+                                <div class="bar-item">
+                                    <div class="bar positive" style="height: 70%;"></div>
+                                    <div class="bar-label">8-14</div>
+                                </div>
+                                <div class="bar-item">
+                                    <div class="bar" style="height: 60%;"></div>
+                                    <div class="bar-label">15-21</div>
+                                </div>
+                                <div class="bar-item">
+                                    <div class="bar positive" style="height: 85%;"></div>
+                                    <div class="bar-label">22-28</div>
+                                </div>
+                                <div class="bar-item">
+                                    <div class="bar positive" style="height: 75%;"></div>
+                                    <div class="bar-label">29-34</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="detail-stats">
+                            <div class="detail-stat">
+                                <div class="detail-stat-label">Best Payout</div>
+                                <div class="detail-stat-value">12.4x</div>
+                            </div>
+                            <div class="detail-stat">
+                                <div class="detail-stat-label">Avg Distance</div>
+                                <div class="detail-stat-value">22 ft</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="home-indicator"></div>
+                </div>
+
+                <!-- Screen 4: Hole Selection -->
+                <div class="app-screen" data-screen="4">
+                    <div class="status-bar">
+                        <div class="logo-small">CONTINUUM</div>
+                        <div class="status-icons">
+                            <div class="icon-signal"></div>
+                            <div class="icon-battery"></div>
+                        </div>
+                    </div>
+
+                    <div class="holes-header">
+                        <div class="holes-title">Select Hole</div>
+                        <div class="holes-subtitle">Choose your distance</div>
+                    </div>
+
+                    <div class="app-content">
+                        <div class="holes-grid">
+                            <div class="hole-card">
+                                <div class="hole-number">75</div>
+                                <div class="hole-label">Yards</div>
+                                <div class="hole-club">Wedge</div>
+                                <div class="hole-divider"></div>
+                                <div class="payout-label">Max Payout</div>
+                                <div class="payout-value">12.4x</div>
+                            </div>
+
+                            <div class="hole-card">
+                                <div class="hole-number">100</div>
+                                <div class="hole-label">Yards</div>
+                                <div class="hole-club">Wedge</div>
+                                <div class="hole-divider"></div>
+                                <div class="payout-label">Max Payout</div>
+                                <div class="payout-value">10.8x</div>
+                            </div>
+
+                            <div class="hole-card">
+                                <div class="hole-number">125</div>
+                                <div class="hole-label">Yards</div>
+                                <div class="hole-club">Short Iron</div>
+                                <div class="hole-divider"></div>
+                                <div class="payout-label">Max Payout</div>
+                                <div class="payout-value">9.5x</div>
+                            </div>
+
+                            <div class="hole-card selected">
+                                <div class="hole-number">150</div>
+                                <div class="hole-label">Yards</div>
+                                <div class="hole-club">Mid Iron</div>
+                                <div class="hole-divider"></div>
+                                <div class="payout-label">Max Payout</div>
+                                <div class="payout-value">8.2x</div>
+                            </div>
+
+                            <div class="hole-card">
+                                <div class="hole-number">175</div>
+                                <div class="hole-label">Yards</div>
+                                <div class="hole-club">Long Iron</div>
+                                <div class="hole-divider"></div>
+                                <div class="payout-label">Max Payout</div>
+                                <div class="payout-value">7.3x</div>
+                            </div>
+
+                            <div class="hole-card">
+                                <div class="hole-number">200</div>
+                                <div class="hole-label">Yards</div>
+                                <div class="hole-club">Hybrid</div>
+                                <div class="hole-divider"></div>
+                                <div class="payout-label">Max Payout</div>
+                                <div class="payout-value">6.5x</div>
+                            </div>
+
+                            <div class="hole-card">
+                                <div class="hole-number">225</div>
+                                <div class="hole-label">Yards</div>
+                                <div class="hole-club">Fairway</div>
+                                <div class="hole-divider"></div>
+                                <div class="payout-label">Max Payout</div>
+                                <div class="payout-value">5.8x</div>
+                            </div>
+
+                            <div class="hole-card">
+                                <div class="hole-number">250</div>
+                                <div class="hole-label">Yards</div>
+                                <div class="hole-club">Driver</div>
+                                <div class="hole-divider"></div>
+                                <div class="payout-label">Max Payout</div>
+                                <div class="payout-value">5.2x</div>
+                            </div>
+                        </div>
+
+                        <button class="continue-button">CONTINUE</button>
+                    </div>
+
+                    <div class="home-indicator"></div>
+                </div>
+
+                <!-- Screen 5: Venues Near You -->
+                <div class="app-screen" data-screen="5">
+                    <div class="status-bar">
+                        <div class="logo-small">CONTINUUM</div>
+                        <div class="status-icons">
+                            <div class="icon-signal"></div>
+                            <div class="icon-battery"></div>
+                        </div>
+                    </div>
+
+                    <div class="venues-header">
+                        <div class="venues-title">Venues Near You</div>
+                        <div class="venues-subtitle">Continuum-enabled simulators</div>
+                    </div>
+
+                    <div class="app-content">
+                        <div class="map-container">
+                            <div class="map-grid"></div>
+                            <div class="your-location"></div>
+                            <div class="map-marker marker-1"></div>
+                            <div class="map-marker marker-2"></div>
+                            <div class="map-marker marker-3"></div>
+                            <div class="map-marker marker-4"></div>
+                            <div class="map-marker marker-5"></div>
+                        </div>
+
+                        <div class="venue-list">
+                            <div class="venue-card">
+                                <div class="venue-icon">◆</div>
+                                <div class="venue-info">
+                                    <div class="venue-name">TopGolf Downtown</div>
+                                    <div class="venue-address">123 Main Street</div>
+                                    <div class="venue-meta">
+                                        <span class="venue-distance">0.8 mi</span>
+                                        <span class="venue-status">Open</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="venue-card">
+                                <div class="venue-icon">◆</div>
+                                <div class="venue-info">
+                                    <div class="venue-name">Five Iron Golf</div>
+                                    <div class="venue-address">456 Oak Avenue</div>
+                                    <div class="venue-meta">
+                                        <span class="venue-distance">1.2 mi</span>
+                                        <span class="venue-status">Open</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="venue-card">
+                                <div class="venue-icon">◆</div>
+                                <div class="venue-info">
+                                    <div class="venue-name">Drive Shack</div>
+                                    <div class="venue-address">789 Pine Road</div>
+                                    <div class="venue-meta">
+                                        <span class="venue-distance">2.1 mi</span>
+                                        <span class="venue-status">Open</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="venue-card">
+                                <div class="venue-icon">◆</div>
+                                <div class="venue-info">
+                                    <div class="venue-name">X-Golf America</div>
+                                    <div class="venue-address">321 Elm Street</div>
+                                    <div class="venue-meta">
+                                        <span class="venue-distance">3.5 mi</span>
+                                        <span class="venue-status">Open</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="venue-card">
+                                <div class="venue-icon">◆</div>
+                                <div class="venue-info">
+                                    <div class="venue-name">Full Swing Lounge</div>
+                                    <div class="venue-address">654 Birch Lane</div>
+                                    <div class="venue-meta">
+                                        <span class="venue-distance">4.2 mi</span>
+                                        <span class="venue-status">Open</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="home-indicator"></div>
+                </div>
+
+                <!-- Screen 6: Connect Home Simulator -->
+                <div class="app-screen" data-screen="6">
+                    <div class="status-bar">
+                        <div class="logo-small">CONTINUUM</div>
+                        <div class="status-icons">
+                            <div class="icon-signal"></div>
+                            <div class="icon-battery"></div>
+                        </div>
+                    </div>
+
+                    <div class="connect-header">
+                        <div class="connect-title">Connect Simulator</div>
+                        <div class="connect-subtitle">Play at home or with friends</div>
+                    </div>
+
+                    <div class="app-content">
+                        <div class="setup-card">
+                            <div class="setup-icon">◈</div>
+                            <div class="setup-label">Your Setup</div>
+                            <div class="setup-value">SkyTrak Launch Monitor</div>
+                        </div>
+
+                        <div class="connection-options">
+                            <div class="section-title">Connection Options</div>
+
+                            <div class="connection-card">
+                                <div class="connection-icon">⟲</div>
+                                <div class="connection-info">
+                                    <div class="connection-title">My Home Simulator</div>
+                                    <div class="connection-description">Connect to your personal launch monitor via Bluetooth or WiFi</div>
+                                </div>
+                            </div>
+
+                            <div class="connection-card">
+                                <div class="connection-icon">◎</div>
+                                <div class="connection-info">
+                                    <div class="connection-title">Friend's Simulator</div>
+                                    <div class="connection-description">Join a friend's setup using their invite code</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="qr-card">
+                            <div class="qr-placeholder">QR CODE</div>
+                            <div class="qr-label">Your Session Code</div>
+                            <div class="qr-code">CTGF-2847</div>
+                        </div>
+
+                        <button class="shoot-button">SCAN QR CODE</button>
+                    </div>
+
+                    <div class="home-indicator"></div>
+                </div>
+
+                <!-- Screen 7: Multiplayer Mode -->
+                <div class="app-screen" data-screen="7">
+                    <div class="status-bar">
+                        <div class="logo-small">CONTINUUM</div>
+                        <div class="status-icons">
+                            <div class="icon-signal"></div>
+                            <div class="icon-battery"></div>
+                        </div>
+                    </div>
+
+                    <div class="multiplayer-header">
+                        <div class="multiplayer-title">Multiplayer</div>
+                        <div class="multiplayer-subtitle">Compete with friends</div>
+                    </div>
+
+                    <div class="app-content">
+                        <div class="mode-selector">
+                            <button class="mode-btn active">Per Hole</button>
+                            <button class="mode-btn">Full Round</button>
+                        </div>
+
+                        <div class="player-list">
+                            <div class="section-title">Active Players (3)</div>
+
+                            <div class="player-item current-user">
+                                <div class="player-avatar">JD</div>
+                                <div class="player-details">
+                                    <div class="player-name">You</div>
+                                    <div class="player-status">Ready to play</div>
+                                </div>
+                                <div class="player-score">+$45</div>
+                            </div>
+
+                            <div class="player-item">
+                                <div class="player-avatar">MK</div>
+                                <div class="player-details">
+                                    <div class="player-name">Mike K.</div>
+                                    <div class="player-status">In game</div>
+                                </div>
+                                <div class="player-score">-$12</div>
+                            </div>
+
+                            <div class="player-item">
+                                <div class="player-avatar">ST</div>
+                                <div class="player-details">
+                                    <div class="player-name">Sarah T.</div>
+                                    <div class="player-status">Ready to play</div>
+                                </div>
+                                <div class="player-score">+$28</div>
+                            </div>
+                        </div>
+
+                        <div class="wager-create-card">
+                            <div class="wager-create-title">Create New Wager</div>
+                            <div class="wager-options">
+                                <div class="wager-option">
+                                    <div class="wager-option-icon">●</div>
+                                    <div class="wager-option-label">Single Hole</div>
+                                </div>
+                                <div class="wager-option">
+                                    <div class="wager-option-icon">◉</div>
+                                    <div class="wager-option-label">Best Score</div>
+                                </div>
+                                <div class="wager-option">
+                                    <div class="wager-option-icon">◈</div>
+                                    <div class="wager-option-label">Closest Pin</div>
+                                </div>
+                                <div class="wager-option">
+                                    <div class="wager-option-icon">◆</div>
+                                    <div class="wager-option-label">Head to Head</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="active-wagers">
+                            <div class="section-title">Pending Wagers (2)</div>
+
+                            <div class="wager-card">
+                                <div class="wager-header">
+                                    <div class="wager-type">Closest Pin</div>
+                                    <div class="wager-amount">$25</div>
+                                </div>
+                                <div class="wager-vs">
+                                    <div class="wager-player">
+                                        <div class="wager-player-name">Mike K.</div>
+                                    </div>
+                                    <div class="wager-vs-icon">VS</div>
+                                    <div class="wager-player">
+                                        <div class="wager-player-name">You</div>
+                                    </div>
+                                </div>
+                                <div class="wager-actions">
+                                    <button class="wager-btn wager-btn-accept">Accept</button>
+                                    <button class="wager-btn wager-btn-decline">Decline</button>
+                                </div>
+                            </div>
+
+                            <div class="wager-card">
+                                <div class="wager-header">
+                                    <div class="wager-type">Best Score · Hole 4</div>
+                                    <div class="wager-amount">$15</div>
+                                </div>
+                                <div class="wager-vs">
+                                    <div class="wager-player">
+                                        <div class="wager-player-name">Sarah T.</div>
+                                    </div>
+                                    <div class="wager-vs-icon">VS</div>
+                                    <div class="wager-player">
+                                        <div class="wager-player-name">You</div>
+                                    </div>
+                                </div>
+                                <div class="wager-actions">
+                                    <button class="wager-btn wager-btn-accept">Accept</button>
+                                    <button class="wager-btn wager-btn-decline">Decline</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button class="invite-button">INVITE PLAYERS</button>
+                    </div>
+
+                    <div class="home-indicator"></div>
+                </div>
+            </div>
+
+            <!-- Navigation Dots -->
+            <div class="nav-dots">
+                <div class="nav-dot active" data-screen="1"></div>
+                <div class="nav-dot" data-screen="2"></div>
+                <div class="nav-dot" data-screen="3"></div>
+                <div class="nav-dot" data-screen="4"></div>
+                <div class="nav-dot" data-screen="5"></div>
+                <div class="nav-dot" data-screen="6"></div>
+                <div class="nav-dot" data-screen="7"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Arrows -->
+    <div class="nav-arrows">
+        <div class="nav-arrow" id="prevBtn">←</div>
+        <div class="nav-arrow" id="nextBtn">→</div>
+    </div>
+
+    <script>
+        let currentScreen = 1;
+        const totalScreens = 6;
+
+        function updateScreen(newScreen) {
+            if (newScreen < 1 || newScreen > totalScreens) return;
+
+            const screens = document.querySelectorAll('.app-screen');
+            const dots = document.querySelectorAll('.nav-dot');
+
+            screens[currentScreen - 1].classList.add('exiting');
+
+            setTimeout(() => {
+                screens[currentScreen - 1].classList.remove('active', 'exiting');
+                currentScreen = newScreen;
+                screens[currentScreen - 1].classList.add('active');
+
+                dots.forEach((dot, index) => {
+                    dot.classList.toggle('active', index === currentScreen - 1);
+                });
+            }, 150);
+        }
+
+        document.getElementById('prevBtn').addEventListener('click', () => {
+            if (currentScreen > 1) updateScreen(currentScreen - 1);
+        });
+
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            if (currentScreen < totalScreens) updateScreen(currentScreen + 1);
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' && currentScreen > 1) {
+                updateScreen(currentScreen - 1);
+            } else if (e.key === 'ArrowRight' && currentScreen < totalScreens) {
+                updateScreen(currentScreen + 1);
+            }
+        });
+
+        document.querySelectorAll('.nav-dot').forEach((dot, index) => {
+            dot.addEventListener('click', () => {
+                updateScreen(index + 1);
+            });
+        });
+
+        let touchStartX = 0;
+        let touchEndX = 0;
+        const appContainer = document.querySelector('.app-container');
+
+        appContainer.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+        });
+
+        appContainer.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            const swipeThreshold = 50;
+            if (touchEndX < touchStartX - swipeThreshold && currentScreen < totalScreens) {
+                updateScreen(currentScreen + 1);
+            }
+            if (touchEndX > touchStartX + swipeThreshold && currentScreen > 1) {
+                updateScreen(currentScreen - 1);
+            }
+        });
+    </script>
+</body>
+</html>

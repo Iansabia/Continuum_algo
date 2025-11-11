@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Continuum Golf - Investor Presentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --deep-purple: #493b7c;
+            --bright-purple: #604c9c;
+            --tan: #dfc9ad;
+            --dark-gold: #7e6649;
+            --lavender: #9e8cb4;
+            --rose-copper: #ac7c6c;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #000000 0%, var(--deep-purple) 100%);
+            color: var(--tan);
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .presentation-container {
+            width: 100%;
+            height: 100vh;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .slide {
+            position: absolute;
+            width: 90%;
+            max-width: 1400px;
+            height: 85%;
+            background: rgba(73, 59, 124, 0.2);
+            backdrop-filter: blur(40px);
+            border-radius: 32px;
+            border: 1px solid rgba(223, 201, 173, 0.2);
+            padding: 60px 80px;
+            display: none;
+            flex-direction: column;
+            opacity: 0;
+            transition: opacity 0.6s ease;
+            box-shadow: 0 25px 100px rgba(0, 0, 0, 0.5);
+        }
+
+        .slide.active {
+            display: flex;
+            opacity: 1;
+            animation: slideIn 0.8s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Navigation */
+        .nav-controls {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .nav-btn {
+            width: 50px;
+            height: 50px;
+            background: rgba(96, 76, 156, 0.4);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(223, 201, 173, 0.3);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: var(--tan);
+            font-size: 24px;
+        }
+
+        .nav-btn:hover {
+            background: rgba(96, 76, 156, 0.7);
+            transform: scale(1.1);
+        }
+
+        .slide-counter {
+            background: rgba(73, 59, 124, 0.6);
+            backdrop-filter: blur(20px);
+            padding: 10px 24px;
+            border-radius: 24px;
+            border: 1px solid rgba(223, 201, 173, 0.2);
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--lavender);
+        }
+
+        /* Slide 1: Hero */
+        .hero-slide {
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .hero-logo {
+            font-size: 72px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--bright-purple), var(--lavender));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 24px;
+            letter-spacing: -2px;
+        }
+
+        .hero-tagline {
+            font-size: 28px;
+            color: var(--tan);
+            font-weight: 300;
+            margin-bottom: 48px;
+            opacity: 0.9;
+        }
+
+        .badge-container {
+            display: flex;
+            gap: 24px;
+            justify-content: center;
+            margin-top: 48px;
+        }
+
+        .badge {
+            padding: 16px 32px;
+            background: rgba(96, 76, 156, 0.3);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(223, 201, 173, 0.3);
+            border-radius: 16px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--lavender);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .badge-icon {
+            width: 24px;
+            height: 24px;
+            background: var(--bright-purple);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+        }
+
+        /* Slide Content Styles */
+        .slide-header {
+            margin-bottom: 40px;
+        }
+
+        .slide-title {
+            font-size: 48px;
+            font-weight: 700;
+            color: var(--tan);
+            margin-bottom: 12px;
+            letter-spacing: -1px;
+        }
+
+        .slide-subtitle {
+            font-size: 20px;
+            color: var(--lavender);
+            font-weight: 400;
+            opacity: 0.8;
+        }
+
+        .slide-content {
+            flex: 1;
+            display: grid;
+            gap: 24px;
+            overflow-y: auto;
+        }
+
+        /* Mockup Cards */
+        .mockup-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            height: 100%;
+        }
+
+        .mockup-card {
+            background: rgba(96, 76, 156, 0.15);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(223, 201, 173, 0.2);
+            border-radius: 20px;
+            padding: 28px;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+        }
+
+        .mockup-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .mockup-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--tan);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .mockup-visual {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            min-height: 200px;
+        }
+
+        .mockup-placeholder {
+            color: var(--lavender);
+            opacity: 0.5;
+            font-size: 14px;
+            text-align: center;
+            padding: 20px;
+        }
+
+        /* Chart Mockups */
+        .chart-mockup {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .chart-bars {
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+            height: 80%;
+            padding: 20px 0;
+        }
+
+        .chart-bar {
+            flex: 1;
+            background: linear-gradient(180deg, var(--bright-purple), rgba(96, 76, 156, 0.3));
+            border-radius: 8px 8px 0 0;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .chart-bar:hover {
+            background: linear-gradient(180deg, var(--lavender), rgba(158, 140, 180, 0.3));
+        }
+
+        .chart-label {
+            font-size: 11px;
+            color: var(--lavender);
+            text-align: center;
+            margin-top: 8px;
+        }
+
+        /* Target Visualizer */
+        .target-visual {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .target-circle {
+            width: 200px;
+            height: 200px;
+            border: 2px solid var(--lavender);
+            border-radius: 50%;
+            position: relative;
+            opacity: 0.3;
+        }
+
+        .target-center {
+            width: 20px;
+            height: 20px;
+            background: var(--tan);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .shot-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--bright-purple);
+            border-radius: 50%;
+            position: absolute;
+            animation: shotPulse 2s infinite;
+        }
+
+        @keyframes shotPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.5; }
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: rgba(96, 76, 156, 0.2);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(223, 201, 173, 0.15);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--lavender);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--tan);
+        }
+
+        .stat-unit {
+            font-size: 16px;
+            color: var(--lavender);
+            margin-left: 4px;
+        }
+
+        /* Full Width Mockup */
+        .mockup-full {
+            grid-column: 1 / -1;
+        }
+
+        /* Line Chart */
+        .line-chart {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            padding: 20px;
+        }
+
+        .line-path {
+            stroke: var(--bright-purple);
+            stroke-width: 3;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .line-area {
+            fill: url(#lineGradient);
+            opacity: 0.3;
+        }
+
+        /* 3D Visualization */
+        .viz-3d {
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, rgba(96, 76, 156, 0.2), rgba(0, 0, 0, 0.5));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .surface-mesh {
+            width: 250px;
+            height: 250px;
+            background: linear-gradient(135deg,
+                rgba(96, 76, 156, 0.5) 0%,
+                rgba(158, 140, 180, 0.3) 50%,
+                rgba(96, 76, 156, 0.5) 100%);
+            transform: perspective(600px) rotateX(45deg) rotateZ(45deg);
+            border-radius: 20px;
+            position: relative;
+            animation: rotate3d 8s infinite ease-in-out;
+        }
+
+        @keyframes rotate3d {
+            0%, 100% { transform: perspective(600px) rotateX(45deg) rotateZ(45deg); }
+            50% { transform: perspective(600px) rotateX(50deg) rotateZ(50deg); }
+        }
+
+        .surface-grid {
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(0deg, rgba(223, 201, 173, 0.2) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(223, 201, 173, 0.2) 1px, transparent 1px);
+            background-size: 25px 25px;
+        }
+
+        /* Feature List */
+        .feature-list {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 20px 0;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            padding: 20px;
+            background: rgba(96, 76, 156, 0.1);
+            border-radius: 12px;
+            border: 1px solid rgba(223, 201, 173, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .feature-item:hover {
+            background: rgba(96, 76, 156, 0.2);
+            border-color: rgba(223, 201, 173, 0.3);
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--bright-purple);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .feature-content h4 {
+            font-size: 18px;
+            color: var(--tan);
+            margin-bottom: 8px;
+        }
+
+        .feature-content p {
+            font-size: 14px;
+            color: var(--lavender);
+            opacity: 0.8;
+            line-height: 1.6;
+        }
+
+        /* Tech Stack Grid */
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            height: 100%;
+        }
+
+        .tech-card {
+            background: rgba(96, 76, 156, 0.15);
+            border: 1px solid rgba(223, 201, 173, 0.2);
+            border-radius: 20px;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .tech-card:hover {
+            transform: translateY(-8px);
+            border-color: var(--bright-purple);
+            box-shadow: 0 20px 60px rgba(96, 76, 156, 0.3);
+        }
+
+        .tech-logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, var(--bright-purple), var(--lavender));
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            margin-bottom: 20px;
+            font-weight: 700;
+            color: white;
+        }
+
+        .tech-name {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--tan);
+            margin-bottom: 12px;
+        }
+
+        .tech-desc {
+            font-size: 14px;
+            color: var(--lavender);
+            opacity: 0.8;
+            line-height: 1.6;
+        }
+
+        .tech-metric {
+            margin-top: 20px;
+            padding: 12px 24px;
+            background: rgba(96, 76, 156, 0.3);
+            border-radius: 24px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--lavender);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .slide {
+                width: 95%;
+                height: 90%;
+                padding: 40px;
+            }
+
+            .mockup-grid, .tech-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-logo {
+                font-size: 48px;
+            }
+
+            .slide-title {
+                font-size: 36px;
+            }
+        }
+
+        /* Instructions */
+        .instructions {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(73, 59, 124, 0.8);
+            backdrop-filter: blur(20px);
+            padding: 12px 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(223, 201, 173, 0.2);
+            font-size: 12px;
+            color: var(--lavender);
+            opacity: 0.6;
+            transition: opacity 0.3s ease;
+        }
+
+        .instructions:hover {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="instructions">
+        Use ← → arrow keys or buttons to navigate
+    </div>
+
+    <div class="presentation-container">
+        <!-- Slide 1: Hero -->
+        <div class="slide hero-slide active" data-slide="1">
+            <div class="hero-logo">CONTINUUM GOLF</div>
+            <div class="hero-tagline">Skill-Based Wagering. Adaptive Payouts. Fair Play.</div>
+            <div class="badge-container">
+                <div class="badge">
+                    <div class="badge-icon">✓</div>
+                    85% RTP Target
+                </div>
+                <div class="badge">
+                    <div class="badge-icon">⚡</div>
+                    Real-Time Adaptation
+                </div>
+                <div class="badge">
+                    <div class="badge-icon">🛡️</div>
+                    Anti-Cheat Built-In
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 2: Player Experience -->
+        <div class="slide" data-slide="2">
+            <div class="slide-header">
+                <h1 class="slide-title">Player Experience</h1>
+                <p class="slide-subtitle">Intuitive interface with real-time feedback and transparent odds</p>
+            </div>
+            <div class="slide-content">
+                <div class="mockup-grid">
+                    <div class="mockup-card">
+                        <div class="mockup-title">
+                            <span>🎯</span>
+                            Shot Simulator
+                        </div>
+                        <div class="mockup-visual target-visual">
+                            <div class="target-circle">
+                                <div class="target-center"></div>
+                                <div class="shot-dot" style="top: 40%; left: 55%;"></div>
+                                <div class="shot-dot" style="top: 60%; left: 45%; animation-delay: 0.5s;"></div>
+                                <div class="shot-dot" style="top: 50%; left: 65%; animation-delay: 1s;"></div>
+                            </div>
+                        </div>
+                        <div class="mockup-placeholder">2D target view with real-time shot placement</div>
+                    </div>
+
+                    <div class="mockup-card">
+                        <div class="mockup-title">
+                            <span>📊</span>
+                            Session Stats
+                        </div>
+                        <div class="mockup-visual">
+                            <div class="stats-grid" style="width: 100%;">
+                                <div class="stat-card">
+                                    <div class="stat-label">Net P/L</div>
+                                    <div class="stat-value">+$47<span class="stat-unit"></span></div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label">Shots</div>
+                                    <div class="stat-value">24<span class="stat-unit"></span></div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label">RTP</div>
+                                    <div class="stat-value">87<span class="stat-unit">%</span></div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label">Wagered</div>
+                                    <div class="stat-value">$180<span class="stat-unit"></span></div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label">Won</div>
+                                    <div class="stat-value">$227<span class="stat-unit"></span></div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label">Edge</div>
+                                    <div class="stat-value">13<span class="stat-unit">%</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 3: Live Odds Display -->
+        <div class="slide" data-slide="3">
+            <div class="slide-header">
+                <h1 class="slide-title">Live Odds Display</h1>
+                <p class="slide-subtitle">Transparent, adaptive payouts that respond to player skill in real-time</p>
+            </div>
+            <div class="slide-content">
+                <div class="mockup-grid">
+                    <div class="mockup-card mockup-full">
+                        <div class="mockup-title">
+                            <span>📈</span>
+                            Payout Curve
+                        </div>
+                        <div class="mockup-visual">
+                            <svg class="line-chart" viewBox="0 0 400 200">
+                                <defs>
+                                    <linearGradient id="lineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                        <stop offset="0%" style="stop-color:#604c9c;stop-opacity:0.5" />
+                                        <stop offset="100%" style="stop-color:#604c9c;stop-opacity:0" />
+                                    </linearGradient>
+                                </defs>
+                                <!-- Payout curve -->
+                                <path class="line-area" d="M 20 180 Q 100 20, 380 160 L 380 180 Z" />
+                                <path class="line-path" d="M 20 180 Q 100 20, 380 160" />
+                                <!-- Axis labels -->
+                                <text x="200" y="195" fill="#9e8cb4" font-size="10" text-anchor="middle">Distance (ft)</text>
+                                <text x="10" y="100" fill="#9e8cb4" font-size="10" transform="rotate(-90 10 100)">Payout Multiplier</text>
+                            </svg>
+                        </div>
+                        <div class="mockup-placeholder">Exponential decay: P_max × (1 - d/d_max)^k</div>
+                    </div>
+
+                    <div class="mockup-card">
+                        <div class="mockup-title">
+                            <span>⚙️</span>
+                            P_max Adaptation
+                        </div>
+                        <div class="mockup-visual">
+                            <div class="chart-mockup">
+                                <svg width="100%" height="100%" viewBox="0 0 300 150">
+                                    <path d="M 20 120 L 40 110 L 60 100 L 80 95 L 100 92 L 120 90 L 140 89 L 160 88 L 180 87 L 200 87 L 220 87 L 240 86 L 260 86 L 280 86"
+                                          stroke="#604c9c" stroke-width="2" fill="none" stroke-linecap="round"/>
+                                    <line x1="20" y1="86" x2="280" y2="86" stroke="#dfc9ad" stroke-width="1" stroke-dasharray="4" opacity="0.5"/>
+                                    <text x="150" y="140" fill="#9e8cb4" font-size="10" text-anchor="middle">Shot Number</text>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="mockup-placeholder">Converges to optimal payout multiplier</div>
+                    </div>
+
+                    <div class="mockup-card">
+                        <div class="mockup-title">
+                            <span>🎲</span>
+                            Current Hole Stats
+                        </div>
+                        <div class="mockup-visual">
+                            <div class="stats-grid" style="width: 100%; grid-template-columns: 1fr 1fr;">
+                                <div class="stat-card">
+                                    <div class="stat-label">Distance</div>
+                                    <div class="stat-value">150<span class="stat-unit">yds</span></div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label">P_max</div>
+                                    <div class="stat-value">8.2<span class="stat-unit">x</span></div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label">σ (Sigma)</div>
+                                    <div class="stat-value">28<span class="stat-unit">ft</span></div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label">Confidence</div>
+                                    <div class="stat-value">87<span class="stat-unit">%</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 4: 3D Visualization -->
+        <div class="slide" data-slide="4">
+            <div class="slide-header">
+                <h1 class="slide-title">3D Probability Surface</h1>
+                <p class="slide-subtitle">Advanced bivariate normal distribution modeling with interactive visualization</p>
+            </div>
+            <div class="slide-content">
+                <div class="mockup-grid">
+                    <div class="mockup-card mockup-full">
+                        <div class="mockup-title">
+                            <span>🌐</span>
+                            Interactive 3D Heatmap
+                        </div>
+                        <div class="mockup-visual viz-3d">
+                            <div class="surface-mesh">
+                                <div class="surface-grid"></div>
+                            </div>
+                        </div>
+                        <div class="mockup-placeholder">Real-time KDE with shot scatter, marginal distributions, and contour lines</div>
+                    </div>
+                </div>
+
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <div class="feature-icon">📐</div>
+                        <div class="feature-content">
+                            <h4>Bivariate Normal Distribution (BVN)</h4>
+                            <p>Models shot dispersion in 2D with correlation (ρ) between lateral and distance errors. More accurate than traditional Rayleigh distribution.</p>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">🎯</div>
+                        <div class="feature-content">
+                            <h4>Cholesky Decomposition</h4>
+                            <p>Generates correlated random shots using Box-Muller transform with proper covariance structure for realistic dispersion patterns.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 5: Venue Operations -->
+        <div class="slide" data-slide="5">
+            <div class="slide-header">
+                <h1 class="slide-title">Venue Operations Dashboard</h1>
+                <p class="slide-subtitle">Multi-bay monitoring with real-time profitability analytics</p>
+            </div>
+            <div class="slide-content">
+                <div class="mockup-grid">
+                    <div class="mockup-card">
+                        <div class="mockup-title">
+                            <span>🏢</span>
+                            Bay Grid
+                        </div>
+                        <div class="mockup-visual">
+                            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; padding: 20px;">
+                                <div style="aspect-ratio: 1; background: rgba(96, 76, 156, 0.4); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--tan); font-weight: 600; font-size: 14px;">#1</div>
+                                <div style="aspect-ratio: 1; background: rgba(96, 76, 156, 0.4); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--tan); font-weight: 600; font-size: 14px;">#2</div>
+                                <div style="aspect-ratio: 1; background: rgba(96, 76, 156, 0.6); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--tan); font-weight: 600; font-size: 14px; border: 2px solid var(--lavender);">#3</div>
+                                <div style="aspect-ratio: 1; background: rgba(96, 76, 156, 0.4); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--tan); font-weight: 600; font-size: 14px;">#4</div>
+                                <div style="aspect-ratio: 1; background: rgba(96, 76, 156, 0.4); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--tan); font-weight: 600; font-size: 14px;">#5</div>
+                                <div style="aspect-ratio: 1; background: rgba(96, 76, 156, 0.4); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--tan); font-weight: 600; font-size: 14px;">#6</div>
+                                <div style="aspect-ratio: 1; background: rgba(96, 76, 156, 0.4); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--tan); font-weight: 600; font-size: 14px;">#7</div>
+                                <div style="aspect-ratio: 1; background: rgba(96, 76, 156, 0.4); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--tan); font-weight: 600; font-size: 14px;">#8</div>
+                                <div style="aspect-ratio: 1; background: rgba(96, 76, 156, 0.4); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--tan); font-weight: 600; font-size: 14px;">#9</div>
+                                <div style="aspect-ratio: 1; background: rgba(96, 76, 156, 0.4); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--tan); font-weight: 600; font-size: 14px;">#10</div>
+                            </div>
+                        </div>
+                        <div class="mockup-placeholder">Select any bay for detailed analytics</div>
+                    </div>
+
+                    <div class="mockup-card">
+                        <div class="mockup-title">
+                            <span>💰</span>
+                            Venue Performance
+                        </div>
+                        <div class="mockup-visual">
+                            <div class="stats-grid" style="width: 100%; grid-template-columns: 1fr;">
+                                <div class="stat-card">
+                                    <div class="stat-label">Total Wagered</div>
+                                    <div class="stat-value">$12.4<span class="stat-unit">K</span></div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label">Net Profit</div>
+                                    <div class="stat-value">$1.89<span class="stat-unit">K</span></div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label">Hold %</div>
+                                    <div class="stat-value">15.2<span class="stat-unit">%</span></div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label">Avg RTP</div>
+                                    <div class="stat-value">84.8<span class="stat-unit">%</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mockup-card mockup-full">
+                        <div class="mockup-title">
+                            <span>📊</span>
+                            Hole Profitability
+                        </div>
+                        <div class="mockup-visual">
+                            <div class="chart-bars">
+                                <div class="chart-bar" style="height: 65%;">
+                                    <div class="chart-label">75y</div>
+                                </div>
+                                <div class="chart-bar" style="height: 78%;">
+                                    <div class="chart-label">100y</div>
+                                </div>
+                                <div class="chart-bar" style="height: 92%;">
+                                    <div class="chart-label">125y</div>
+                                </div>
+                                <div class="chart-bar" style="height: 100%;">
+                                    <div class="chart-label">150y</div>
+                                </div>
+                                <div class="chart-bar" style="height: 88%;">
+                                    <div class="chart-label">175y</div>
+                                </div>
+                                <div class="chart-bar" style="height: 75%;">
+                                    <div class="chart-label">200y</div>
+                                </div>
+                                <div class="chart-bar" style="height: 60%;">
+                                    <div class="chart-label">225y</div>
+                                </div>
+                                <div class="chart-bar" style="height: 45%;">
+                                    <div class="chart-label">250y</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mockup-placeholder">Average profit per shot by hole distance</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 6: Analytics -->
+        <div class="slide" data-slide="6">
+            <div class="slide-header">
+                <h1 class="slide-title">Business Intelligence</h1>
+                <p class="slide-subtitle">Deep analytics for optimizing venue operations and profitability</p>
+            </div>
+            <div class="slide-content">
+                <div class="mockup-grid">
+                    <div class="mockup-card">
+                        <div class="mockup-title">
+                            <span>🎯</span>
+                            Handicap vs RTP
+                        </div>
+                        <div class="mockup-visual">
+                            <svg width="100%" height="100%" viewBox="0 0 300 200">
+                                <!-- Scatter plot points -->
+                                <circle cx="40" cy="160" r="4" fill="#604c9c" opacity="0.6"/>
+                                <circle cx="60" cy="150" r="4" fill="#604c9c" opacity="0.6"/>
+                                <circle cx="80" cy="140" r="4" fill="#604c9c" opacity="0.6"/>
+                                <circle cx="100" cy="130" r="4" fill="#604c9c" opacity="0.6"/>
+                                <circle cx="120" cy="120" r="4" fill="#604c9c" opacity="0.6"/>
+                                <circle cx="140" cy="110" r="4" fill="#604c9c" opacity="0.6"/>
+                                <circle cx="160" cy="100" r="4" fill="#604c9c" opacity="0.6"/>
+                                <circle cx="180" cy="90" r="4" fill="#604c9c" opacity="0.6"/>
+                                <circle cx="200" cy="80" r="4" fill="#604c9c" opacity="0.6"/>
+                                <circle cx="220" cy="70" r="4" fill="#604c9c" opacity="0.6"/>
+                                <circle cx="240" cy="60" r="4" fill="#604c9c" opacity="0.6"/>
+                                <circle cx="260" cy="50" r="4" fill="#604c9c" opacity="0.6"/>
+                                <!-- Trend line -->
+                                <line x1="30" y1="165" x2="270" y2="45" stroke="#dfc9ad" stroke-width="2" opacity="0.8"/>
+                                <text x="150" y="190" fill="#9e8cb4" font-size="10" text-anchor="middle">Handicap</text>
+                                <text x="20" y="100" fill="#9e8cb4" font-size="10" transform="rotate(-90 20 100)">RTP %</text>
+                            </svg>
+                        </div>
+                        <div class="mockup-placeholder">Skill-based fairness correlation</div>
+                    </div>
+
+                    <div class="mockup-card">
+                        <div class="mockup-title">
+                            <span>💵</span>
+                            Profit by Hole
+                        </div>
+                        <div class="mockup-visual">
+                            <div class="chart-bars" style="padding: 30px 20px;">
+                                <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                                    <div style="width: 100%; height: 55%; background: linear-gradient(180deg, #604c9c, rgba(96, 76, 156, 0.3)); border-radius: 8px 8px 0 0;"></div>
+                                    <span style="font-size: 11px; color: var(--lavender);">75y</span>
+                                </div>
+                                <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                                    <div style="width: 100%; height: 70%; background: linear-gradient(180deg, #604c9c, rgba(96, 76, 156, 0.3)); border-radius: 8px 8px 0 0;"></div>
+                                    <span style="font-size: 11px; color: var(--lavender);">100y</span>
+                                </div>
+                                <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                                    <div style="width: 100%; height: 85%; background: linear-gradient(180deg, #9e8cb4, rgba(158, 140, 180, 0.3)); border-radius: 8px 8px 0 0;"></div>
+                                    <span style="font-size: 11px; color: var(--lavender);">150y</span>
+                                </div>
+                                <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                                    <div style="width: 100%; height: 75%; background: linear-gradient(180deg, #604c9c, rgba(96, 76, 156, 0.3)); border-radius: 8px 8px 0 0;"></div>
+                                    <span style="font-size: 11px; color: var(--lavender);">200y</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mockup-placeholder">Mid-range holes most profitable</div>
+                    </div>
+
+                    <div class="mockup-card mockup-full">
+                        <div class="mockup-title">
+                            <span>📈</span>
+                            Key Metrics
+                        </div>
+                        <div class="mockup-visual">
+                            <div class="feature-list">
+                                <div class="feature-item">
+                                    <div class="feature-icon">⚡</div>
+                                    <div class="feature-content">
+                                        <h4>Web Workers Parallelization</h4>
+                                        <p>Simulates all bays simultaneously using all CPU cores. 30-bay venue simulation completes in under 2 seconds.</p>
+                                    </div>
+                                </div>
+                                <div class="feature-item">
+                                    <div class="feature-icon">🎲</div>
+                                    <div class="feature-content">
+                                        <h4>Realistic Player Distribution</h4>
+                                        <p>Models player handicap distribution using bell curve (μ=15, σ=7). Supports custom player archetypes (beginner, average, pro).</p>
+                                    </div>
+                                </div>
+                                <div class="feature-item">
+                                    <div class="feature-icon">📊</div>
+                                    <div class="feature-content">
+                                        <h4>Hourly Profitability Tracking</h4>
+                                        <p>Track revenue, costs, and profit by hour of operation. Identifies peak hours and optimizes staffing/pricing.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 7: Security & Fairness -->
+        <div class="slide" data-slide="7">
+            <div class="slide-header">
+                <h1 class="slide-title">Security & Fairness</h1>
+                <p class="slide-subtitle">ML-powered fraud detection and MCMC-based skill tracking ensure fair play</p>
+            </div>
+            <div class="slide-content">
+                <div class="mockup-grid">
+                    <div class="mockup-card">
+                        <div class="mockup-title">
+                            <span>🛡️</span>
+                            Anti-Cheat Monitor
+                        </div>
+                        <div class="mockup-visual">
+                            <div style="padding: 30px; display: flex; flex-direction: column; gap: 20px;">
+                                <div style="text-align: center;">
+                                    <div style="font-size: 12px; color: var(--lavender); margin-bottom: 8px;">SUSPICION LEVEL</div>
+                                    <div style="font-size: 48px; font-weight: 700; color: var(--bright-purple);">12%</div>
+                                    <div style="background: rgba(96, 76, 156, 0.3); height: 12px; border-radius: 6px; margin-top: 12px; overflow: hidden;">
+                                        <div style="width: 12%; height: 100%; background: linear-gradient(90deg, var(--bright-purple), var(--lavender)); border-radius: 6px;"></div>
+                                    </div>
+                                </div>
+                                <div style="background: rgba(96, 76, 156, 0.2); padding: 16px; border-radius: 12px; text-align: center;">
+                                    <div style="font-size: 14px; font-weight: 600; color: var(--bright-purple); margin-bottom: 4px;">STATUS: CLEAN</div>
+                                    <div style="font-size: 11px; color: var(--lavender);">No suspicious patterns detected</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mockup-placeholder">Real-time ML ensemble detection</div>
+                    </div>
+
+                    <div class="mockup-card">
+                        <div class="mockup-title">
+                            <span>📊</span>
+                            MCMC Confidence
+                        </div>
+                        <div class="mockup-visual">
+                            <svg width="100%" height="100%" viewBox="0 0 300 200">
+                                <!-- Confidence evolution -->
+                                <path d="M 20 180 L 40 170 L 60 155 L 80 135 L 100 110 L 120 85 L 140 65 L 160 50 L 180 40 L 200 35 L 220 32 L 240 30 L 260 30 L 280 30"
+                                      stroke="#604c9c" stroke-width="3" fill="none" stroke-linecap="round"/>
+                                <!-- Target line -->
+                                <line x1="20" y1="30" x2="280" y2="30" stroke="#dfc9ad" stroke-width="1" stroke-dasharray="4" opacity="0.5"/>
+                                <text x="285" y="35" fill="#dfc9ad" font-size="10">95%</text>
+                                <text x="150" y="190" fill="#9e8cb4" font-size="10" text-anchor="middle">Shot Count</text>
+                            </svg>
+                        </div>
+                        <div class="mockup-placeholder">Bayesian skill estimation convergence</div>
+                    </div>
+
+                    <div class="mockup-card mockup-full">
+                        <div class="mockup-title">
+                            <span>🔒</span>
+                            Security Features
+                        </div>
+                        <div class="mockup-visual">
+                            <div class="feature-list">
+                                <div class="feature-item">
+                                    <div class="feature-icon">🎯</div>
+                                    <div class="feature-content">
+                                        <h4>Cherry-Picking Detection</h4>
+                                        <p>Detects players who increase wagers on good shots. Tracks wager-to-payout correlation and high-stakes shot frequency with 85%+ confidence thresholds.</p>
+                                    </div>
+                                </div>
+                                <div class="feature-item">
+                                    <div class="feature-icon">📉</div>
+                                    <div class="feature-content">
+                                        <h4>Sandbagging Detection</h4>
+                                        <p>Identifies artificially inflated skill estimates (playing poorly at first, then improving). Monitors skill sigma jumps and reverse learning curves.</p>
+                                    </div>
+                                </div>
+                                <div class="feature-item">
+                                    <div class="feature-icon">🔬</div>
+                                    <div class="feature-content">
+                                        <h4>ML Ensemble Analysis</h4>
+                                        <p>Combines multiple detection algorithms (betting patterns, skill jumps, RTP outliers) for robust fraud identification with recommended actions.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 8: Technology Stack -->
+        <div class="slide" data-slide="8">
+            <div class="slide-header">
+                <h1 class="slide-title">Technology Stack</h1>
+                <p class="slide-subtitle">Built for performance, scalability, and security</p>
+            </div>
+            <div class="slide-content">
+                <div class="tech-grid">
+                    <div class="tech-card">
+                        <div class="tech-logo">Rs</div>
+                        <div class="tech-name">Rust + WASM</div>
+                        <div class="tech-desc">
+                            Core simulation engine compiled to WebAssembly. Runs at near-native speed in the browser with memory safety guarantees.
+                        </div>
+                        <div class="tech-metric">10-20× faster than JavaScript</div>
+                    </div>
+
+                    <div class="tech-card">
+                        <div class="tech-logo">⚛️</div>
+                        <div class="tech-name">React + TypeScript</div>
+                        <div class="tech-desc">
+                            Modern frontend with type safety. Interactive 3D visualizations using React Three Fiber and Recharts for analytics.
+                        </div>
+                        <div class="tech-metric">60fps smooth animations</div>
+                    </div>
+
+                    <div class="tech-card">
+                        <div class="tech-logo">⚡</div>
+                        <div class="tech-name">Web Workers</div>
+                        <div class="tech-desc">
+                            Parallel processing across all CPU cores. Enables real-time multi-bay venue simulations without blocking UI.
+                        </div>
+                        <div class="tech-metric">Uses all CPU cores</div>
+                    </div>
+
+                    <div class="tech-card">
+                        <div class="tech-logo">🔒</div>
+                        <div class="tech-name">Security First</div>
+                        <div class="tech-desc">
+                            MCMC Bayesian inference for skill tracking. ML ensemble for fraud detection. All calculations server-side or WASM-verified.
+                        </div>
+                        <div class="tech-metric">Production-ready safeguards</div>
+                    </div>
+                </div>
+
+                <div class="mockup-card mockup-full" style="margin-top: 24px;">
+                    <div class="mockup-title">
+                        <span>🚀</span>
+                        Competitive Advantages
+                    </div>
+                    <div class="mockup-visual">
+                        <div class="stats-grid" style="width: 100%; grid-template-columns: repeat(4, 1fr);">
+                            <div class="stat-card">
+                                <div class="stat-label">Performance</div>
+                                <div class="stat-value">100K<span class="stat-unit">+</span></div>
+                                <div style="font-size: 11px; color: var(--lavender); margin-top: 4px;">shots/second</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">Latency</div>
+                                <div class="stat-value">&lt;50<span class="stat-unit">ms</span></div>
+                                <div style="font-size: 11px; color: var(--lavender); margin-top: 4px;">P_max update</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">Scalability</div>
+                                <div class="stat-value">1000<span class="stat-unit">+</span></div>
+                                <div style="font-size: 11px; color: var(--lavender); margin-top: 4px;">concurrent bays</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">Accuracy</div>
+                                <div class="stat-value">99.7<span class="stat-unit">%</span></div>
+                                <div style="font-size: 11px; color: var(--lavender); margin-top: 4px;">RTP precision</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Controls -->
+    <div class="nav-controls">
+        <div class="nav-btn" id="prevBtn">←</div>
+        <div class="slide-counter">
+            <span id="currentSlide">1</span> / <span id="totalSlides">8</span>
+        </div>
+        <div class="nav-btn" id="nextBtn">→</div>
+    </div>
+
+    <script>
+        let currentSlide = 1;
+        const totalSlides = 8;
+
+        function updateSlide(direction) {
+            const slides = document.querySelectorAll('.slide');
+            slides[currentSlide - 1].classList.remove('active');
+
+            currentSlide += direction;
+            if (currentSlide < 1) currentSlide = 1;
+            if (currentSlide > totalSlides) currentSlide = totalSlides;
+
+            slides[currentSlide - 1].classList.add('active');
+            document.getElementById('currentSlide').textContent = currentSlide;
+        }
+
+        document.getElementById('prevBtn').addEventListener('click', () => {
+            if (currentSlide > 1) updateSlide(-1);
+        });
+
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            if (currentSlide < totalSlides) updateSlide(1);
+        });
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' && currentSlide > 1) {
+                updateSlide(-1);
+            } else if (e.key === 'ArrowRight' && currentSlide < totalSlides) {
+                updateSlide(1);
+            }
+        });
+
+        // Initialize
+        document.getElementById('totalSlides').textContent = totalSlides;
+    </script>
+</body>
+</html>
