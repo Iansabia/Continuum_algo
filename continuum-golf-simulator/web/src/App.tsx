@@ -7,7 +7,7 @@ import AnimatedBackground from './components/AnimatedBackground';
 type TabType = 'simulator' | 'pattern-demo' | 'venue-sim';
 
 function App() {
-  const [activeTab, setActiveTab] = useState<TabType>('pattern-demo');
+  const [activeTab, setActiveTab] = useState<TabType>('simulator');
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-black flex flex-col relative">
