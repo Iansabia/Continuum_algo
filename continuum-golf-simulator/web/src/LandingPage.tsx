@@ -154,9 +154,9 @@ export default function LandingPage() {
             }
           ].map((feature, i) => (
             <ScrollReveal key={i} delay={i * 0.1}>
-              <div className="bg-gradient-to-br from-white/40 to-white/20 backdrop-blur-2xl border border-white/30 rounded-3xl p-10 hover:border-white/50 hover:bg-white/30 transition-all">
+              <div className="bg-gradient-to-br from-white/40 to-white/20 backdrop-blur-2xl border border-white/30 rounded-3xl p-10 hover:border-white/50 hover:bg-white/30 transition-all h-full flex flex-col">
                 <h3 className="text-2xl font-bold mb-3 text-black dark:text-white">{feature.title}</h3>
-                <p className="text-base leading-relaxed text-black dark:text-white">{feature.description}</p>
+                <p className="text-base leading-relaxed text-black dark:text-white flex-grow">{feature.description}</p>
               </div>
             </ScrollReveal>
           ))}
@@ -233,7 +233,7 @@ export default function LandingPage() {
             { label: 'Revenue', value: 'New Streams for Venues' }
           ].map((tech, i) => (
             <ScrollReveal key={i} delay={i * 0.1}>
-              <div className="bg-gradient-to-br from-white/40 to-white/20 backdrop-blur-2xl border border-white/30 rounded-2xl p-8 text-center hover:border-white/50 hover:bg-white/30 transition-all">
+              <div className="bg-gradient-to-br from-white/40 to-white/20 backdrop-blur-2xl border border-white/30 rounded-2xl p-8 text-center hover:border-white/50 hover:bg-white/30 transition-all h-full flex flex-col justify-center min-h-[140px]">
                 <div className="text-sm uppercase tracking-wider mb-2 font-semibold text-black dark:text-white">
                   {tech.label}
                 </div>
