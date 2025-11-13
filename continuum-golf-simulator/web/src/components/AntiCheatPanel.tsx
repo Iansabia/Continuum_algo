@@ -19,13 +19,13 @@ export default function AntiCheatPanel({ report, shotCount }: AntiCheatPanelProp
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl border border-[var(--brand-tan)]/20 p-3 h-full flex flex-col"
+        className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-2xl border border-white/10 p-3 h-full flex flex-col"
       >
-        <h3 className="text-xs font-semibold text-[var(--brand-lavender)] uppercase tracking-wider mb-2 flex items-center gap-2">
+        <h3 className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-2 flex items-center gap-2">
           <span>🛡️</span>
           Anti-Cheat Monitor
         </h3>
-        <div className="text-xs text-[var(--brand-lavender)]">
+        <div className="text-xs text-white/70">
           <p>Need {20 - shotCount} more shots for analysis...</p>
         </div>
       </motion.div>
@@ -37,13 +37,13 @@ export default function AntiCheatPanel({ report, shotCount }: AntiCheatPanelProp
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl border border-[var(--brand-tan)]/20 p-3 h-full flex flex-col"
+        className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-2xl border border-white/10 p-3 h-full flex flex-col"
       >
-        <h3 className="text-xs font-semibold text-[var(--brand-lavender)] uppercase tracking-wider mb-2 flex items-center gap-2">
+        <h3 className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-2 flex items-center gap-2">
           <span>🛡️</span>
           Anti-Cheat Monitor
         </h3>
-        <div className="text-xs text-[var(--brand-lavender)]">
+        <div className="text-xs text-white/70">
           <p>Analyzing patterns...</p>
         </div>
       </motion.div>
@@ -75,7 +75,7 @@ export default function AntiCheatPanel({ report, shotCount }: AntiCheatPanelProp
 
     if (report.confidence >= 0.4) {
       return {
-        color: 'text-[var(--brand-tan)]',
+        color: 'text-white',
         bgColor: 'bg-[var(--brand-tan)]/10',
         borderColor: 'border-[var(--brand-tan)]/30',
         gradientColor: 'from-[var(--brand-tan)] to-[#dfc9ad]',
@@ -104,7 +104,7 @@ export default function AntiCheatPanel({ report, shotCount }: AntiCheatPanelProp
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-xs font-semibold text-[var(--brand-lavender)] uppercase tracking-wider flex items-center gap-2">
+        <h3 className="text-xs font-semibold text-white/70 uppercase tracking-wider flex items-center gap-2">
           <span>🛡️</span>
           Anti-Cheat Monitor
         </h3>
@@ -121,7 +121,7 @@ export default function AntiCheatPanel({ report, shotCount }: AntiCheatPanelProp
       {/* Suspicion Score */}
       <div className="mb-2">
         <div className="flex justify-between items-center mb-2">
-          <span className="text-xs text-[var(--brand-lavender)]">Suspicion Level</span>
+          <span className="text-xs text-white/70">Suspicion Level</span>
           <motion.span
             key={report.confidence}
             initial={{ scale: 1.1 }}
@@ -150,7 +150,7 @@ export default function AntiCheatPanel({ report, shotCount }: AntiCheatPanelProp
             exit={{ opacity: 0, height: 0 }}
             className="mb-2 flex-1 overflow-y-auto"
           >
-            <div className="text-[10px] font-medium text-[var(--brand-lavender)] mb-1.5">
+            <div className="text-[10px] font-medium text-white/70 mb-1.5">
               Detected Patterns:
             </div>
             <div className="space-y-1.5">
@@ -176,7 +176,7 @@ export default function AntiCheatPanel({ report, shotCount }: AntiCheatPanelProp
       </div>
 
       {/* Analysis Info */}
-      <div className="mt-2 pt-2 border-t border-[var(--brand-tan)]/20 text-[10px] text-[var(--brand-lavender)]">
+      <div className="mt-2 pt-2 border-t border-white/10 text-[10px] text-white/70">
         {shotCount} shots analyzed
       </div>
     </motion.div>

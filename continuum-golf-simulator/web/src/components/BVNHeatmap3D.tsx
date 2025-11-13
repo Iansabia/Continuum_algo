@@ -305,9 +305,9 @@ function DensitySurface({
  * Colors indicate profit (green) or loss (red)
  */
 function ShotScatterPlot({ shots, sigmaX, sigmaY }: { shots: Shot[]; sigmaX: number; sigmaY: number }) {
-  const range = 3;
-  const maxX = sigmaX * range;
-  const maxY = sigmaY * range;
+  // FIXED: Use same range calculation as density surface to match alignment
+  const maxSigma = Math.max(sigmaX, sigmaY);
+  const rangeYards = Math.max(15, maxSigma * 3);
 
   return (
     <group>
@@ -316,9 +316,9 @@ function ShotScatterPlot({ shots, sigmaX, sigmaY }: { shots: Shot[]; sigmaX: num
         const x = shot.distance * Math.cos(shot.angle);
         const y = shot.distance * Math.sin(shot.angle);
 
-        // Scale to 3D space
-        const xScaled = (x / maxX) * 5;
-        const zScaled = (y / maxY) * 5;
+        // Scale to 3D space - use same scaling as density surface
+        const xScaled = (x / rangeYards) * 5;
+        const zScaled = (y / rangeYards) * 5;
 
         // Clamp to visible range
         if (Math.abs(xScaled) > 5 || Math.abs(zScaled) > 5) return null;
@@ -345,9 +345,10 @@ function ShotScatterPlot({ shots, sigmaX, sigmaY }: { shots: Shot[]; sigmaX: num
  * Displays concentric circles at 1σ, 2σ, and 3σ levels on the ground plane
  * Provides visual reference for standard deviations
  */
-function GroundContours({ sigmaX }: { sigmaX: number; sigmaY: number }) {
-  const range = 3;
-  const maxX = sigmaX * range;
+function GroundContours({ sigmaX, sigmaY }: { sigmaX: number; sigmaY: number }) {
+  // FIXED: Use same range calculation as density surface to match alignment
+  const maxSigma = Math.max(sigmaX, sigmaY);
+  const rangeYards = Math.max(15, maxSigma * 3);
 
   const sigmaLevels = [
     { sigma: 1, color: '#604c9c', opacity: 0.6 },
@@ -358,7 +359,7 @@ function GroundContours({ sigmaX }: { sigmaX: number; sigmaY: number }) {
   return (
     <group>
       {sigmaLevels.map(({ sigma, color, opacity }) => {
-        const radius = (sigmaX * sigma / maxX) * 5;
+        const radius = (sigmaX * sigma / rangeYards) * 5;
 
         return (
           <mesh key={sigma} position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -648,21 +649,21 @@ export default function BVNHeatmap3D({
         <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex flex-wrap justify-center gap-2 text-[10px]">
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 rounded-sm" style={{ background: 'linear-gradient(to right, #ffffff, #604c9c)' }}></div>
-            <span className="text-[var(--brand-lavender)]">Low → High Density</span>
+            <span className="text-white/70">Low → High Density</span>
           </div>
-          <div className="h-px w-2 bg-[var(--brand-tan)]/20"></div>
+          <div className="h-px w-2 bg-white/10"></div>
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 rounded-full bg-[var(--brand-bright-purple)]"></div>
-            <span className="text-[var(--brand-lavender)]">Win</span>
+            <span className="text-white/70">Win</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 rounded-full bg-[var(--brand-rose-copper)]"></div>
-            <span className="text-[var(--brand-lavender)]">Loss</span>
+            <span className="text-white/70">Loss</span>
           </div>
         </div>
 
         {/* Info text - floating at bottom */}
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 text-[10px] text-white/40 text-center">
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 text-[10px] text-white/50 text-center">
           <p>Drag to rotate • Scroll to zoom • Right-click to pan</p>
         </div>
       </div>

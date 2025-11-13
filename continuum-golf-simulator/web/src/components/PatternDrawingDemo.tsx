@@ -545,8 +545,8 @@ const PatternDrawingDemo: React.FC = () => {
       <div className="absolute inset-0 bg-gradient-to-br from-[var(--brand-bright-purple)]/[0.15] via-transparent to-[var(--brand-dark-gold)]/[0.05] pointer-events-none rounded-2xl" />
 
       <div className="relative mb-3">
-        <h2 className="text-2xl font-bold text-[var(--brand-tan)] mb-1">Interactive Pattern Drawing Demo</h2>
-        <p className="text-[var(--brand-lavender)] text-xs">
+        <h2 className="text-2xl font-bold text-white mb-1">Interactive Pattern Drawing Demo</h2>
+        <p className="text-white/70 text-xs">
           Draw a custom shot pattern or select a predefined one to see how MCMC adapts in real-time
         </p>
       </div>
@@ -555,20 +555,20 @@ const PatternDrawingDemo: React.FC = () => {
         {/* Left Column: Canvas + 3D View */}
         <div className="relative flex flex-col gap-2 min-h-0">
           {/* Canvas Section */}
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-2xl p-3 border border-white/10">
             <div className="flex justify-between items-center mb-2">
-              <h3 className="text-sm font-semibold text-[var(--brand-tan)]">Shot Pattern Canvas</h3>
+              <h3 className="text-sm font-semibold text-white">Shot Pattern Canvas</h3>
               <div className="flex gap-2">
                 <button
                   onClick={clearPattern}
-                  className="px-2 py-1 bg-[var(--brand-bright-purple)]/20 hover:bg-[var(--brand-bright-purple)]/40 rounded-lg text-[var(--brand-lavender)] text-xs border border-[var(--brand-lavender)]/30 transition-all"
+                  className="px-2 py-1 bg-[var(--brand-bright-purple)]/20 hover:bg-[var(--brand-bright-purple)]/40 rounded-lg text-white/70 text-xs border border-[var(--brand-lavender)]/30 transition-all"
                 >
                   Clear
                 </button>
                 <button
                   onClick={runSimulation}
                   disabled={isSimulating || drawnPoints.length < 10}
-                  className="px-3 py-1 bg-[var(--brand-bright-purple)] hover:bg-[var(--brand-deep-purple)] disabled:bg-[var(--brand-bright-purple)]/20 disabled:cursor-not-allowed rounded-lg text-[var(--brand-tan)] text-xs font-medium transition-all"
+                  className="px-3 py-1 bg-[var(--brand-bright-purple)] hover:bg-[var(--brand-deep-purple)] disabled:bg-black/20 disabled:cursor-not-allowed rounded-lg text-white text-xs font-medium transition-all"
                 >
                   {isSimulating ? 'Simulating...' : 'Run Simulation'}
                 </button>
@@ -588,8 +588,8 @@ const PatternDrawingDemo: React.FC = () => {
                   }}
                   className={`px-2 py-0.5 rounded-lg text-xs transition-all ${
                     selectedPattern === pattern
-                      ? 'bg-[var(--brand-bright-purple)] text-[var(--brand-tan)] border-2 border-[var(--brand-lavender)]'
-                      : 'bg-[var(--brand-bright-purple)]/20 text-[var(--brand-lavender)] border border-[var(--brand-lavender)]/30 hover:bg-[var(--brand-bright-purple)]/40'
+                      ? 'bg-[var(--brand-bright-purple)] text-white border-2 border-[var(--brand-lavender)]'
+                      : 'bg-[var(--brand-bright-purple)]/20 text-white/70 border border-[var(--brand-lavender)]/30 hover:bg-[var(--brand-bright-purple)]/40'
                   }`}
                 >
                   {pattern.charAt(0).toUpperCase() + pattern.slice(1)}
@@ -609,7 +609,7 @@ const PatternDrawingDemo: React.FC = () => {
               style={{ imageRendering: 'crisp-edges' }}
             />
 
-            <div className="mt-1 text-[10px] text-[var(--brand-lavender)]/70 text-center">
+            <div className="mt-1 text-[10px] text-white/70/70 text-center">
               {selectedPattern === 'custom'
                 ? 'Draw your custom pattern by clicking and dragging on the canvas'
                 : `Selected: ${selectedPattern.charAt(0).toUpperCase() + selectedPattern.slice(1)} pattern`
@@ -618,19 +618,23 @@ const PatternDrawingDemo: React.FC = () => {
           </div>
 
           {/* BVN 3D View Section */}
-          {mcmcHistory.length > 0 && (
-            <div className="flex-1 min-h-0 flex flex-col">
-              <h3 className="text-sm font-semibold text-[var(--brand-tan)] mb-1">3D Probability Distribution</h3>
-              <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 flex flex-col bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-2xl p-3 border border-white/10">
+            <h3 className="text-sm font-semibold text-white mb-1">3D Probability Distribution</h3>
+            <div className="flex-1 min-h-0">
+              {mcmcHistory.length > 0 ? (
                 <BVNHeatmap3D
                   sigmaX={mcmcHistory[mcmcHistory.length - 1].sigmaX}
                   sigmaY={mcmcHistory[mcmcHistory.length - 1].sigmaY}
                   currentPmax={mcmcHistory[mcmcHistory.length - 1].pMax}
                   shots={shotData}
                 />
-              </div>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-white/70 text-sm text-center">Run simulation to see 3D distribution</p>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         {/* MCMC Metrics */}
@@ -638,48 +642,48 @@ const PatternDrawingDemo: React.FC = () => {
           {mcmcHistory.length > 0 && (
             <>
               {/* Current Stats - Compact */}
-              <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl p-2 border border-[var(--brand-tan)]/20 flex-shrink-0">
-                <h3 className="text-sm font-semibold text-[var(--brand-tan)] mb-2">Current BVN State</h3>
+              <div className="bg-gradient-to-br from-black/40 to-black/30 backdrop-blur-xl rounded-2xl p-2 border border-white/10 flex-shrink-0">
+                <h3 className="text-sm font-semibold text-white mb-2">Current BVN State</h3>
                 <div className="grid grid-cols-3 gap-2">
                   <div className="bg-[var(--brand-bright-purple)]/10 rounded-lg p-2">
-                    <div className="text-[10px] text-[var(--brand-lavender)] mb-0.5">σ_x</div>
-                    <div className="text-base font-bold text-[var(--brand-tan)]">
+                    <div className="text-[10px] text-white/70 mb-0.5">σ_x</div>
+                    <div className="text-base font-bold text-white">
                       {mcmcHistory[mcmcHistory.length - 1].sigmaX.toFixed(1)}ft
                     </div>
                   </div>
                   <div className="bg-[var(--brand-bright-purple)]/10 rounded-lg p-2">
-                    <div className="text-[10px] text-[var(--brand-lavender)] mb-0.5">σ_y</div>
-                    <div className="text-base font-bold text-[var(--brand-tan)]">
+                    <div className="text-[10px] text-white/70 mb-0.5">σ_y</div>
+                    <div className="text-base font-bold text-white">
                       {mcmcHistory[mcmcHistory.length - 1].sigmaY.toFixed(1)}ft
                     </div>
                   </div>
                   <div className="bg-[var(--brand-bright-purple)]/10 rounded-lg p-2">
-                    <div className="text-[10px] text-[var(--brand-lavender)] mb-0.5">Confidence</div>
-                    <div className="text-base font-bold text-[var(--brand-tan)]">
+                    <div className="text-[10px] text-white/70 mb-0.5">Confidence</div>
+                    <div className="text-base font-bold text-white">
                       {mcmcHistory[mcmcHistory.length - 1].confidence.toFixed(1)}%
                     </div>
                   </div>
                   <div className="bg-[var(--brand-bright-purple)]/10 rounded-lg p-2">
-                    <div className="text-[10px] text-[var(--brand-lavender)] mb-0.5">μ_x</div>
-                    <div className="text-base font-bold text-[var(--brand-tan)]">
+                    <div className="text-[10px] text-white/70 mb-0.5">μ_x</div>
+                    <div className="text-base font-bold text-white">
                       {mcmcHistory[mcmcHistory.length - 1].muX.toFixed(1)}ft
                     </div>
                   </div>
                   <div className="bg-[var(--brand-bright-purple)]/10 rounded-lg p-2">
-                    <div className="text-[10px] text-[var(--brand-lavender)] mb-0.5">μ_y</div>
-                    <div className="text-base font-bold text-[var(--brand-tan)]">
+                    <div className="text-[10px] text-white/70 mb-0.5">μ_y</div>
+                    <div className="text-base font-bold text-white">
                       {mcmcHistory[mcmcHistory.length - 1].muY.toFixed(1)}ft
                     </div>
                   </div>
                   <div className="bg-[var(--brand-bright-purple)]/10 rounded-lg p-2">
-                    <div className="text-[10px] text-[var(--brand-lavender)] mb-0.5">P_max</div>
-                    <div className="text-base font-bold text-[var(--brand-tan)]">
+                    <div className="text-[10px] text-white/70 mb-0.5">P_max</div>
+                    <div className="text-base font-bold text-white">
                       {mcmcHistory[mcmcHistory.length - 1].pMax.toFixed(2)}x
                     </div>
                   </div>
                   <div className="col-span-3 bg-[var(--brand-bright-purple)]/10 rounded-lg p-2">
-                    <div className="text-[10px] text-[var(--brand-lavender)] mb-0.5">RTP</div>
-                    <div className="text-xl font-bold text-[var(--brand-tan)]">
+                    <div className="text-[10px] text-white/70 mb-0.5">RTP</div>
+                    <div className="text-xl font-bold text-white">
                       {mcmcHistory[mcmcHistory.length - 1].rtp.toFixed(1)}%
                     </div>
                   </div>
@@ -687,8 +691,8 @@ const PatternDrawingDemo: React.FC = () => {
               </div>
 
               {/* Sigma Evolution Chart */}
-              <div className="flex-1 min-h-0 bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl p-3 border border-[var(--brand-tan)]/20 flex flex-col">
-                <h3 className="text-sm font-semibold text-[var(--brand-tan)] mb-2">σ Evolution</h3>
+              <div className="flex-1 min-h-0 bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-2xl p-3 border border-white/10 flex flex-col">
+                <h3 className="text-sm font-semibold text-white mb-2">σ Evolution</h3>
                 <div className="flex-1 min-h-0">
                   <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={mcmcHistory}>
@@ -723,8 +727,8 @@ const PatternDrawingDemo: React.FC = () => {
               </div>
 
               {/* P_max Evolution Chart */}
-              <div className="flex-1 min-h-0 bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl p-3 border border-[var(--brand-tan)]/20 flex flex-col">
-                <h3 className="text-sm font-semibold text-[var(--brand-tan)] mb-2">P_max Adaptation</h3>
+              <div className="flex-1 min-h-0 bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-2xl p-3 border border-white/10 flex flex-col">
+                <h3 className="text-sm font-semibold text-white mb-2">P_max Adaptation</h3>
                 <div className="flex-1 min-h-0">
                   <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={mcmcHistory}>
@@ -758,8 +762,8 @@ const PatternDrawingDemo: React.FC = () => {
               </div>
 
               {/* RTP Evolution Chart */}
-              <div className="flex-1 min-h-0 bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl p-3 border border-[var(--brand-tan)]/20 flex flex-col">
-                <h3 className="text-sm font-semibold text-[var(--brand-tan)] mb-2">RTP Convergence</h3>
+              <div className="flex-1 min-h-0 bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-2xl p-3 border border-white/10 flex flex-col">
+                <h3 className="text-sm font-semibold text-white mb-2">RTP Convergence</h3>
                 <div className="flex-1 min-h-0">
                   <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={mcmcHistory}>
@@ -797,13 +801,13 @@ const PatternDrawingDemo: React.FC = () => {
           )}
 
           {mcmcHistory.length === 0 && (
-            <div className="flex-1 bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl p-6 border border-[var(--brand-tan)]/20 flex flex-col items-center justify-center text-center">
-              <div className="text-[var(--brand-lavender)] mb-3">
+            <div className="flex-1 bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-2xl p-6 border border-white/10 flex flex-col items-center justify-center text-center">
+              <div className="text-white/70 mb-3">
                 <svg className="w-12 h-12 mx-auto opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
               </div>
-              <p className="text-[var(--brand-lavender)] text-sm">Draw a pattern and run the simulation to see MCMC adaptation in real-time</p>
+              <p className="text-white/70 text-sm">Draw a pattern and run the simulation to see MCMC adaptation in real-time</p>
             </div>
           )}
         </div>

@@ -111,7 +111,7 @@ export default function TargetVisualizer({
       const distanceFromCenter = Math.abs(px - centerX);
       const opacity = Math.max(0, 1 - (distanceFromCenter / maxDistance) * 1.5);
 
-      ctx.strokeStyle = `rgba(126, 102, 73, ${opacity * 0.08})`; // Very subtle tan/brown
+      ctx.strokeStyle = `rgba(73, 59, 124, ${opacity * 0.15})`; // Purple grid
       ctx.lineWidth = 0.5;
       ctx.beginPath();
       ctx.moveTo(px, 0);
@@ -127,7 +127,7 @@ export default function TargetVisualizer({
       const distanceFromCenter = Math.abs(py - centerY);
       const opacity = Math.max(0, 1 - (distanceFromCenter / maxDistance) * 1.5);
 
-      ctx.strokeStyle = `rgba(126, 102, 73, ${opacity * 0.08})`; // Very subtle tan/brown
+      ctx.strokeStyle = `rgba(73, 59, 124, ${opacity * 0.15})`; // Purple grid
       ctx.lineWidth = 0.5;
       ctx.beginPath();
       ctx.moveTo(0, py);
@@ -141,15 +141,16 @@ export default function TargetVisualizer({
     const radius = yardsToPixels(targetRadius);
 
     // Draw target boundary circle only
-    ctx.strokeStyle = '#7e6649';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#493b7c';
+    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.stroke();
 
     // Simple label at the top
-    ctx.fillStyle = '#7e6649';
-    ctx.font = '11px Inter';
+    ctx.fillStyle = '#493b7c';
+    ctx.font = '12px Inter';
+    ctx.fontWeight = '600';
     ctx.textAlign = 'center';
     ctx.fillText(`Target`, centerX, centerY - radius - 8);
     ctx.textAlign = 'left';
@@ -160,17 +161,18 @@ export default function TargetVisualizer({
     const radius = yardsToPixels(breakevenRadius);
 
     // Draw dashed circle for breakeven
-    ctx.strokeStyle = '#9e8cb4';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([5, 5]);
+    ctx.strokeStyle = '#604c9c';
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([8, 4]);
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
 
     // Simple label at the bottom
-    ctx.fillStyle = '#9e8cb4';
-    ctx.font = '11px Inter';
+    ctx.fillStyle = '#604c9c';
+    ctx.font = '12px Inter';
+    ctx.fontWeight = '600';
     ctx.textAlign = 'center';
     ctx.fillText('Breakeven', centerX, centerY + radius + 18);
     ctx.textAlign = 'left';
@@ -178,8 +180,8 @@ export default function TargetVisualizer({
 
   const drawCenterPin = (ctx: CanvasRenderingContext2D) => {
     // Simple center crosshair
-    ctx.strokeStyle = '#7e6649';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#493b7c';
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(centerX - 8, centerY);
     ctx.lineTo(centerX + 8, centerY);
@@ -188,9 +190,9 @@ export default function TargetVisualizer({
     ctx.stroke();
 
     // Center dot
-    ctx.fillStyle = '#7e6649';
+    ctx.fillStyle = '#493b7c';
     ctx.beginPath();
-    ctx.arc(centerX, centerY, 2, 0, Math.PI * 2);
+    ctx.arc(centerX, centerY, 3, 0, Math.PI * 2);
     ctx.fill();
   };
 
@@ -231,6 +233,7 @@ export default function TargetVisualizer({
       // Draw distance label
       ctx.fillStyle = '#dfc9ad';
       ctx.font = '12px Inter';
+      ctx.fontWeight = '600';
       ctx.fillText(`${shot.distance.toFixed(1)}y`, x + 10, y - 10);
     }
   };
@@ -240,7 +243,7 @@ export default function TargetVisualizer({
       ref={canvasRef}
       width={width}
       height={height}
-      className="bg-black/80 rounded-lg shadow-lg"
+      className="rounded-lg"
     />
   );
 }

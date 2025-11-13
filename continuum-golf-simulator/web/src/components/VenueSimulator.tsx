@@ -207,17 +207,17 @@ export default function VenueSimulator() {
       <div className="absolute inset-0 bg-gradient-to-br from-[var(--brand-bright-purple)]/[0.15] via-transparent to-[var(--brand-dark-gold)]/[0.05] pointer-events-none rounded-2xl" />
 
       <div className="relative mb-3">
-        <h2 className="text-2xl font-bold text-[var(--brand-tan)] mb-1">Venue Simulation</h2>
-        <p className="text-[var(--brand-lavender)] text-xs">
+        <h2 className="text-2xl font-bold text-white mb-1">Venue Simulation</h2>
+        <p className="text-white/70 text-xs">
           Simulate multiple bays with diverse player patterns and analyze venue performance
         </p>
       </div>
 
       {/* Controls */}
-      <div className="relative bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-xl p-3 border border-[var(--brand-tan)]/20 mb-3">
+      <div className="relative bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-xl p-3 border border-white/10 mb-3">
         <div className="grid grid-cols-5 gap-3">
           <div>
-            <label className="block text-xs font-medium text-[var(--brand-lavender)] mb-1">
+            <label className="block text-xs font-medium text-white/70 mb-1">
               Number of Bays: {numBays}
             </label>
             <input
@@ -231,7 +231,7 @@ export default function VenueSimulator() {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-[var(--brand-lavender)] mb-1">
+            <label className="block text-xs font-medium text-white/70 mb-1">
               Shots per Hour: {shotsPerHour}
             </label>
             <input
@@ -245,7 +245,7 @@ export default function VenueSimulator() {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-[var(--brand-lavender)] mb-1">
+            <label className="block text-xs font-medium text-white/70 mb-1">
               Hours of Operation: {hoursOfOperation}
             </label>
             <input
@@ -259,7 +259,7 @@ export default function VenueSimulator() {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-[var(--brand-lavender)] mb-1">
+            <label className="block text-xs font-medium text-white/70 mb-1">
               Wager: ${wager}
             </label>
             <input
@@ -276,7 +276,7 @@ export default function VenueSimulator() {
             <button
               onClick={runSimulation}
               disabled={isSimulating || !wasmReady}
-              className="w-full bg-gradient-to-r from-[var(--brand-bright-purple)] to-[var(--brand-deep-purple)] hover:from-[var(--brand-deep-purple)] hover:to-[var(--brand-bright-purple)] text-[var(--brand-tan)] font-medium py-2 px-4 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[var(--brand-bright-purple)]/25"
+              className="w-full bg-gradient-to-r from-[var(--brand-bright-purple)] to-[var(--brand-deep-purple)] hover:from-[var(--brand-deep-purple)] hover:to-[var(--brand-bright-purple)] text-white font-medium py-2 px-4 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[var(--brand-bright-purple)]/25"
             >
               {!wasmReady ? 'Loading...' : isSimulating ? 'Simulating...' : 'Run Simulation'}
             </button>
@@ -289,36 +289,36 @@ export default function VenueSimulator() {
           {/* Left Column - Overall Stats */}
           <div className="col-span-4 flex flex-col gap-3 overflow-y-auto">
             {/* Summary Stats */}
-            <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-xl p-3 border border-[var(--brand-tan)]/20">
-              <h3 className="text-sm font-semibold text-[var(--brand-tan)] mb-2">Venue Performance</h3>
+            <div className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-xl p-3 border border-white/10">
+              <h3 className="text-sm font-semibold text-white mb-2">Venue Performance</h3>
               <div className="grid grid-cols-2 gap-2">
                 <div className="bg-[var(--brand-bright-purple)]/10 rounded-lg p-2">
-                  <div className="text-[10px] text-[var(--brand-lavender)] mb-0.5">Total Wagered</div>
-                  <div className="text-base font-bold text-[var(--brand-tan)]">
+                  <div className="text-[10px] text-white/70 mb-0.5">Total Wagered</div>
+                  <div className="text-base font-bold text-white">
                     ${venueResult.total_wagered.toFixed(2)}
                   </div>
                 </div>
                 <div className="bg-[var(--brand-bright-purple)]/10 rounded-lg p-2">
-                  <div className="text-[10px] text-[var(--brand-lavender)] mb-0.5">Total Payouts</div>
-                  <div className="text-base font-bold text-[var(--brand-tan)]">
+                  <div className="text-[10px] text-white/70 mb-0.5">Total Payouts</div>
+                  <div className="text-base font-bold text-white">
                     ${venueResult.total_payouts.toFixed(2)}
                   </div>
                 </div>
                 <div className="bg-[var(--brand-bright-purple)]/10 rounded-lg p-2">
-                  <div className="text-[10px] text-[var(--brand-lavender)] mb-0.5">Net Profit</div>
-                  <div className="text-base font-bold text-[var(--brand-tan)]">
+                  <div className="text-[10px] text-white/70 mb-0.5">Net Profit</div>
+                  <div className="text-base font-bold text-white">
                     ${venueResult.net_profit.toFixed(2)}
                   </div>
                 </div>
                 <div className="bg-[var(--brand-bright-purple)]/10 rounded-lg p-2">
-                  <div className="text-[10px] text-[var(--brand-lavender)] mb-0.5">Hold %</div>
-                  <div className="text-base font-bold text-[var(--brand-tan)]">
+                  <div className="text-[10px] text-white/70 mb-0.5">Hold %</div>
+                  <div className="text-base font-bold text-white">
                     {venueResult.hold_percentage.toFixed(2)}%
                   </div>
                 </div>
                 <div className="col-span-2 bg-[var(--brand-bright-purple)]/10 rounded-lg p-2">
-                  <div className="text-[10px] text-[var(--brand-lavender)] mb-0.5">Average RTP</div>
-                  <div className="text-xl font-bold text-[var(--brand-tan)]">
+                  <div className="text-[10px] text-white/70 mb-0.5">Average RTP</div>
+                  <div className="text-xl font-bold text-white">
                     {venueResult.avg_rtp.toFixed(2)}%
                   </div>
                 </div>
@@ -326,8 +326,8 @@ export default function VenueSimulator() {
             </div>
 
             {/* Hole Profitability */}
-            <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-xl p-3 border border-[var(--brand-tan)]/20 flex-1 min-h-0 flex flex-col">
-              <h3 className="text-sm font-semibold text-[var(--brand-tan)] mb-2">Hole Profitability</h3>
+            <div className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-xl p-3 border border-white/10 flex-1 min-h-0 flex flex-col">
+              <h3 className="text-sm font-semibold text-white mb-2">Hole Profitability</h3>
               <div className="flex-1 min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={holeProfitData}>
@@ -359,8 +359,8 @@ export default function VenueSimulator() {
             </div>
 
             {/* Handicap vs RTP Scatter */}
-            <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-xl p-3 border border-[var(--brand-tan)]/20 flex-1 min-h-0 flex flex-col">
-              <h3 className="text-sm font-semibold text-[var(--brand-tan)] mb-2">Handicap vs RTP</h3>
+            <div className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-xl p-3 border border-white/10 flex-1 min-h-0 flex flex-col">
+              <h3 className="text-sm font-semibold text-white mb-2">Handicap vs RTP</h3>
               <div className="flex-1 min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <ScatterChart>
@@ -398,8 +398,8 @@ export default function VenueSimulator() {
 
           {/* Middle Column - Bay Performance */}
           <div className="col-span-4 flex flex-col gap-3 overflow-y-auto">
-            <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-xl p-3 border border-[var(--brand-tan)]/20 flex-1 min-h-0 flex flex-col">
-              <h3 className="text-sm font-semibold text-[var(--brand-tan)] mb-2">Bay Performance</h3>
+            <div className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-xl p-3 border border-white/10 flex-1 min-h-0 flex flex-col">
+              <h3 className="text-sm font-semibold text-white mb-2">Bay Performance</h3>
               <div className="flex-1 min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={bayPerformanceData}>
@@ -433,8 +433,8 @@ export default function VenueSimulator() {
             </div>
 
             {/* Bay Selector */}
-            <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-xl p-3 border border-[var(--brand-tan)]/20">
-              <h3 className="text-sm font-semibold text-[var(--brand-tan)] mb-2">Select Bay</h3>
+            <div className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-xl p-3 border border-white/10">
+              <h3 className="text-sm font-semibold text-white mb-2">Select Bay</h3>
               <div className="grid grid-cols-6 gap-2">
                 {venueResult.players.map(p => (
                   <button
@@ -442,8 +442,8 @@ export default function VenueSimulator() {
                     onClick={() => setSelectedBay(p.bay_id)}
                     className={`py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
                       selectedBay === p.bay_id
-                        ? 'bg-[var(--brand-bright-purple)] text-[var(--brand-tan)] border-2 border-[var(--brand-lavender)]'
-                        : 'bg-[var(--brand-bright-purple)]/20 text-[var(--brand-lavender)] border border-[var(--brand-lavender)]/30 hover:bg-[var(--brand-bright-purple)]/40'
+                        ? 'bg-[var(--brand-bright-purple)] text-white border-2 border-[var(--brand-lavender)]'
+                        : 'bg-[var(--brand-bright-purple)]/20 text-white/70 border border-[var(--brand-lavender)]/30 hover:bg-[var(--brand-bright-purple)]/40'
                     }`}
                   >
                     #{p.bay_id}
@@ -454,34 +454,34 @@ export default function VenueSimulator() {
 
             {/* Selected Bay Details */}
             {selectedPlayer && (
-              <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-xl p-3 border border-[var(--brand-tan)]/20">
-                <h3 className="text-sm font-semibold text-[var(--brand-tan)] mb-2">
+              <div className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-xl p-3 border border-white/10">
+                <h3 className="text-sm font-semibold text-white mb-2">
                   Bay #{selectedPlayer.bay_id} Details
                 </h3>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <span className="text-[var(--brand-lavender)]">Handicap:</span>
-                    <span className="text-[var(--brand-tan)] font-semibold ml-1">{selectedPlayer.handicap}</span>
+                    <span className="text-white/70">Handicap:</span>
+                    <span className="text-white font-semibold ml-1">{selectedPlayer.handicap}</span>
                   </div>
                   <div>
-                    <span className="text-[var(--brand-lavender)]">Pattern:</span>
-                    <span className="text-[var(--brand-tan)] font-semibold ml-1">{selectedPlayer.pattern_type}</span>
+                    <span className="text-white/70">Pattern:</span>
+                    <span className="text-white font-semibold ml-1">{selectedPlayer.pattern_type}</span>
                   </div>
                   <div>
-                    <span className="text-[var(--brand-lavender)]">σ_x:</span>
-                    <span className="text-[var(--brand-tan)] font-semibold ml-1">{selectedPlayer.sigma_x.toFixed(1)}ft</span>
+                    <span className="text-white/70">σ_x:</span>
+                    <span className="text-white font-semibold ml-1">{selectedPlayer.sigma_x.toFixed(1)}ft</span>
                   </div>
                   <div>
-                    <span className="text-[var(--brand-lavender)]">σ_y:</span>
-                    <span className="text-[var(--brand-tan)] font-semibold ml-1">{selectedPlayer.sigma_y.toFixed(1)}ft</span>
+                    <span className="text-white/70">σ_y:</span>
+                    <span className="text-white font-semibold ml-1">{selectedPlayer.sigma_y.toFixed(1)}ft</span>
                   </div>
                   <div>
-                    <span className="text-[var(--brand-lavender)]">RTP:</span>
-                    <span className="text-[var(--brand-tan)] font-semibold ml-1">{selectedPlayer.rtp.toFixed(2)}%</span>
+                    <span className="text-white/70">RTP:</span>
+                    <span className="text-white font-semibold ml-1">{selectedPlayer.rtp.toFixed(2)}%</span>
                   </div>
                   <div>
-                    <span className="text-[var(--brand-lavender)]">Net:</span>
-                    <span className="text-[var(--brand-tan)] font-semibold ml-1">${selectedPlayer.net.toFixed(2)}</span>
+                    <span className="text-white/70">Net:</span>
+                    <span className="text-white font-semibold ml-1">${selectedPlayer.net.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -489,8 +489,8 @@ export default function VenueSimulator() {
 
             {/* Pattern Visualization */}
             {selectedPlayer && selectedPlayer.boundary_points && (
-              <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-xl p-3 border border-[var(--brand-tan)]/20">
-                <h3 className="text-sm font-semibold text-[var(--brand-tan)] mb-2">
+              <div className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-xl p-3 border border-white/10">
+                <h3 className="text-sm font-semibold text-white mb-2">
                   Shot Pattern
                 </h3>
                 <div className="flex justify-center">
@@ -573,7 +573,7 @@ export default function VenueSimulator() {
                     className="border border-[var(--brand-lavender)]/30 rounded-lg"
                   />
                 </div>
-                <div className="text-xs text-[var(--brand-lavender)] text-center mt-2">
+                <div className="text-xs text-white/70 text-center mt-2">
                   Organic pattern boundary (100 points)
                 </div>
               </div>
@@ -585,8 +585,8 @@ export default function VenueSimulator() {
             {selectedPlayer && (
               <>
                 {/* RTP Evolution */}
-                <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-xl p-3 border border-[var(--brand-tan)]/20 flex-1 min-h-0 flex flex-col">
-                  <h3 className="text-sm font-semibold text-[var(--brand-tan)] mb-2">
+                <div className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-xl p-3 border border-white/10 flex-1 min-h-0 flex flex-col">
+                  <h3 className="text-sm font-semibold text-white mb-2">
                     Bay #{selectedPlayer.bay_id} RTP Evolution
                   </h3>
                   <div className="flex-1 min-h-0">
@@ -627,8 +627,8 @@ export default function VenueSimulator() {
                 </div>
 
                 {/* Payout Distribution */}
-                <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-xl p-3 border border-[var(--brand-tan)]/20 flex-1 min-h-0 flex flex-col">
-                  <h3 className="text-sm font-semibold text-[var(--brand-tan)] mb-2">
+                <div className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-xl p-3 border border-white/10 flex-1 min-h-0 flex flex-col">
+                  <h3 className="text-sm font-semibold text-white mb-2">
                     Payout Distribution
                   </h3>
                   <div className="flex-1 min-h-0">
@@ -676,12 +676,12 @@ export default function VenueSimulator() {
       {!venueResult && !isSimulating && (
         <div className="relative flex-1 flex items-center justify-center">
           <div className="text-center">
-            <div className="text-[var(--brand-lavender)] mb-3">
+            <div className="text-white/70 mb-3">
               <svg className="w-16 h-16 mx-auto opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
             </div>
-            <p className="text-[var(--brand-lavender)] text-sm">Configure simulation parameters and click "Run Simulation"</p>
+            <p className="text-white/70 text-sm">Configure simulation parameters and click "Run Simulation"</p>
           </div>
         </div>
       )}
@@ -690,8 +690,8 @@ export default function VenueSimulator() {
         <div className="relative flex-1 flex items-center justify-center">
           <div className="w-full max-w-md px-8">
             <div className="text-center mb-6">
-              <div className="text-[var(--brand-tan)] text-xl font-bold mb-2">Simulating Venue...</div>
-              <p className="text-[var(--brand-lavender)] text-sm mb-2">
+              <div className="text-white text-xl font-bold mb-2">Simulating Venue...</div>
+              <p className="text-white/70 text-sm mb-2">
                 Running {numBays} bays × {shotsPerHour * hoursOfOperation} shots
               </p>
               <p className="text-[var(--brand-dark-gold)] text-xs">
@@ -700,7 +700,7 @@ export default function VenueSimulator() {
             </div>
 
             {/* Progress Bar */}
-            <div className="relative h-3 bg-[var(--brand-deep-purple)]/30 rounded-full overflow-hidden border border-[var(--brand-tan)]/20 mb-3">
+            <div className="relative h-3 bg-black/30 rounded-full overflow-hidden border border-white/10 mb-3">
               <div
                 className="absolute inset-0 bg-gradient-to-r from-[var(--brand-bright-purple)] to-[var(--brand-dark-gold)] transition-all duration-300"
                 style={{
@@ -718,7 +718,7 @@ export default function VenueSimulator() {
 
             {/* Progress Text */}
             <div className="text-center mb-6">
-              <p className="text-[var(--brand-lavender)] text-sm font-semibold">
+              <p className="text-white/70 text-sm font-semibold">
                 {simulationProgress.completed} / {simulationProgress.total} bays completed
                 {simulationProgress.total > 0 && (
                   <span className="ml-2 text-[var(--brand-dark-gold)]">
@@ -731,7 +731,7 @@ export default function VenueSimulator() {
             {/* Loading Animation */}
             <div className="mt-6 flex justify-center space-x-2">
               <div className="w-3 h-3 bg-[var(--brand-bright-purple)] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-              <div className="w-3 h-3 bg-[var(--brand-lavender)] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+              <div className="w-3 h-3 bg-[#9e8cb4] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
               <div className="w-3 h-3 bg-[var(--brand-dark-gold)] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
             </div>
           </div>

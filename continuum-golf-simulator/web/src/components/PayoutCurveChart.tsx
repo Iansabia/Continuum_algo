@@ -26,10 +26,10 @@ export default function PayoutCurveChart({
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl border border-[var(--brand-tan)]/20 p-4 h-full flex flex-col"
+        className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-2xl border border-white/10 p-4 h-full flex flex-col"
       >
-        <h3 className="text-xs font-semibold text-[var(--brand-lavender)] uppercase tracking-wider mb-3">Payout Curve</h3>
-        <div className="flex-1 flex items-center justify-center text-[var(--brand-lavender)] text-sm">
+        <h3 className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-3">Payout Curve</h3>
+        <div className="flex-1 flex items-center justify-center text-white/70 text-sm">
           <p>⚠️ Take shots to see curve</p>
         </div>
       </motion.div>
@@ -95,32 +95,32 @@ export default function PayoutCurveChart({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl border border-[var(--brand-tan)]/20 p-4 h-full flex flex-col"
+      className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-2xl border border-white/10 p-4 h-full flex flex-col"
     >
-      <h3 className="text-xs font-semibold text-[var(--brand-lavender)] uppercase tracking-wider mb-3">Payout Curve</h3>
+      <h3 className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-3">Payout Curve</h3>
       <div className="flex-1 min-h-0">
         <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--brand-lavender)" opacity={0.1} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#493b7c" opacity={0.1} />
           <XAxis
             dataKey="distance"
-            stroke="var(--brand-lavender)"
-            tick={{ fontSize: 10, fill: 'var(--brand-lavender)' }}
-            label={{ value: 'Distance (y)', position: 'insideBottom', offset: -3, fill: 'var(--brand-lavender)', fontSize: 10 }}
+            stroke="#493b7c"
+            tick={{ fontSize: 10, fill: '#dfc9ad' }}
+            label={{ value: 'Distance (y)', position: 'insideBottom', offset: -3, fill: '#dfc9ad', fontSize: 10 }}
           />
           <YAxis
-            stroke="var(--brand-lavender)"
-            tick={{ fontSize: 10, fill: 'var(--brand-lavender)' }}
-            label={{ value: 'Mult', angle: -90, position: 'insideLeft', fill: 'var(--brand-lavender)', fontSize: 10 }}
+            stroke="#493b7c"
+            tick={{ fontSize: 10, fill: '#dfc9ad' }}
+            label={{ value: 'Mult', angle: -90, position: 'insideLeft', fill: '#dfc9ad', fontSize: 10 }}
             domain={[0, 'auto']}
             tickCount={6}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'var(--brand-deep-purple)',
-              border: '1px solid var(--brand-tan)',
+              backgroundColor: 'rgba(0, 0, 0, 0.9)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
               borderRadius: '12px',
-              color: 'var(--brand-tan)',
+              color: '#ffffff',
               padding: '8px 12px',
             }}
             formatter={(value: number, name: string) => {
@@ -142,11 +142,11 @@ export default function PayoutCurveChart({
           {/* Breakeven radius vertical line */}
           <ReferenceLine
             x={breakevenRadius}
-            stroke="var(--brand-lavender)"
+            stroke="#493b7c"
             strokeDasharray="3 3"
             strokeWidth={1}
             opacity={0.4}
-            label={{ value: `${breakevenRadius.toFixed(1)}y`, position: 'top', fill: 'var(--brand-lavender)', fontSize: 10 }}
+            label={{ value: `${breakevenRadius.toFixed(1)}y`, position: 'top', fill: '#dfc9ad', fontSize: 10 }}
           />
 
           {/* Payout curve */}

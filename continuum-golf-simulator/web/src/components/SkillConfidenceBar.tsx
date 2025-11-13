@@ -39,16 +39,16 @@ export default function SkillConfidenceBar({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl border border-[var(--brand-tan)]/20 p-3"
+      className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-2xl border border-white/10 p-3"
     >
-      <h3 className="text-xs font-semibold text-[var(--brand-lavender)] uppercase tracking-wider mb-2">
+      <h3 className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-2">
         Confidence
       </h3>
 
       {/* Progress bar */}
       <div className="mb-2">
         <div className="flex justify-between items-center mb-2">
-          <span className="text-xs text-[var(--brand-lavender)]">Accuracy</span>
+          <span className="text-xs text-white/70">Accuracy</span>
           <motion.span
             key={confidence}
             initial={{ scale: 1.1 }}
@@ -69,7 +69,7 @@ export default function SkillConfidenceBar({
       </div>
 
       {/* Confidence interpretation */}
-      <p className="text-[10px] text-[var(--brand-lavender)]/80">{label}</p>
+      <p className="text-[10px] text-white/70">{label}</p>
     </motion.div>
   );
 }

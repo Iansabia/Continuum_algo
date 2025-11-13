@@ -77,20 +77,17 @@ export default function PlayerSimulator() {
   const lastShot = shots.length > 0 ? shots[shots.length - 1] : null;
 
   return (
-    <div className="relative bg-[var(--brand-deep-purple)]/30 backdrop-blur-3xl rounded-3xl border border-[var(--brand-tan)]/20 shadow-2xl h-full overflow-hidden flex flex-col">
-      {/* Glass morphism effect */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[var(--brand-bright-purple)]/[0.15] via-transparent to-[var(--brand-dark-gold)]/[0.05] pointer-events-none rounded-3xl" />
-
+    <div className="relative h-full overflow-hidden flex flex-col">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative px-6 py-5 border-b border-[var(--brand-tan)]/20"
+        className="relative mb-3"
       >
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-[var(--brand-tan)] tracking-tight">Continuum Golf</h1>
-            <p className="text-sm text-[var(--brand-lavender)] mt-0.5">AI-Powered Simulator</p>
+            <h2 className="text-2xl font-bold text-white mb-1">Continuum Golf</h2>
+            <p className="text-white/70 text-xs">AI-Powered Simulator</p>
           </div>
 
           {/* Developer Mode Toggle */}
@@ -98,13 +95,13 @@ export default function PlayerSimulator() {
             whileTap={{ scale: 0.95 }}
             onClick={() => setDevMode(!devMode)}
             className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors duration-200 ${
-              devMode ? 'bg-[var(--brand-bright-purple)]' : 'bg-[var(--brand-tan)]/20'
+              devMode ? 'bg-gradient-to-r from-[#604c9c] to-[#493b7c]' : 'bg-black/30'
             }`}
           >
             <motion.span
               layout
               transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-              className={`inline-block h-6 w-6 transform rounded-full bg-[var(--brand-tan)] shadow-lg transition ${
+              className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition ${
                 devMode ? 'translate-x-7' : 'translate-x-1'
               }`}
             />
@@ -113,8 +110,7 @@ export default function PlayerSimulator() {
       </motion.div>
 
       {/* Main Content */}
-      <div className="relative flex-1 overflow-hidden px-6 py-4">
-        <div className="h-full grid grid-cols-12 gap-3">
+      <div className="relative flex-1 grid grid-cols-12 gap-3 min-h-0">
 
           {/* Left Sidebar - Controls */}
           <motion.div
@@ -124,11 +120,11 @@ export default function PlayerSimulator() {
             className="col-span-2 flex flex-col gap-3 overflow-y-auto"
           >
             {/* Controls Card */}
-            <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl border border-[var(--brand-tan)]/20 p-3 space-y-3">
+            <div className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-2xl border border-white/10 p-3 space-y-3">
               {/* Handicap */}
               <div>
-                <label className="block text-xs font-medium text-[var(--brand-lavender)] mb-2">
-                  Handicap <span className="text-[var(--brand-tan)] font-semibold">{handicap}</span>
+                <label className="block text-xs font-medium text-white/70 mb-2">
+                  Handicap <span className="text-white font-semibold">{handicap}</span>
                 </label>
                 <input
                   type="range"
@@ -142,8 +138,8 @@ export default function PlayerSimulator() {
 
               {/* Wager */}
               <div>
-                <label className="block text-xs font-medium text-[var(--brand-lavender)] mb-2">
-                  Wager <span className="text-[var(--brand-tan)] font-semibold">${wager}</span>
+                <label className="block text-xs font-medium text-white/70 mb-2">
+                  Wager <span className="text-white font-semibold">${wager}</span>
                 </label>
                 <input
                   type="range"
@@ -157,14 +153,14 @@ export default function PlayerSimulator() {
 
               {/* Hole Selection */}
               <div>
-                <label className="block text-xs font-medium text-[var(--brand-lavender)] mb-2">Hole</label>
+                <label className="block text-xs font-medium text-white/70 mb-2">Hole</label>
                 <select
                   value={selectedHoleId}
                   onChange={(e) => setSelectedHoleId(Number(e.target.value))}
-                  className="w-full bg-[var(--brand-dark-gray)] backdrop-blur-xl text-[var(--brand-tan)] border border-[var(--brand-tan)]/30 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-bright-purple)]/50 transition"
+                  className="w-full bg-white/40 backdrop-blur-xl text-white border border-white/10 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-bright-purple)]/50 transition"
                 >
                   {HOLES.map((hole) => (
-                    <option key={hole.id} value={hole.id} className="bg-[var(--brand-dark-gray)]">
+                    <option key={hole.id} value={hole.id} className="bg-[#2a2a2a] text-white">
                       {hole.name}
                     </option>
                   ))}
@@ -173,8 +169,8 @@ export default function PlayerSimulator() {
 
               {/* Batch Size */}
               <div>
-                <label className="block text-xs font-medium text-[var(--brand-lavender)] mb-2">
-                  Batch Size <span className="text-[var(--brand-tan)] font-semibold">{batchSize}</span>
+                <label className="block text-xs font-medium text-white/70 mb-2">
+                  Batch Size <span className="text-white font-semibold">{batchSize}</span>
                 </label>
                 <input
                   type="range"
@@ -188,26 +184,26 @@ export default function PlayerSimulator() {
             </div>
 
             {/* Current Hole Stats */}
-            <div className="bg-[var(--brand-deep-purple)]/20 backdrop-blur-xl rounded-2xl border border-[var(--brand-tan)]/20 p-3">
-              <h3 className="text-xs font-semibold text-[var(--brand-lavender)] uppercase tracking-wider mb-3">
+            <div className="bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-2xl border border-white/10 p-3">
+              <h3 className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-3">
                 Current Hole
               </h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between items-center">
-                  <span className="text-[var(--brand-lavender)]">Distance</span>
-                  <span className="text-[var(--brand-tan)] font-medium">{currentHole.distance}y</span>
+                  <span className="text-white/70">Distance</span>
+                  <span className="text-white font-medium">{currentHole.distance}y</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-[var(--brand-lavender)]">Target</span>
-                  <span className="text-[var(--brand-tan)] font-medium">{currentHole.targetRadius.toFixed(1)}y</span>
+                  <span className="text-white/70">Target</span>
+                  <span className="text-white font-medium">{currentHole.targetRadius.toFixed(1)}y</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-[var(--brand-lavender)]">σ</span>
-                  <span className="text-[var(--brand-tan)] font-medium">{skillEstimate.sigma.toFixed(2)}y</span>
+                  <span className="text-white/70">σ</span>
+                  <span className="text-white font-medium">{skillEstimate.sigma.toFixed(2)}y</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-[var(--brand-lavender)]">P_max</span>
-                  <span className="text-[var(--brand-tan)] font-medium">{skillEstimate.pmax.toFixed(3)}</span>
+                  <span className="text-white/70">P_max</span>
+                  <span className="text-white font-medium">{skillEstimate.pmax.toFixed(3)}</span>
                 </div>
               </div>
             </div>
@@ -235,8 +231,8 @@ export default function PlayerSimulator() {
                     Developer Mode
                   </h3>
                   <div>
-                    <label className="block text-xs font-medium text-[var(--brand-lavender)] mb-2">
-                      Manual Miss <span className="text-[var(--brand-tan)] font-semibold">{manualDistance.toFixed(1)}y</span>
+                    <label className="block text-xs font-medium text-white/70 mb-2">
+                      Manual Miss <span className="text-white font-semibold">{manualDistance.toFixed(1)}y</span>
                     </label>
                     <input
                       type="range"
@@ -259,7 +255,7 @@ export default function PlayerSimulator() {
                 whileTap={{ scale: 0.98 }}
                 onClick={handleShoot}
                 disabled={isShooting}
-                className="w-full bg-gradient-to-r from-[var(--brand-bright-purple)] to-[var(--brand-deep-purple)] hover:from-[var(--brand-deep-purple)] hover:to-[var(--brand-bright-purple)] text-[var(--brand-tan)] font-medium py-3 px-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[var(--brand-bright-purple)]/25"
+                className="w-full bg-gradient-to-r from-[var(--brand-bright-purple)] to-[var(--brand-deep-purple)] hover:from-[var(--brand-deep-purple)] hover:to-[var(--brand-bright-purple)] text-white font-medium py-3 px-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[var(--brand-bright-purple)]/25"
               >
                 {isShooting ? 'Shooting...' : 'Shoot 1x'}
               </motion.button>
@@ -269,7 +265,7 @@ export default function PlayerSimulator() {
                 whileTap={{ scale: 0.98 }}
                 onClick={handleBatchShoot}
                 disabled={isShooting}
-                className="w-full bg-[var(--brand-deep-purple)]/30 hover:bg-[var(--brand-deep-purple)]/40 text-[var(--brand-tan)] font-medium py-3 px-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-[var(--brand-tan)]/20"
+                className="w-full bg-gradient-to-br from-black/40 to-black/30 hover:from-black/50 hover:to-black/40 text-white font-medium py-3 px-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-white/10"
               >
                 {isShooting ? 'Shooting...' : `Shoot ${batchSize}x`}
               </motion.button>
@@ -280,7 +276,7 @@ export default function PlayerSimulator() {
                   whileTap={{ scale: 0.98 }}
                   onClick={handleExport}
                   disabled={shots.length === 0}
-                  className="bg-[var(--brand-deep-purple)]/30 hover:bg-[var(--brand-deep-purple)]/40 text-[var(--brand-tan)] font-medium py-2 px-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-[var(--brand-tan)]/20 text-sm"
+                  className="bg-gradient-to-br from-black/40 to-black/30 hover:from-black/50 hover:to-black/40 text-white font-medium py-2 px-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-white/10 text-sm"
                 >
                   Export
                 </motion.button>
@@ -289,7 +285,7 @@ export default function PlayerSimulator() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleReset}
-                  className="bg-[var(--brand-deep-purple)]/10 hover:bg-[var(--brand-deep-purple)]/20 text-[var(--brand-lavender)] hover:text-[var(--brand-tan)] font-medium py-2 px-3 rounded-xl transition-all border border-[var(--brand-tan)]/10 text-sm"
+                  className="bg-black/20 hover:bg-black/30 text-white/70 hover:text-white font-medium py-2 px-3 rounded-xl transition-all border border-white/10 text-sm"
                 >
                   Reset
                 </motion.button>
@@ -304,8 +300,8 @@ export default function PlayerSimulator() {
             transition={{ delay: 0.2 }}
             className="col-span-6 flex flex-col gap-3 h-full"
           >
-            {/* 2D Target View - Blends into background */}
-            <div className="flex-1 flex items-center justify-center relative">
+            {/* 2D Target View - Dark glass background */}
+            <div className="flex-1 flex items-center justify-center relative bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-2xl border border-white/10 p-4">
               <TargetVisualizer
                 sigma={skillEstimate.sigma}
                 breakevenRadius={breakevenRadius}
@@ -315,13 +311,13 @@ export default function PlayerSimulator() {
                 width={450}
                 height={450}
               />
-              <p className="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-xs text-center text-[var(--brand-lavender)]/60">
+              <p className="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-xs text-center text-white/80 font-medium">
                 Target: {currentHole.targetRadius.toFixed(2)}y | σ = {skillEstimate.sigma.toFixed(2)}y | Breakeven: {breakevenRadius.toFixed(2)}y
               </p>
             </div>
 
-            {/* 3D BVN View - Blends into background */}
-            <div className="flex-1 relative">
+            {/* 3D BVN View - Dark glass background */}
+            <div className="flex-1 relative bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-xl rounded-2xl border border-white/10">
               <BVNHeatmap3D
                 sigmaX={skillEstimate.sigmaX}
                 sigmaY={skillEstimate.sigmaY}
@@ -363,7 +359,6 @@ export default function PlayerSimulator() {
               />
             </div>
           </motion.div>
-        </div>
       </div>
     </div>
   );
