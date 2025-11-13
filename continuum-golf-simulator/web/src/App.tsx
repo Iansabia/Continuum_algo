@@ -38,8 +38,17 @@ function App() {
               <span className="px-2.5 py-1 bg-black/30 backdrop-blur-sm rounded-lg border border-white/20 text-black dark:text-white font-semibold">Adaptive</span>
             </div>
           </div>
-          <div className="text-[10px] text-black/60 dark:text-white/60">
-            Rust + WebAssembly
+          <div className="flex items-center gap-3">
+            <a
+              href="/index.html"
+              className="px-4 py-2 bg-gradient-to-r from-[var(--brand-bright-purple)] to-[var(--brand-deep-purple)] text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2"
+            >
+              <span>←</span>
+              <span>Back to Website</span>
+            </a>
+            <div className="text-[10px] text-black/60 dark:text-white/60">
+              Rust + WebAssembly
+            </div>
           </div>
         </div>
 
