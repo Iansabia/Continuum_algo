@@ -149,8 +149,7 @@ export default function TargetVisualizer({
 
     // Simple label at the top
     ctx.fillStyle = '#493b7c';
-    ctx.font = '12px Inter';
-    ctx.fontWeight = '600';
+    ctx.font = '600 12px Inter';
     ctx.textAlign = 'center';
     ctx.fillText(`Target`, centerX, centerY - radius - 8);
     ctx.textAlign = 'left';
@@ -171,8 +170,7 @@ export default function TargetVisualizer({
 
     // Simple label at the bottom
     ctx.fillStyle = '#604c9c';
-    ctx.font = '12px Inter';
-    ctx.fontWeight = '600';
+    ctx.font = '600 12px Inter';
     ctx.textAlign = 'center';
     ctx.fillText('Breakeven', centerX, centerY + radius + 18);
     ctx.textAlign = 'left';
@@ -232,8 +230,7 @@ export default function TargetVisualizer({
 
       // Draw distance label
       ctx.fillStyle = '#dfc9ad';
-      ctx.font = '12px Inter';
-      ctx.fontWeight = '600';
+      ctx.font = '600 12px Inter';
       ctx.fillText(`${shot.distance.toFixed(1)}y`, x + 10, y - 10);
     }
   };
