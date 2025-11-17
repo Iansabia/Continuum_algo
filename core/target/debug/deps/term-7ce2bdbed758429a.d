@@ -1,0 +1,10 @@
+/Users/iansabia/projects/OOCProjects/Continuum_algo/core/target/debug/deps/term-7ce2bdbed758429a.d: /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/term-0.7.0/src/lib.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/term-0.7.0/src/terminfo/mod.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/term-0.7.0/src/terminfo/searcher.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/term-0.7.0/src/terminfo/parser/compiled.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/term-0.7.0/src/terminfo/parser/names.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/term-0.7.0/src/terminfo/parm.rs
+
+/Users/iansabia/projects/OOCProjects/Continuum_algo/core/target/debug/deps/libterm-7ce2bdbed758429a.rmeta: /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/term-0.7.0/src/lib.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/term-0.7.0/src/terminfo/mod.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/term-0.7.0/src/terminfo/searcher.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/term-0.7.0/src/terminfo/parser/compiled.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/term-0.7.0/src/terminfo/parser/names.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/term-0.7.0/src/terminfo/parm.rs
+
+/Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/term-0.7.0/src/lib.rs:
+/Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/term-0.7.0/src/terminfo/mod.rs:
+/Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/term-0.7.0/src/terminfo/searcher.rs:
+/Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/term-0.7.0/src/terminfo/parser/compiled.rs:
+/Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/term-0.7.0/src/terminfo/parser/names.rs:
+/Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/term-0.7.0/src/terminfo/parm.rs:

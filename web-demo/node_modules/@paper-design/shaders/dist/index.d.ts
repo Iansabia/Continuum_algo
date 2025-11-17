@@ -1,0 +1,52 @@
+/** The core Shader Mount class. Pass it a parent element and a fragment shader to get started. */
+export { ShaderMount, isPaperShaderElement } from './shader-mount.js';
+export type { PaperShaderElement, ShaderMotionParams, ShaderMountUniforms, ShaderPreset, ImageShaderPreset, } from './shader-mount.js';
+/** Shader sizing options and uniforms */
+export { defaultObjectSizing, defaultPatternSizing, ShaderFitOptions, type ShaderFit, type ShaderSizingParams, type ShaderSizingUniforms, } from './shader-sizing.js';
+/** A shader that renders a mesh gradient with a rotating noise pattern and several layers of fractal noise */
+export { meshGradientFragmentShader, meshGradientMeta, type MeshGradientParams, type MeshGradientUniforms, } from './shaders/mesh-gradient.js';
+/** Fractional Brownian motion (fBm) noise over the polar coordinates, masked with ring shape */
+export { smokeRingMeta, smokeRingFragmentShader, type SmokeRingParams, type SmokeRingUniforms, } from './shaders/smoke-ring.js';
+/** A shader rendering a fractal-like structure made of several layers of since-arches */
+export { neuroNoiseFragmentShader, type NeuroNoiseParams, type NeuroNoiseUniforms } from './shaders/neuro-noise.js';
+/** A shader rendering an animated dot pattern based on Voronoi diagram */
+export { dotOrbitMeta, dotOrbitFragmentShader, type DotOrbitParams, type DotOrbitUniforms, } from './shaders/dot-orbit.js';
+/** A shader rendering a static dot pattern */
+export { dotGridFragmentShader, DotGridShapes, type DotGridShape, type DotGridParams, type DotGridUniforms, } from './shaders/dot-grid.js';
+/** A shader that calculates a combination of 2 simplex noises with result rendered as a gradient */
+export { simplexNoiseMeta, simplexNoiseFragmentShader, type SimplexNoiseParams, type SimplexNoiseUniforms, } from './shaders/simplex-noise.js';
+/** A number of circlular shapes blened in a gooey way */
+export { metaballsMeta, metaballsFragmentShader, type MetaballsParams, type MetaballsUniforms, } from './shaders/metaballs.js';
+/** 2d noise with max number of parameters to be exposed to users */
+export { perlinNoiseFragmentShader, type PerlinNoiseParams, type PerlinNoiseUniforms } from './shaders/perlin-noise.js';
+/** Voronoi diagram: classic + rounded edges */
+export { voronoiMeta, voronoiFragmentShader, type VoronoiParams, type VoronoiUniforms } from './shaders/voronoi.js';
+/** Waves pattern */
+export { wavesFragmentShader, type WavesParams, type WavesUniforms } from './shaders/waves.js';
+/** Warp: distortion + swirl + underlying shapes */
+export { warpMeta, warpFragmentShader, WarpPatterns, type WarpParams, type WarpUniforms, type WarpPattern, } from './shaders/warp.js';
+/** Radial shape made of randomized stripes */
+export { godRaysMeta, godRaysFragmentShader, type GodRaysParams, type GodRaysUniforms } from './shaders/god-rays.js';
+/** Single-color spiral shape */
+export { spiralFragmentShader, type SpiralParams, type SpiralUniforms } from './shaders/spiral.js';
+/** Multi-color radial swirl  */
+export { swirlMeta, swirlFragmentShader, type SwirlParams, type SwirlUniforms } from './shaders/swirl.js';
+/** Dithering effect applied over abstract shapes */
+export { ditheringFragmentShader, DitheringShapes, DitheringTypes, type DitheringParams, type DitheringUniforms, type DitheringShape, type DitheringType, } from './shaders/dithering.js';
+/** N-color gradient applied to the abstract shapes w/ grainy overlay & distortion  */
+export { grainGradientFragmentShader, grainGradientMeta, GrainGradientShapes, type GrainGradientParams, type GrainGradientUniforms, type GrainGradientShape, } from './shaders/grain-gradient.js';
+/** Border with configurable size & radius ade of rotating pulsing light spots  */
+export { pulsingBorderMeta, pulsingBorderFragmentShader, PulsingBorderAspectRatios, type PulsingBorderParams, type PulsingBorderUniforms, type PulsingBorderAspectRatio, } from './shaders/pulsing-border.js';
+/**  */
+export { colorPanelsFragmentShader, colorPanelsMeta, type ColorPanelsParams, type ColorPanelsUniforms, } from './shaders/color-panels.js';
+export { staticMeshGradientFragmentShader, staticMeshGradientMeta, type StaticMeshGradientParams, type StaticMeshGradientUniforms, } from './shaders/static-mesh-gradient.js';
+export { staticRadialGradientFragmentShader, staticRadialGradientMeta, type StaticRadialGradientParams, type StaticRadialGradientUniforms, } from './shaders/static-radial-gradient.js';
+export { paperTextureFragmentShader, type PaperTextureParams, type PaperTextureUniforms, } from './shaders/paper-texture.js';
+export { waterFragmentShader, type WaterParams, type WaterUniforms } from './shaders/water.js';
+export { flutedGlassFragmentShader, GlassDistortionShapes, GlassGridShapes, type GlassDistortionShape, type GlassGridShape, type FlutedGlassParams, type FlutedGlassUniforms, } from './shaders/fluted-glass.js';
+export { imageDitheringFragmentShader, type ImageDitheringParams, type ImageDitheringUniforms, } from './shaders/image-dithering.js';
+export { heatmapMeta, heatmapFragmentShader, toProcessedHeatmap, type HeatmapParams, type HeatmapUniforms, } from './shaders/heatmap.js';
+export { liquidMetalFragmentShader, LiquidMetalShapes, toProcessedLiquidMetal, type LiquidMetalShape, type LiquidMetalParams, type LiquidMetalUniforms, } from './shaders/liquid-metal.js';
+export { getShaderColorFromString } from './get-shader-color-from-string.js';
+export { getShaderNoiseTexture } from './get-shader-noise-texture.js';
+export { getEmptyPixel } from './get-empty-pixel.js';

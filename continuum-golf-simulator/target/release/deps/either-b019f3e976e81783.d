@@ -1,9 +1,0 @@
-/Users/iansabia/projects/OOCProjects/Continuum_algo/continuum-golf-simulator/target/release/deps/either-b019f3e976e81783.d: /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/either-1.15.0/src/lib.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/either-1.15.0/src/iterator.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/either-1.15.0/src/into_either.rs
-
-/Users/iansabia/projects/OOCProjects/Continuum_algo/continuum-golf-simulator/target/release/deps/libeither-b019f3e976e81783.rlib: /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/either-1.15.0/src/lib.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/either-1.15.0/src/iterator.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/either-1.15.0/src/into_either.rs
-
-/Users/iansabia/projects/OOCProjects/Continuum_algo/continuum-golf-simulator/target/release/deps/libeither-b019f3e976e81783.rmeta: /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/either-1.15.0/src/lib.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/either-1.15.0/src/iterator.rs /Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/either-1.15.0/src/into_either.rs
-
-/Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/either-1.15.0/src/lib.rs:
-/Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/either-1.15.0/src/iterator.rs:
-/Users/iansabia/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/either-1.15.0/src/into_either.rs:

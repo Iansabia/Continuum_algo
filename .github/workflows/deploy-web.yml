@@ -4,9 +4,9 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'continuum-golf-simulator/web/**'
-      - 'continuum-golf-simulator/src/**'
-      - 'continuum-golf-simulator/Cargo.toml'
+      - 'web-demo/**'
+      - 'core/src/**'
+      - 'core/Cargo.toml'
       - '.github/workflows/deploy-web.yml'
   workflow_dispatch:
 
@@ -31,7 +31,7 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
-          cache-dependency-path: 'continuum-golf-simulator/web/package-lock.json'
+          cache-dependency-path: 'web-demo/package-lock.json'
 
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
@@ -43,15 +43,15 @@ jobs:
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Build WASM module
-        working-directory: ./continuum-golf-simulator
-        run: wasm-pack build --target web --out-dir web/src/wasm
+        working-directory: ./core
+        run: wasm-pack build --target web --out-dir ../web-demo/src/wasm
 
       - name: Install dependencies
-        working-directory: ./continuum-golf-simulator/web
+        working-directory: ./web-demo
         run: npm ci
 
       - name: Build web app
-        working-directory: ./continuum-golf-simulator/web
+        working-directory: ./web-demo
         run: npm run build
 
       - name: Setup Pages
@@ -60,7 +60,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './continuum-golf-simulator/web/dist'
+          path: './web-demo/dist'
 
   deploy:
     environment:
