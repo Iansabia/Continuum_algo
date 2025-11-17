@@ -1,104 +1,79 @@
 # Continuum Golf - Web Demo
 
-**Marketing website and interactive demo interface**
+Interactive marketing website and simulator demonstration.
 
-This is the web-based demo and marketing site for Continuum Golf. It showcases the simulator capabilities through an interactive UI but is **NOT** intended for production venue integration.
+## Purpose
 
-## What This Is
+This is a **demo-only** web application built to showcase the Continuum Golf wagering simulator. It is **NOT** intended for production use at golf venues.
 
-A React/TypeScript web application featuring:
+**Use this for:**
+- Product demonstrations
+- Investor presentations
+- Understanding simulator capabilities
+- Marketing materials
 
-- 🎯 Interactive landing page with 3D visualizations
-- 📊 Live simulator demo with real-time analytics
-- 📈 Venue economics dashboard
-- 🎨 Marketing materials and product showcase
+**Do NOT use this for:**
+- Production venue deployments
+- Real money wagering
+- Multi-user systems
 
-## What This Is NOT
+## What's Inside
 
-❌ **Not for production venue integration** - Use `../core/` for real simulator deployments
-❌ **Not optimized for scale** - This is a demo/marketing tool
-❌ **Mock UI only** - Real integrations should use the core Rust library
+- Landing page with 3D visualizations
+- Interactive simulator demo
+- Venue economics dashboard
+- Live skill tracking charts
 
 ## Development
 
 ### Prerequisites
-
-- Node.js 18+ and npm
-- Rust toolchain with wasm-pack
-- wasm-bindgen-cli
+- Node.js 18+
+- Rust + wasm-pack (for WASM compilation)
 
 ### Setup
 
-1. Install dependencies:
 ```bash
+# Install dependencies
 npm install
-```
 
-2. Build the WASM module:
-```bash
+# Build WASM module from core
 cd ../core
 wasm-pack build --target web --out-dir ../web-demo/src/wasm
-```
 
-Or use the npm script (runs automatically before build):
-```bash
-npm run prebuild
-```
-
-3. Start development server:
-```bash
+# Start dev server
+cd ../web-demo
 npm run dev
 ```
 
-4. Build for production:
+### Build for Production
+
 ```bash
 npm run build
 ```
+
+The build script automatically:
+1. Compiles the core Rust simulator to WASM
+2. Bundles the React application
+3. Outputs to `dist/`
 
 ## Deployment
 
-### GitHub Pages
+Configured for Vercel with automatic deployments on push to `main`.
 
-1. Build the project:
-```bash
-npm run build
-```
+**Vercel Settings:**
+- Root Directory: `web-demo`
+- Build Command: `bash build.sh`
+- Output Directory: `dist`
 
-2. Deploy to GitHub Pages:
-```bash
-# From repository root
-git subtree push --prefix continuum-golf-simulator/web/dist origin gh-pages
-```
+## Tech Stack
 
-### Vercel (Recommended)
-
-The project is configured for Vercel deployment. The root `vercel.json` automatically:
-- Builds the WASM module from `../core/`
-- Installs npm dependencies
-- Builds the React app
-- Deploys to production
-
-Simply connect your GitHub repo to Vercel and it will deploy automatically on push.
-
-## Technology Stack
-
-- **Frontend**: React 18 + TypeScript
-- **Build Tool**: Vite
-- **Styling**: Tailwind CSS
-- **Charts**: Recharts
-- **Backend**: Rust compiled to WebAssembly
-- **Performance**: 100% client-side, no server needed
-
-## Core Simulator Integration
-
-This web demo integrates with the core simulator via WASM bindings. The simulator code lives in `../core/` and is compiled to WebAssembly for browser use.
-
-**For production venue integrations**, use the core Rust library directly, not this web interface.
+- React 18 + TypeScript
+- Vite (build tool)
+- Tailwind CSS
+- Three.js / React Three Fiber
+- Recharts (data visualization)
+- WASM (Rust simulator)
 
 ## License
 
 MIT
-
----
-
-**Note:** This is the demo website. For production simulator integration, see `../core/`
