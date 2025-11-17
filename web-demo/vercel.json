@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd ../core && wasm-pack build --target web --out-dir ../web-demo/src/wasm && cd ../web-demo && npm run build",
+  "buildCommand": "bash build.sh",
   "outputDirectory": "dist",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
