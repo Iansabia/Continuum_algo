@@ -3,7 +3,8 @@ set -e
 
 echo "Installing Rust..."
 curl https://sh.rustup.rs -sSf | sh -s -- -y
-source $HOME/.cargo/env
+source "$HOME/.cargo/env" 2>/dev/null || source "/rust/env" 2>/dev/null || true
+export PATH="$HOME/.cargo/bin:/rust/bin:$PATH"
 
 echo "Installing wasm-pack..."
 curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
