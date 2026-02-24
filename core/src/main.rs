@@ -1,14 +1,12 @@
-// CLI entry point for Continuum Golf Simulator
-
 use clap::{Parser, Subcommand};
 use colored::*;
 use indicatif::{ProgressBar, ProgressStyle};
-use prettytable::{Table, Row, Cell, format};
+use prettytable::{format, Cell, Row, Table};
 
 use continuum_golf_simulator::{
+    analytics::{export::*, metrics::*},
     models::{hole::HOLE_CONFIGURATIONS, player::*},
-    simulators::{player_session::*, venue::*, tournament::*},
-    analytics::{metrics::*, export::*},
+    simulators::{player_session::*, tournament::*, venue::*},
 };
 
 #[derive(Parser)]
@@ -149,7 +147,15 @@ fn main() {
             developer_mode,
             export,
         } => {
-            run_player_command(handicap, shots, wager_min, wager_max, hole, developer_mode, export);
+            run_player_command(
+                handicap,
+                shots,
+                wager_min,
+                wager_max,
+                hole,
+                developer_mode,
+                export,
+            );
         }
         Commands::Venue {
             bays,
@@ -193,19 +199,58 @@ fn main() {
 
 fn print_logo() {
     println!("{}", "");
-    println!("{}", "╔═══════════════════════════════════════════════════════════════╗".bright_cyan());
-    println!("{}", "║                                                               ║".bright_cyan());
-    println!("{}", "║      ██████╗ ██████╗ ███╗   ██╗████████╗██╗███╗   ██╗       ║".bright_cyan());
-    println!("{}", "║     ██╔════╝██╔═══██╗████╗  ██║╚══██╔══╝██║████╗  ██║       ║".bright_cyan());
-    println!("{}", "║     ██║     ██║   ██║██╔██╗ ██║   ██║   ██║██╔██╗ ██║       ║".bright_cyan());
-    println!("{}", "║     ██║     ██║   ██║██║╚██╗██║   ██║   ██║██║╚██╗██║       ║".bright_cyan());
-    println!("{}", "║     ╚██████╗╚██████╔╝██║ ╚████║   ██║   ██║██║ ╚████║       ║".bright_cyan());
-    println!("{}", "║      ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚═╝╚═╝  ╚═══╝       ║".bright_cyan());
-    println!("{}", "║                                                               ║".bright_cyan());
-    println!("{}", "║              Golf Wagering Simulator v0.1.0                   ║".bright_white());
-    println!("{}", "║         Fair • Dynamic • Profitable • Rust-Powered           ║".bright_green());
-    println!("{}", "║                                                               ║".bright_cyan());
-    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".bright_cyan());
+    println!(
+        "{}",
+        "╔═══════════════════════════════════════════════════════════════╗".bright_cyan()
+    );
+    println!(
+        "{}",
+        "║                                                               ║".bright_cyan()
+    );
+    println!(
+        "{}",
+        "║      ██████╗ ██████╗ ███╗   ██╗████████╗██╗███╗   ██╗       ║".bright_cyan()
+    );
+    println!(
+        "{}",
+        "║     ██╔════╝██╔═══██╗████╗  ██║╚══██╔══╝██║████╗  ██║       ║".bright_cyan()
+    );
+    println!(
+        "{}",
+        "║     ██║     ██║   ██║██╔██╗ ██║   ██║   ██║██╔██╗ ██║       ║".bright_cyan()
+    );
+    println!(
+        "{}",
+        "║     ██║     ██║   ██║██║╚██╗██║   ██║   ██║██║╚██╗██║       ║".bright_cyan()
+    );
+    println!(
+        "{}",
+        "║     ╚██████╗╚██████╔╝██║ ╚████║   ██║   ██║██║ ╚████║       ║".bright_cyan()
+    );
+    println!(
+        "{}",
+        "║      ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚═╝╚═╝  ╚═══╝       ║".bright_cyan()
+    );
+    println!(
+        "{}",
+        "║                                                               ║".bright_cyan()
+    );
+    println!(
+        "{}",
+        "║              Golf Wagering Simulator v0.1.0                   ║".bright_white()
+    );
+    println!(
+        "{}",
+        "║         Fair • Dynamic • Profitable • Rust-Powered           ║".bright_green()
+    );
+    println!(
+        "{}",
+        "║                                                               ║".bright_cyan()
+    );
+    println!(
+        "{}",
+        "╚═══════════════════════════════════════════════════════════════╝".bright_cyan()
+    );
     println!();
 }
 
@@ -218,14 +263,25 @@ fn run_player_command(
     _developer_mode: bool,
     export_path: Option<String>,
 ) {
-    println!("{}", "═══════════════════════════════════════".bright_yellow());
-    println!("{}", "       PLAYER SESSION SIMULATOR".bright_yellow().bold());
-    println!("{}", "═══════════════════════════════════════".bright_yellow());
+    println!(
+        "{}",
+        "═══════════════════════════════════════".bright_yellow()
+    );
+    println!(
+        "{}",
+        "       PLAYER SESSION SIMULATOR".bright_yellow().bold()
+    );
+    println!(
+        "{}",
+        "═══════════════════════════════════════".bright_yellow()
+    );
     println!();
 
-    // Validate inputs
     if handicap > 30 {
-        eprintln!("{}", "Error: Handicap must be between 0 and 30".red().bold());
+        eprintln!(
+            "{}",
+            "Error: Handicap must be between 0 and 30".red().bold()
+        );
         return;
     }
 
@@ -234,7 +290,6 @@ fn run_player_command(
         return;
     }
 
-    // Display configuration
     let mut config_table = Table::new();
     config_table.set_format(*format::consts::FORMAT_BOX_CHARS);
     config_table.add_row(Row::new(vec![
@@ -265,11 +320,9 @@ fn run_player_command(
     config_table.printstd();
     println!();
 
-    // Create player
     let player_id = format!("player_{}", handicap);
     let mut player = Player::new(player_id, handicap);
 
-    // Configure session
     let hole_selection = if let Some(h) = hole_id {
         HoleSelection::Fixed(h)
     } else {
@@ -287,7 +340,6 @@ fn run_player_command(
         shot_generation_mode: None,
     };
 
-    // Run simulation with progress bar
     println!("{}", "Running simulation...".bright_blue());
     let pb = ProgressBar::new(shots as u64);
     pb.set_style(
@@ -297,18 +349,19 @@ fn run_player_command(
             .progress_chars("=>-"),
     );
 
-    // Run the session
     let result = run_session(&mut player, config);
     pb.finish_with_message("Complete!");
     println!();
 
-    // Display results
     print_session_results(&result);
 
-    // Export if requested
     if let Some(path) = export_path {
         match export_session_csv(&result, &path) {
-            Ok(_) => println!("{} {}", "✓".green(), format!("Results exported to: {}", path).bright_white()),
+            Ok(_) => println!(
+                "{} {}",
+                "✓".green(),
+                format!("Results exported to: {}", path).bright_white()
+            ),
             Err(e) => eprintln!("{} {}", "✗".red(), format!("Failed to export: {}", e).red()),
         }
         println!();
@@ -326,24 +379,39 @@ fn run_venue_command(
     export_heatmap: Option<String>,
     show_progress: bool,
 ) {
-    println!("{}", "═══════════════════════════════════════".bright_yellow());
-    println!("{}", "      VENUE ECONOMICS SIMULATOR".bright_yellow().bold());
-    println!("{}", "═══════════════════════════════════════".bright_yellow());
+    println!(
+        "{}",
+        "═══════════════════════════════════════".bright_yellow()
+    );
+    println!(
+        "{}",
+        "      VENUE ECONOMICS SIMULATOR".bright_yellow().bold()
+    );
+    println!(
+        "{}",
+        "═══════════════════════════════════════".bright_yellow()
+    );
     println!();
 
-    // Parse archetype
     let player_archetype = match archetype {
         "uniform" => PlayerArchetype::Uniform,
-        "bell" => PlayerArchetype::BellCurve { mean: 15, std_dev: 5.0 },
+        "bell" => PlayerArchetype::BellCurve {
+            mean: 15,
+            std_dev: 5.0,
+        },
         "beginners" => PlayerArchetype::SkewedHigh,
         "experts" => PlayerArchetype::SkewedLow,
         _ => {
-            eprintln!("{}", "Error: Invalid archetype. Use: uniform|bell|beginners|experts".red().bold());
+            eprintln!(
+                "{}",
+                "Error: Invalid archetype. Use: uniform|bell|beginners|experts"
+                    .red()
+                    .bold()
+            );
             return;
         }
     };
 
-    // Display configuration
     let mut config_table = Table::new();
     config_table.set_format(*format::consts::FORMAT_BOX_CHARS);
     config_table.add_row(Row::new(vec![
@@ -372,12 +440,14 @@ fn run_venue_command(
     ]));
     config_table.add_row(Row::new(vec![
         Cell::new("Total Shots"),
-        Cell::new(&format!("{}", (bays as f64 * hours * shots_per_hour as f64) as usize)),
+        Cell::new(&format!(
+            "{}",
+            (bays as f64 * hours * shots_per_hour as f64) as usize
+        )),
     ]));
     config_table.printstd();
     println!();
 
-    // Configure venue
     let config = VenueConfig {
         num_bays: bays,
         hours,
@@ -386,7 +456,6 @@ fn run_venue_command(
         wager_range: (wager_min, wager_max),
     };
 
-    // Run simulation
     if show_progress {
         println!("{}", "Running venue simulation...".bright_blue());
         let total_shots = (bays as f64 * hours * shots_per_hour as f64) as u64;
@@ -404,18 +473,33 @@ fn run_venue_command(
 
         print_venue_results(&result);
 
-        // Export if requested
         if let Some(path) = export_json {
             match export_venue_json(&result, &path) {
-                Ok(_) => println!("{} {}", "✓".green(), format!("Venue results exported to: {}", path).bright_white()),
-                Err(e) => eprintln!("{} {}", "✗".red(), format!("Failed to export JSON: {}", e).red()),
+                Ok(_) => println!(
+                    "{} {}",
+                    "✓".green(),
+                    format!("Venue results exported to: {}", path).bright_white()
+                ),
+                Err(e) => eprintln!(
+                    "{} {}",
+                    "✗".red(),
+                    format!("Failed to export JSON: {}", e).red()
+                ),
             }
         }
 
         if let Some(path) = export_heatmap {
             match export_heatmap_csv(&result.heatmap_data, &path) {
-                Ok(_) => println!("{} {}", "✓".green(), format!("Heatmap exported to: {}", path).bright_white()),
-                Err(e) => eprintln!("{} {}", "✗".red(), format!("Failed to export heatmap: {}", e).red()),
+                Ok(_) => println!(
+                    "{} {}",
+                    "✓".green(),
+                    format!("Heatmap exported to: {}", path).bright_white()
+                ),
+                Err(e) => eprintln!(
+                    "{} {}",
+                    "✗".red(),
+                    format!("Failed to export heatmap: {}", e).red()
+                ),
             }
         }
     } else {
@@ -433,18 +517,22 @@ fn run_tournament_command(
     payout: &str,
     attempts: usize,
 ) {
-    println!("{}", "═══════════════════════════════════════".bright_yellow());
+    println!(
+        "{}",
+        "═══════════════════════════════════════".bright_yellow()
+    );
     println!("{}", "       TOURNAMENT SIMULATOR".bright_yellow().bold());
-    println!("{}", "═══════════════════════════════════════".bright_yellow());
+    println!(
+        "{}",
+        "═══════════════════════════════════════".bright_yellow()
+    );
     println!();
 
-    // Validate hole
     if hole < 1 || hole > 8 {
         eprintln!("{}", "Error: Hole must be between 1 and 8".red().bold());
         return;
     }
 
-    // Parse game mode
     let game_mode = match mode {
         "longest" => GameMode::LongestDrive,
         "ctp" => GameMode::ClosestToPin { hole_id: hole },
@@ -454,28 +542,33 @@ fn run_tournament_command(
         }
     };
 
-    // Parse payout structure
     let payout_structure = match payout {
         "winner" => PayoutStructure::WinnerTakesAll,
-        "top2" => PayoutStructure::Top2 { first: 0.70, second: 0.30 },
-        "top3" => PayoutStructure::Top3 { first: 0.50, second: 0.30, third: 0.20 },
+        "top2" => PayoutStructure::Top2 {
+            first: 0.70,
+            second: 0.30,
+        },
+        "top3" => PayoutStructure::Top3 {
+            first: 0.50,
+            second: 0.30,
+            third: 0.20,
+        },
         _ => {
-            eprintln!("{}", "Error: Invalid payout. Use: winner|top2|top3".red().bold());
+            eprintln!(
+                "{}",
+                "Error: Invalid payout. Use: winner|top2|top3".red().bold()
+            );
             return;
         }
     };
 
-    // Display configuration
     let mut config_table = Table::new();
     config_table.set_format(*format::consts::FORMAT_BOX_CHARS);
     config_table.add_row(Row::new(vec![
         Cell::new("Configuration").style_spec("Fb"),
         Cell::new("Value").style_spec("Fb"),
     ]));
-    config_table.add_row(Row::new(vec![
-        Cell::new("Game Mode"),
-        Cell::new(mode),
-    ]));
+    config_table.add_row(Row::new(vec![Cell::new("Game Mode"), Cell::new(mode)]));
     if mode == "ctp" {
         config_table.add_row(Row::new(vec![
             Cell::new("Hole"),
@@ -505,7 +598,6 @@ fn run_tournament_command(
     config_table.printstd();
     println!();
 
-    // Configure tournament
     let config = TournamentConfig {
         game_mode,
         num_players: players,
@@ -515,7 +607,6 @@ fn run_tournament_command(
         attempts_per_player: attempts,
     };
 
-    // Run simulation
     println!("{}", "Running tournament simulation...".bright_blue());
     let result = run_tournament(config);
     println!();
@@ -524,9 +615,15 @@ fn run_tournament_command(
 }
 
 fn run_validate_command(test: &str, verbose: bool) {
-    println!("{}", "═══════════════════════════════════════".bright_yellow());
+    println!(
+        "{}",
+        "═══════════════════════════════════════".bright_yellow()
+    );
     println!("{}", "        VALIDATION TEST SUITE".bright_yellow().bold());
-    println!("{}", "═══════════════════════════════════════".bright_yellow());
+    println!(
+        "{}",
+        "═══════════════════════════════════════".bright_yellow()
+    );
     println!();
 
     match test {
@@ -541,14 +638,22 @@ fn run_validate_command(test: &str, verbose: bool) {
         "fairness" => run_fairness_validation(verbose),
         "convergence" => run_convergence_validation(verbose),
         _ => {
-            eprintln!("{}", "Error: Invalid test. Use: all|rtp|fairness|convergence".red().bold());
+            eprintln!(
+                "{}",
+                "Error: Invalid test. Use: all|rtp|fairness|convergence"
+                    .red()
+                    .bold()
+            );
         }
     }
 }
 
 fn run_rtp_validation(verbose: bool) {
     println!("{}", "RTP Validation Test".bright_cyan().bold());
-    println!("{}", "───────────────────────────────────────".bright_cyan());
+    println!(
+        "{}",
+        "───────────────────────────────────────".bright_cyan()
+    );
 
     let holes = &HOLE_CONFIGURATIONS;
     let mut all_passed = true;
@@ -581,7 +686,11 @@ fn run_rtp_validation(verbose: bool) {
 
         if verbose {
             for result in results.iter() {
-                println!("    Handicap {}: RTP={:.2}%", result.handicap, result.actual_rtp * 100.0);
+                println!(
+                    "    Handicap {}: RTP={:.2}%",
+                    result.handicap,
+                    result.actual_rtp * 100.0
+                );
             }
         }
     }
@@ -596,7 +705,10 @@ fn run_rtp_validation(verbose: bool) {
 
 fn run_fairness_validation(verbose: bool) {
     println!("{}", "Fairness Validation Test".bright_cyan().bold());
-    println!("{}", "───────────────────────────────────────".bright_cyan());
+    println!(
+        "{}",
+        "───────────────────────────────────────".bright_cyan()
+    );
 
     let holes = &HOLE_CONFIGURATIONS;
     let mut all_passed = true;
@@ -624,7 +736,10 @@ fn run_fairness_validation(verbose: bool) {
 
         if verbose {
             for comp in &report.comparisons {
-                println!("    Handicap {}: EV={:.4}, P_max={:.2}", comp.handicap, comp.expected_value, comp.p_max);
+                println!(
+                    "    Handicap {}: EV={:.4}, P_max={:.2}",
+                    comp.handicap, comp.expected_value, comp.p_max
+                );
             }
         }
     }
@@ -639,9 +754,11 @@ fn run_fairness_validation(verbose: bool) {
 
 fn run_convergence_validation(verbose: bool) {
     println!("{}", "Kalman Convergence Test".bright_cyan().bold());
-    println!("{}", "───────────────────────────────────────".bright_cyan());
+    println!(
+        "{}",
+        "───────────────────────────────────────".bright_cyan()
+    );
 
-    // Simulate a session and check convergence
     let player_id = "test_player".to_string();
     let mut player = Player::new(player_id, 15);
     let config = SessionConfig {
@@ -658,7 +775,6 @@ fn run_convergence_validation(verbose: bool) {
     let result = run_session(&mut player, config);
     let reports = analyze_kalman_convergence(&result);
 
-    // Get the first report (if any)
     let mut overall_passed = true;
     for (category, report) in reports.iter() {
         let passed = report.final_confidence > 70.0;
@@ -672,14 +788,15 @@ fn run_convergence_validation(verbose: bool) {
 
         println!(
             "{} {} Final Confidence: {:.1}% (target: >70%)",
-            status,
-            category,
-            report.final_confidence
+            status, category, report.final_confidence
         );
 
         if verbose {
             println!("    Initial Confidence: {:.1}%", report.initial_confidence);
-            println!("    Shots to 80% Confidence: {:?}", report.shots_to_80_percent);
+            println!(
+                "    Shots to 80% Confidence: {:?}",
+                report.shots_to_80_percent
+            );
             println!("    Converged: {}", report.converged);
         }
     }
@@ -693,12 +810,17 @@ fn run_convergence_validation(verbose: bool) {
 }
 
 fn print_session_results(result: &SessionResult) {
-    println!("{}", "═══════════════════════════════════════".bright_green());
+    println!(
+        "{}",
+        "═══════════════════════════════════════".bright_green()
+    );
     println!("{}", "          SESSION RESULTS".bright_green().bold());
-    println!("{}", "═══════════════════════════════════════".bright_green());
+    println!(
+        "{}",
+        "═══════════════════════════════════════".bright_green()
+    );
     println!();
 
-    // Financial summary
     let mut summary_table = Table::new();
     summary_table.set_format(*format::consts::FORMAT_BOX_CHARS);
     summary_table.add_row(Row::new(vec![
@@ -728,7 +850,6 @@ fn print_session_results(result: &SessionResult) {
     summary_table.printstd();
     println!();
 
-    // Skill profiles (now just sigma values)
     println!("{}", "Final Skill Profiles:".bright_white().bold());
     let mut skill_table = Table::new();
     skill_table.set_format(*format::consts::FORMAT_BOX_CHARS);
@@ -748,12 +869,17 @@ fn print_session_results(result: &SessionResult) {
 }
 
 fn print_venue_results(result: &VenueResult) {
-    println!("{}", "═══════════════════════════════════════".bright_green());
+    println!(
+        "{}",
+        "═══════════════════════════════════════".bright_green()
+    );
     println!("{}", "          VENUE RESULTS".bright_green().bold());
-    println!("{}", "═══════════════════════════════════════".bright_green());
+    println!(
+        "{}",
+        "═══════════════════════════════════════".bright_green()
+    );
     println!();
 
-    // Financial summary
     let mut summary_table = Table::new();
     summary_table.set_format(*format::consts::FORMAT_BOX_CHARS);
     summary_table.add_row(Row::new(vec![
@@ -777,7 +903,6 @@ fn print_venue_results(result: &VenueResult) {
         Cell::new(&format!("{:.2}%", result.hold_percentage * 100.0)),
     ]));
 
-    // Calculate ARPU (Average Revenue Per User) - assuming each bay is one user session
     if !result.profit_over_time.is_empty() {
         let num_sessions = result.profit_over_time.len();
         let arpu = result.net_profit / num_sessions as f64;
@@ -790,7 +915,6 @@ fn print_venue_results(result: &VenueResult) {
     summary_table.printstd();
     println!();
 
-    // Payout distribution
     println!("{}", "Payout Distribution:".bright_white().bold());
     let mut payout_table = Table::new();
     payout_table.set_format(*format::consts::FORMAT_BOX_CHARS);
@@ -823,15 +947,27 @@ fn print_venue_results(result: &VenueResult) {
 
     // Add explanatory note
     println!();
-    println!("{}", "Note: The 10x+ bucket includes all exceptional shots (10x-50x+).".bright_black());
-    println!("{}", "      This represents the long tail of near-perfect shots.".bright_black());
+    println!(
+        "{}",
+        "Note: The 10x+ bucket includes all exceptional shots (10x-50x+).".bright_black()
+    );
+    println!(
+        "{}",
+        "      This represents the long tail of near-perfect shots.".bright_black()
+    );
     println!();
 }
 
 fn print_tournament_results(result: &TournamentResult) {
-    println!("{}", "═══════════════════════════════════════".bright_green());
+    println!(
+        "{}",
+        "═══════════════════════════════════════".bright_green()
+    );
     println!("{}", "       TOURNAMENT RESULTS".bright_green().bold());
-    println!("{}", "═══════════════════════════════════════".bright_green());
+    println!(
+        "{}",
+        "═══════════════════════════════════════".bright_green()
+    );
     println!();
 
     // Financial summary

@@ -16,9 +16,9 @@
 // 4. Repeat to generate posterior samples
 // 5. Use median of samples as point estimate
 
-use rand::Rng;
-use serde::{Serialize, Deserialize};
 use crate::math::distributions::{log_posterior, normal_random};
+use rand::Rng;
+use serde::{Deserialize, Serialize};
 
 /// MCMC sampler state using Metropolis-Hastings algorithm
 ///
@@ -70,7 +70,13 @@ impl MCMCSampler {
     ///
     /// # Returns
     /// The sampled sigma value (either new proposal or previous value)
-    pub fn step(&mut self, observations: &[f64], prior_mean: f64, prior_std: f64, weights: Option<&[f64]>) -> f64 {
+    pub fn step(
+        &mut self,
+        observations: &[f64],
+        prior_mean: f64,
+        prior_std: f64,
+        weights: Option<&[f64]>,
+    ) -> f64 {
         // Propose new sigma from symmetric normal distribution
         let proposed_sigma = normal_random(self.current_sigma, self.proposal_std);
 
@@ -81,13 +87,8 @@ impl MCMCSampler {
         }
 
         // Compute log-posterior at proposed value
-        let proposed_log_posterior = log_posterior(
-            proposed_sigma,
-            observations,
-            prior_mean,
-            prior_std,
-            weights,
-        );
+        let proposed_log_posterior =
+            log_posterior(proposed_sigma, observations, prior_mean, prior_std, weights);
 
         // Metropolis-Hastings acceptance ratio
         // log(α) = log P(σ' | D) - log P(σ | D)
@@ -301,6 +302,16 @@ impl MCMCSkillEstimator {
         // Calculate exponential recency weights
         let weights = self.calculate_observation_weights();
 
+        // CRITICAL FIX: Re-calculate current log-posterior with new observations
+        // The sampler's stored log-posterior might be based on empty/old observations
+        self.sampler.current_log_posterior = log_posterior(
+            self.sampler.current_sigma,
+            &self.observations,
+            self.prior_mean,
+            self.prior_std,
+            Some(&weights),
+        );
+
         // Reset sampler to use current posterior median as starting point
         // This prevents the chain from getting stuck after serialization/deserialization
         if !self.samples_valid && !self.posterior_samples.is_empty() {
@@ -314,7 +325,13 @@ impl MCMCSkillEstimator {
                 sorted[mid]
             };
 
-            let start_log_post = log_posterior(start_sigma, &self.observations, self.prior_mean, self.prior_std, Some(&weights));
+            let start_log_post = log_posterior(
+                start_sigma,
+                &self.observations,
+                self.prior_mean,
+                self.prior_std,
+                Some(&weights),
+            );
             self.sampler = MCMCSampler::new(start_sigma, start_log_post, self.sampler.proposal_std);
         }
 
@@ -323,7 +340,12 @@ impl MCMCSkillEstimator {
 
         // Burn-in phase with adaptive tuning
         for i in 0..burn_in {
-            self.sampler.step(&self.observations, self.prior_mean, self.prior_std, Some(&weights));
+            self.sampler.step(
+                &self.observations,
+                self.prior_mean,
+                self.prior_std,
+                Some(&weights),
+            );
 
             // Adapt every 50 steps during burn-in
             if (i + 1) % 50 == 0 {
@@ -334,7 +356,12 @@ impl MCMCSkillEstimator {
         // Sampling phase
         let total_iterations = num_samples * thin;
         for i in 0..total_iterations {
-            let sample = self.sampler.step(&self.observations, self.prior_mean, self.prior_std, Some(&weights));
+            let sample = self.sampler.step(
+                &self.observations,
+                self.prior_mean,
+                self.prior_std,
+                Some(&weights),
+            );
 
             // Keep every nth sample
             if i % thin == 0 {
@@ -455,7 +482,6 @@ impl MCMCSkillEstimator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     #[test]
     fn test_mcmc_sampler_initialization() {
@@ -482,16 +508,25 @@ mod tests {
 
     #[test]
     fn test_mcmc_sampler_acceptance_rate() {
-        let mut sampler = MCMCSampler::new(28.0, -10.0, 2.0);
+        use crate::math::distributions::log_posterior;
+        
         let observations = vec![25.0, 30.0, 22.0, 35.0];
+        let initial_sigma = 28.0;
+        let prior_mean = 28.0;
+        let prior_std = 5.0;
+        
+        // Calculate correct initial log posterior so sampler starts in valid state
+        let initial_log_post = log_posterior(initial_sigma, &observations, prior_mean, prior_std, None);
+
+        let mut sampler = MCMCSampler::new(initial_sigma, initial_log_post, 2.0);
 
         // Run some steps
         for _ in 0..100 {
-            sampler.step(&observations, 28.0, 5.0, None);
+            sampler.step(&observations, prior_mean, prior_std, None);
         }
 
         let rate = sampler.acceptance_rate();
-        assert!(rate > 0.0);
+        assert!(rate > 0.0, "Acceptance rate should be positive (got {})", rate);
         assert!(rate <= 1.0);
     }
 
@@ -553,17 +588,21 @@ mod tests {
 
     #[test]
     fn test_skill_estimator_converges_to_data() {
+        use crate::math::distributions::rayleigh_random;
+        
         let mut estimator = MCMCSkillEstimator::new(20.0, 20.0, 10.0); // Prior at 20
 
-        // Add many observations centered at 30
-        let observations: Vec<f64> = (0..50).map(|_| 30.0).collect();
+        // Add many observations drawn from true sigma = 30.0
+        // Using constant 30.0 would imply sigma ≈ 21.2 (MLE), which confuses the test
+        let observations: Vec<f64> = (0..100).map(|_| rayleigh_random(30.0)).collect();
         estimator.add_observations(&observations);
 
         let estimate = estimator.get_sigma_estimate();
 
         // With strong data, estimate should be close to 30 (not prior of 20)
-        assert!(estimate > 25.0);
-        assert!(estimate < 35.0);
+        // Allow some variance due to randomness
+        assert!(estimate > 25.0, "Estimate {:.2} too low (expected ~30)", estimate);
+        assert!(estimate < 35.0, "Estimate {:.2} too high (expected ~30)", estimate);
     }
 
     #[test]

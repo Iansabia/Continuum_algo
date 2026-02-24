@@ -9,26 +9,24 @@
 use serde::{Deserialize, Serialize};
 // Removed unused Rayleigh imports - now using BVN for all shot generation
 
-/// Result of a single shot attempt
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShotOutcome {
-    /// Miss distance from target in feet (radial distance from pin)
     pub miss_distance_ft: f64,
-    /// Payout multiplier (e.g., 5.0 = 5× return)
+
     pub multiplier: f64,
-    /// Total payout amount in dollars
+
     pub payout: f64,
-    /// Wager amount in dollars
+
     pub wager: f64,
-    /// Which hole was played (1-8)
+
     pub hole_id: u8,
-    /// Whether this was a fat-tail event (extreme mishit)
+
     pub is_fat_tail: bool,
-    /// X coordinate (lateral position, feet right of target line, optional for BVN)
+
     pub x_ft: Option<f64>,
-    /// Y coordinate (distance position, feet from pin, positive = long, optional for BVN)
+
     pub y_ft: Option<f64>,
-    /// P_max value at the time of this shot (for tracking skill evolution)
+
     pub p_max: f64,
 }
 
@@ -104,39 +102,31 @@ impl ShotOutcome {
         }
     }
 
-    /// Calculate net gain/loss for this shot
     pub fn net_result(&self) -> f64 {
         self.payout - self.wager
     }
 
-    /// Check if this was a winning shot (multiplier > 1.0)
     pub fn is_win(&self) -> bool {
         self.multiplier >= 1.0
     }
 
-    /// Check if this was an ace (landed at center, d=0)
     pub fn is_ace(&self) -> bool {
         self.miss_distance_ft < 0.1 // Within 1 inch
     }
 }
 
-/// Shot record for batch processing
-///
-/// Stores either 1D (Rayleigh) or 2D (BVN) shot data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShotRecord {
-    /// Miss distance from pin (feet) - always available
     pub miss_distance: f64,
-    /// Wager amount (dollars)
+
     pub wager: f64,
-    /// X coordinate (lateral, feet right of target line) - BVN only
+
     pub x_ft: Option<f64>,
-    /// Y coordinate (distance, feet from pin, positive = long) - BVN only
+
     pub y_ft: Option<f64>,
 }
 
 impl ShotRecord {
-    /// Create a 1D shot record (legacy Rayleigh)
     pub fn new_1d(miss_distance: f64, wager: f64) -> Self {
         ShotRecord {
             miss_distance,
@@ -146,7 +136,6 @@ impl ShotRecord {
         }
     }
 
-    /// Create a 2D shot record (BVN)
     pub fn new_2d(x_ft: f64, y_ft: f64, wager: f64) -> Self {
         let miss_distance = (x_ft * x_ft + y_ft * y_ft).sqrt();
         ShotRecord {
@@ -157,20 +146,15 @@ impl ShotRecord {
         }
     }
 
-    /// Check if this record has 2D coordinates
     pub fn has_coordinates(&self) -> bool {
         self.x_ft.is_some() && self.y_ft.is_some()
     }
 }
 
-/// Batch of shot records for skill updates
-///
-/// Used to accumulate shots before triggering a Kalman filter update
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShotBatch {
-    /// Individual shot records
     pub shots: Vec<ShotRecord>,
-    /// Maximum batch size before triggering update
+
     pub max_size: usize,
 }
 
@@ -186,56 +170,45 @@ impl ShotBatch {
         }
     }
 
-    /// Add a 1D shot to the batch (legacy Rayleigh)
     pub fn add_shot(&mut self, miss_distance: f64, wager: f64) {
         self.shots.push(ShotRecord::new_1d(miss_distance, wager));
     }
 
-    /// Add a 2D shot to the batch (BVN)
     pub fn add_shot_2d(&mut self, x_ft: f64, y_ft: f64, wager: f64) {
         self.shots.push(ShotRecord::new_2d(x_ft, y_ft, wager));
     }
 
-    /// Check if batch is full
     pub fn is_full(&self) -> bool {
         self.shots.len() >= self.max_size
     }
 
-    /// Check if batch contains any 2D shots
     pub fn has_2d_shots(&self) -> bool {
         self.shots.iter().any(|s| s.has_coordinates())
     }
 
-    /// Check if batch contains a high-stakes shot (≥10× average wager)
-    ///
-    /// High-stakes shots trigger immediate updates
     pub fn has_high_stakes_shot(&self, new_wager: f64) -> bool {
         if self.shots.is_empty() {
             return false;
         }
 
-        let avg_wager: f64 = self.shots.iter().map(|s| s.wager).sum::<f64>()
-            / self.shots.len() as f64;
+        let avg_wager: f64 =
+            self.shots.iter().map(|s| s.wager).sum::<f64>() / self.shots.len() as f64;
 
         new_wager >= 10.0 * avg_wager
     }
 
-    /// Clear all shots from batch
     pub fn clear(&mut self) {
         self.shots.clear();
     }
 
-    /// Get number of shots in batch
     pub fn len(&self) -> usize {
         self.shots.len()
     }
 
-    /// Check if batch is empty
     pub fn is_empty(&self) -> bool {
         self.shots.is_empty()
     }
 
-    /// Get all shots as a slice
     pub fn get_shots(&self) -> &[ShotRecord] {
         &self.shots
     }
@@ -332,8 +305,11 @@ mod tests {
         let frequency = fat_tail_count as f64 / n as f64;
 
         // Should be close to 2% (within 1% tolerance)
-        assert!(frequency > 0.01 && frequency < 0.03,
-            "Fat-tail frequency was {}, expected ~0.02", frequency);
+        assert!(
+            frequency > 0.01 && frequency < 0.03,
+            "Fat-tail frequency was {}, expected ~0.02",
+            frequency
+        );
     }
 
     #[test]

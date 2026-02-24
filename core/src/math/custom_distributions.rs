@@ -115,10 +115,7 @@ impl CustomShapeDistribution {
                 let (x_rot, y_rot) = if rotation.abs() > 1e-6 {
                     let cos_theta = rotation.cos();
                     let sin_theta = rotation.sin();
-                    (
-                        x * cos_theta - y * sin_theta,
-                        x * sin_theta + y * cos_theta,
-                    )
+                    (x * cos_theta - y * sin_theta, x * sin_theta + y * cos_theta)
                 } else {
                     (x, y)
                 };
@@ -316,7 +313,11 @@ mod tests {
 
         // Just verify mean is reasonable for this distribution
         // The expected_mean is an approximation, so we just check range
-        assert!(mean > 30.0 && mean < 70.0, "Mean {} is outside reasonable range", mean);
+        assert!(
+            mean > 30.0 && mean < 70.0,
+            "Mean {} is outside reasonable range",
+            mean
+        );
     }
 
     #[test]

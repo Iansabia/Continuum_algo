@@ -1,8 +1,8 @@
 use continuum_golf_simulator::models::hole::*;
 use continuum_golf_simulator::models::player::*;
 use continuum_golf_simulator::simulators::player_session::*;
-use continuum_golf_simulator::simulators::venue::*;
 use continuum_golf_simulator::simulators::tournament::*;
+use continuum_golf_simulator::simulators::venue::*;
 
 /// Test 1: RTP Validation - 10,000-shot session
 ///
@@ -15,8 +15,10 @@ fn test_rtp_validation_10k_shots() {
     const TOLERANCE: f64 = 0.025; // 2.5% tolerance (accounting for statistical variance)
 
     for hole in HOLE_CONFIGURATIONS.iter() {
-        println!("\n=== Testing Hole {} ({}yd, target RTP: {}) ===",
-                 hole.id, hole.distance_yds, hole.rtp);
+        println!(
+            "\n=== Testing Hole {} ({}yd, target RTP: {}) ===",
+            hole.id, hole.distance_yds, hole.rtp
+        );
 
         let mut total_wagered = 0.0;
         let mut total_won = 0.0;
@@ -33,7 +35,7 @@ fn test_rtp_validation_10k_shots() {
                 developer_mode: None,
                 fat_tail_prob: 0.02,
                 fat_tail_mult: 3.0,
-        shot_generation_mode: None,
+                shot_generation_mode: None,
             };
 
             let result = run_session(&mut player, config);
@@ -52,7 +54,10 @@ fn test_rtp_validation_10k_shots() {
         assert!(
             diff < TOLERANCE,
             "Hole {} RTP validation failed: actual={:.4}, target={:.4}, diff={:.4}",
-            hole.id, actual_rtp, hole.rtp, diff
+            hole.id,
+            actual_rtp,
+            hole.rtp,
+            diff
         );
     }
 }
@@ -75,7 +80,7 @@ fn test_kalman_convergence_50_shots() {
     println!("\n=== Kalman Convergence Test (Handicap 15, Hole 4) ===");
 
     // Get initial skill estimate
-    let initial_sigma = player.get_skill_for_hole(hole).kalman_filter.estimate;
+    let initial_sigma = player.get_skill_for_hole(hole).cached_sigma;
     println!("Initial σ: {:.2} ft", initial_sigma);
 
     let config = SessionConfig {
@@ -92,7 +97,8 @@ fn test_kalman_convergence_50_shots() {
     let result = run_session(&mut player, config);
 
     // Check final sigma for the mid-iron category
-    let final_sigma = result.final_skill_profiles
+    let final_sigma = result
+        .final_skill_profiles
         .get("MidIron")
         .expect("Should have mid-iron profile");
 
@@ -170,12 +176,16 @@ fn test_fairness_equal_ev() {
     println!("  EV per shot: ${:.4}", ev_high);
 
     let ev_diff = (ev_low - ev_high).abs();
-    println!("EV Difference: ${:.4} (max allowed: ${:.4})", ev_diff, MAX_EV_DIFF);
+    println!(
+        "EV Difference: ${:.4} (max allowed: ${:.4})",
+        ev_diff, MAX_EV_DIFF
+    );
 
     assert!(
         ev_diff < MAX_EV_DIFF,
         "Fairness validation failed: EV difference ${:.4} exceeds tolerance ${:.4}",
-        ev_diff, MAX_EV_DIFF
+        ev_diff,
+        MAX_EV_DIFF
     );
 }
 
@@ -191,7 +201,13 @@ fn test_venue_simulation_archetypes() {
 
     let archetypes = vec![
         ("Uniform", PlayerArchetype::Uniform),
-        ("BellCurve", PlayerArchetype::BellCurve { mean: 15, std_dev: 5.0 }),
+        (
+            "BellCurve",
+            PlayerArchetype::BellCurve {
+                mean: 15,
+                std_dev: 5.0,
+            },
+        ),
         ("SkewedHigh", PlayerArchetype::SkewedHigh),
         ("SkewedLow", PlayerArchetype::SkewedLow),
     ];
@@ -216,21 +232,43 @@ fn test_venue_simulation_archetypes() {
         println!("  Hold %: {:.2}%", result.hold_percentage);
 
         // Basic sanity checks
-        assert!(result.total_wagered > 0.0, "No wagers for archetype {}", name);
-        assert!(result.total_payouts > 0.0, "No payouts for archetype {}", name);
-        assert!(result.net_profit != 0.0, "Zero profit for archetype {}", name);
+        assert!(
+            result.total_wagered > 0.0,
+            "No wagers for archetype {}",
+            name
+        );
+        assert!(
+            result.total_payouts > 0.0,
+            "No payouts for archetype {}",
+            name
+        );
+        assert!(
+            result.net_profit != 0.0,
+            "Zero profit for archetype {}",
+            name
+        );
 
         // Hold percentage should be positive (house always has edge)
         assert!(
             result.hold_percentage > 0.0 && result.hold_percentage < 20.0,
             "Hold percentage {:.2}% is out of reasonable range for archetype {}",
-            result.hold_percentage, name
+            result.hold_percentage,
+            name
         );
 
         // Verify heatmap data structure
-        assert!(result.heatmap_data.handicap_bins.len() > 0, "No handicap bins");
-        assert!(result.heatmap_data.distance_bins.len() > 0, "No distance bins");
-        assert!(result.heatmap_data.hold_percentages.len() > 0, "No hold percentages");
+        assert!(
+            result.heatmap_data.handicap_bins.len() > 0,
+            "No handicap bins"
+        );
+        assert!(
+            result.heatmap_data.distance_bins.len() > 0,
+            "No distance bins"
+        );
+        assert!(
+            result.heatmap_data.hold_percentages.len() > 0,
+            "No hold percentages"
+        );
     }
 }
 
@@ -295,7 +333,8 @@ fn test_tournament_payout_distribution() {
     assert!(
         (total_paid - result_top3.prize_pool).abs() < 0.01,
         "Payouts should sum to prize pool: paid={:.2}, pool={:.2}",
-        total_paid, result_top3.prize_pool
+        total_paid,
+        result_top3.prize_pool
     );
 }
 
@@ -326,7 +365,10 @@ fn test_high_stakes_update_logic() {
     let initial_updates = initial_result.num_kalman_updates;
 
     println!("After 10 normal shots, Kalman updates: {}", initial_updates);
-    println!("High-stakes shots detected: {}", initial_result.num_high_stakes_shots);
+    println!(
+        "High-stakes shots detected: {}",
+        initial_result.num_high_stakes_shots
+    );
 
     // Now run with high-stakes shots (should trigger more updates)
     let high_stakes_config = SessionConfig {
@@ -344,7 +386,10 @@ fn test_high_stakes_update_logic() {
     let final_updates = high_stakes_result.num_kalman_updates;
     let high_stakes_count = high_stakes_result.num_high_stakes_shots;
 
-    println!("After 5 high-stakes shots, Kalman updates: {}", final_updates);
+    println!(
+        "After 5 high-stakes shots, Kalman updates: {}",
+        final_updates
+    );
     println!("High-stakes shots detected: {}", high_stakes_count);
 
     // High-stakes shots should trigger updates
@@ -355,7 +400,10 @@ fn test_high_stakes_update_logic() {
     );
 
     // The important thing is that the system processes the shots successfully
-    println!("High-stakes logic functional: {} updates total", final_updates);
+    println!(
+        "High-stakes logic functional: {} updates total",
+        final_updates
+    );
 }
 
 /// Test 7: Breakeven Radius Validation
@@ -378,7 +426,10 @@ fn test_breakeven_radius() {
 
     // Calculate theoretical breakeven distance
     let d_break_theoretical = hole.calculate_breakeven_radius(p_max);
-    println!("Theoretical breakeven radius: {:.2} ft", d_break_theoretical);
+    println!(
+        "Theoretical breakeven radius: {:.2} ft",
+        d_break_theoretical
+    );
 
     // Simulate many shots with fixed miss distance at breakeven
     const NUM_TRIALS: usize = 10_000;
@@ -447,6 +498,8 @@ fn test_fat_tail_impact() {
     assert!(
         (freq - TARGET_FREQ).abs() < TOLERANCE,
         "Fat-tail frequency {:.4} outside tolerance of {:.4} ± {:.4}",
-        freq, TARGET_FREQ, TOLERANCE
+        freq,
+        TARGET_FREQ,
+        TOLERANCE
     );
 }

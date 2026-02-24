@@ -48,12 +48,16 @@ impl OrganicPattern {
 
         // Calculate variances from boundary points
         // Boundary represents ~2σ extent, so we use variance directly
-        let var_x: f64 = points.iter()
+        let var_x: f64 = points
+            .iter()
             .map(|(x, _)| (x - mean_x).powi(2))
-            .sum::<f64>() / n;
-        let var_y: f64 = points.iter()
+            .sum::<f64>()
+            / n;
+        let var_y: f64 = points
+            .iter()
             .map(|(_, y)| (y - mean_y).powi(2))
-            .sum::<f64>() / n;
+            .sum::<f64>()
+            / n;
 
         // Standard deviations (sigma values)
         // Boundary points are distributed around radius R
@@ -69,9 +73,11 @@ impl OrganicPattern {
         let mu_y = self.center_offset.1;
 
         // Calculate correlation coefficient
-        let cov_xy: f64 = points.iter()
+        let cov_xy: f64 = points
+            .iter()
             .map(|(x, y)| (x - mean_x) * (y - mean_y))
-            .sum::<f64>() / n;
+            .sum::<f64>()
+            / n;
 
         let rho = if sigma_x > 1e-6 && sigma_y > 1e-6 {
             cov_xy / (sigma_x * sigma_y)
@@ -90,7 +96,6 @@ impl OrganicPattern {
             rho,
         }
     }
-
 }
 
 /// Generator for organic shot dispersion patterns
@@ -131,8 +136,8 @@ impl OrganicPatternGenerator {
         let base_radius = target_sigma * 2.0;
 
         // Randomize pattern characteristics for variety
-        let irregularity = rng.gen_range(0.2..0.8);  // Never too perfect or too chaotic
-        let asymmetry = rng.gen_range(0.0..0.5);     // Slight natural biases
+        let irregularity = rng.gen_range(0.2..0.8); // Never too perfect or too chaotic
+        let asymmetry = rng.gen_range(0.0..0.5); // Slight natural biases
 
         Self::new(rng.gen(), base_radius, irregularity, asymmetry)
     }
@@ -274,14 +279,23 @@ mod tests {
             let avg_sigma = (bvn_params.sigma_x + bvn_params.sigma_y) / 2.0;
             let error = (avg_sigma - target_sigma).abs() / target_sigma;
 
-            println!("{:8.1} | {:10.2} | {:10.2} | {:5.2} | {:6.1}%",
-                target_sigma, bvn_params.sigma_x, bvn_params.sigma_y,
-                avg_sigma, error * 100.0);
+            println!(
+                "{:8.1} | {:10.2} | {:10.2} | {:5.2} | {:6.1}%",
+                target_sigma,
+                bvn_params.sigma_x,
+                bvn_params.sigma_y,
+                avg_sigma,
+                error * 100.0
+            );
 
             // Allow 30% error due to irregularity and bounding box estimation
-            assert!(error < 0.3,
+            assert!(
+                error < 0.3,
                 "Sigma mismatch: target={}, actual={}, error={}%",
-                target_sigma, avg_sigma, error * 100.0);
+                target_sigma,
+                avg_sigma,
+                error * 100.0
+            );
         }
     }
 
@@ -296,7 +310,10 @@ mod tests {
         let pattern2 = gen2.generate();
 
         // Same seed should produce identical patterns
-        assert_eq!(pattern1.boundary_points.len(), pattern2.boundary_points.len());
+        assert_eq!(
+            pattern1.boundary_points.len(),
+            pattern2.boundary_points.len()
+        );
 
         for i in 0..pattern1.boundary_points.len() {
             let (x1, y1) = pattern1.boundary_points[i];

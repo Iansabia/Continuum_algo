@@ -49,13 +49,7 @@ pub struct Hole {
 
 impl Hole {
     /// Create a new hole configuration
-    pub fn new(
-        id: u8,
-        distance_yds: u16,
-        d_max_ft: f64,
-        rtp: f64,
-        k: f64,
-    ) -> Self {
+    pub fn new(id: u8, distance_yds: u16, d_max_ft: f64, rtp: f64, k: f64) -> Self {
         let category = ClubCategory::from_distance(distance_yds);
         Hole {
             id,

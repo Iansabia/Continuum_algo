@@ -6,11 +6,8 @@
 //! - House rake management
 //! - Leaderboard generation
 
-use crate::models::{
-    hole::get_hole_by_id,
-    player::Player,
-};
 use crate::math::distributions::fat_tail_shot_bvn;
+use crate::models::{hole::get_hole_by_id, player::Player};
 use crate::simulators::venue::generate_player_pool;
 use crate::simulators::venue::PlayerArchetype;
 use serde::{Deserialize, Serialize};
@@ -251,8 +248,10 @@ mod tests {
 
         // Check that leaderboard is sorted (lower is better for CTP)
         for i in 0..result.leaderboard.len() - 1 {
-            assert!(result.leaderboard[i].1 <= result.leaderboard[i + 1].1,
-                "Leaderboard should be sorted ascending for CTP");
+            assert!(
+                result.leaderboard[i].1 <= result.leaderboard[i + 1].1,
+                "Leaderboard should be sorted ascending for CTP"
+            );
         }
 
         // Check payouts
@@ -281,8 +280,10 @@ mod tests {
 
         // Check that leaderboard is sorted (higher is better for longest drive)
         for i in 0..result.leaderboard.len() - 1 {
-            assert!(result.leaderboard[i].1 >= result.leaderboard[i + 1].1,
-                "Leaderboard should be sorted descending for longest drive");
+            assert!(
+                result.leaderboard[i].1 >= result.leaderboard[i + 1].1,
+                "Leaderboard should be sorted descending for longest drive"
+            );
         }
 
         // Winner takes all
@@ -298,11 +299,7 @@ mod tests {
             ("player_3".to_string(), 15.0),
         ];
 
-        let payouts = distribute_prizes(
-            &leaderboard,
-            &PayoutStructure::WinnerTakesAll,
-            100.0,
-        );
+        let payouts = distribute_prizes(&leaderboard, &PayoutStructure::WinnerTakesAll, 100.0);
 
         assert_eq!(payouts.len(), 1);
         assert_eq!(payouts[0].0, "player_1");
@@ -364,8 +361,11 @@ mod tests {
     #[test]
     fn test_payout_structure_sums_to_one() {
         // Test that default Top3 structure sums to 1.0
-        if let PayoutStructure::Top3 { first, second, third } =
-            TournamentConfig::default().payout_structure
+        if let PayoutStructure::Top3 {
+            first,
+            second,
+            third,
+        } = TournamentConfig::default().payout_structure
         {
             assert_eq!(first + second + third, 1.0);
         }

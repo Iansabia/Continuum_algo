@@ -1,3 +1,4 @@
+use crate::math::distributions::fat_tail_shot_bvn;
 /// Metrics and validation module
 ///
 /// Provides functions for:
@@ -5,9 +6,7 @@
 /// - RTP validation across different skill levels
 /// - Fairness verification (EV equality across handicaps)
 /// - Skill estimation convergence analysis
-
 use crate::models::{hole::Hole, player::Player};
-use crate::math::distributions::fat_tail_shot_bvn;
 use crate::simulators::player_session::SessionResult;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -17,15 +16,10 @@ use std::collections::HashMap;
 /// Uses Monte Carlo simulation (10,000 trials by default) to estimate the average
 /// net gain/loss per wager. For a fair game with posted RTP, EV should equal
 /// wager × (RTP - 1).
-pub fn calculate_expected_value(
-    player: &Player,
-    hole: &Hole,
-    wager: f64,
-    trials: usize,
-) -> f64 {
+pub fn calculate_expected_value(player: &Player, hole: &Hole, wager: f64, trials: usize) -> f64 {
     let sigma = player.get_current_sigma(hole);
     let p_max = player.calculate_p_max(hole);
-    
+
     let mut total_net = 0.0;
 
     for _ in 0..trials {
@@ -59,18 +53,18 @@ pub fn validate_rtp_across_skills(
     trials_per_handicap: usize,
 ) -> Vec<RtpValidationResult> {
     let mut results = Vec::new();
-    
+
     for handicap in handicap_range {
         let player_id = format!("player_{}", handicap);
         let player = Player::new(player_id, handicap);
         let sigma = player.get_current_sigma(hole);
         let p_max = player.calculate_p_max(hole);
-        
+
         let mut total_wagered = 0.0;
         let mut total_won = 0.0;
-        
+
         let wager = 10.0; // Fixed wager for testing
-        
+
         for _ in 0..trials_per_handicap {
             // Use BVN with symmetric parameters (equivalent to radial distribution)
             let ((x, y), _is_fat_tail) = fat_tail_shot_bvn(0.0, 0.0, sigma, sigma, 0.0, 0.02, 3.0);
@@ -80,10 +74,10 @@ pub fn validate_rtp_across_skills(
             total_wagered += wager;
             total_won += payout_multiplier * wager;
         }
-        
+
         let actual_rtp = total_won / total_wagered;
         let deviation_percent = ((actual_rtp - hole.rtp) / hole.rtp) * 100.0;
-        
+
         results.push(RtpValidationResult {
             handicap,
             actual_rtp,
@@ -94,7 +88,7 @@ pub fn validate_rtp_across_skills(
             trials: trials_per_handicap,
         });
     }
-    
+
     results
 }
 
@@ -124,7 +118,7 @@ pub fn calculate_fairness_metric(
     trials_per_handicap: usize,
 ) -> FairnessReport {
     let mut comparisons = Vec::new();
-    
+
     for handicap in &handicaps_to_test {
         let player_id = format!("player_{}", handicap);
         let player = Player::new(player_id, *handicap);
@@ -132,7 +126,7 @@ pub fn calculate_fairness_metric(
         let p_max = player.calculate_p_max(hole);
 
         let ev = calculate_expected_value(&player, hole, 10.0, trials_per_handicap);
-        
+
         comparisons.push(FairnessComparison {
             handicap: *handicap,
             expected_value: ev,
@@ -140,22 +134,22 @@ pub fn calculate_fairness_metric(
             skill_sigma: sigma,
         });
     }
-    
+
     // Calculate max EV difference
     let evs: Vec<f64> = comparisons.iter().map(|c| c.expected_value).collect();
     let max_ev = evs.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
     let min_ev = evs.iter().cloned().fold(f64::INFINITY, f64::min);
     let max_ev_difference = max_ev - min_ev;
-    
+
     // Calculate max P_max ratio
     let p_maxes: Vec<f64> = comparisons.iter().map(|c| c.p_max).collect();
     let max_p_max = p_maxes.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
     let min_p_max = p_maxes.iter().cloned().fold(f64::INFINITY, f64::min);
     let max_multiplier_ratio = max_p_max / min_p_max;
-    
+
     // Fairness threshold: EV difference should be < $0.10 on $10 wager (1%)
     let is_fair = max_ev_difference.abs() < 0.10;
-    
+
     FairnessReport {
         hole_id: hole.id,
         distance_yds: hole.distance_yds,
@@ -184,11 +178,12 @@ pub struct ConvergenceReport {
 ///
 /// Note: Currently uses simplified analysis based on final state.
 /// For production, track convergence during simulation.
-pub fn analyze_kalman_convergence( // Keep name for backward compatibility
+pub fn analyze_kalman_convergence(
+    // Keep name for backward compatibility
     _session: &SessionResult,
 ) -> HashMap<String, ConvergenceReport> {
     let mut reports = HashMap::new();
-    
+
     // For now, create a simplified report
     // In a production version, we'd track this during the actual simulation
     let report = ConvergenceReport {
@@ -202,9 +197,9 @@ pub fn analyze_kalman_convergence( // Keep name for backward compatibility
         converged: false,
         shots_to_80_percent: None,
     };
-    
+
     reports.insert("MidIron".to_string(), report);
-    
+
     reports
 }
 
@@ -243,7 +238,10 @@ mod tests {
         // All handicaps should achieve similar RTP (within 50% of each other for now)
         // Note: Actual RTP tuning is done in other phases
         if min_rtp > 0.0 {
-            assert!((max_rtp - min_rtp) / min_rtp < 0.50, "RTP should be similar across handicaps");
+            assert!(
+                (max_rtp - min_rtp) / min_rtp < 0.50,
+                "RTP should be similar across handicaps"
+            );
         }
         println!("RTP range: {:.4} - {:.4}", min_rtp, max_rtp);
     }
@@ -252,22 +250,22 @@ mod tests {
     fn test_fairness_metric() {
         let hole = get_hole_by_id(4).unwrap(); // 150 yds
         let handicaps = vec![0, 10, 20, 30];
-        
+
         let report = calculate_fairness_metric(&hole, handicaps, 5000);
-        
+
         // Max EV difference should be small
         assert!(
             report.max_ev_difference.abs() < 0.20,
             "EV difference across handicaps should be < $0.20: {}",
             report.max_ev_difference
         );
-        
+
         // P_max should vary significantly (better players get lower multipliers)
         assert!(
             report.max_multiplier_ratio > 1.1,
             "P_max should vary across skill levels"
         );
-        
+
         println!("Fairness report: {:?}", report);
     }
 

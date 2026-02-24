@@ -3,29 +3,26 @@
 // Each player tracks separate skill profiles for each club category (Wedge, MidIron, LongIron).
 // Skills are dynamically updated using MCMC Bayesian inference that adapts to observed shot performance.
 
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use crate::math::mcmc::MCMCSkillEstimator;
 use crate::math::integration::trapezoidal_rule;
-use crate::models::hole::{Hole, ClubCategory};
+use crate::math::mcmc::MCMCSkillEstimator;
+use crate::models::hole::{ClubCategory, Hole};
 use crate::models::shot::ShotBatch;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
-/// A player with dynamic skill tracking
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Player {
-    /// Unique player identifier
     pub id: String,
-    /// Golf handicap (0-30, lower is better)
+
     pub handicap: u8,
-    /// Skill profiles for each club category
+
     pub skill_profiles: HashMap<ClubCategory, SkillProfile>,
-    /// Lifetime wager history for anti-cheat detection
+
     pub lifetime_wagers: Vec<f64>,
-    /// Lifetime total wagered (for average calculation)
+
     pub lifetime_total_wagered: f64,
 }
 
-/// Skill profile for a specific club category
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillProfile {
     /// MCMC Bayesian skill estimator (PRIMARY - replaces Kalman filter)
@@ -36,17 +33,16 @@ pub struct SkillProfile {
     /// This prevents re-running expensive MCMC on every shot
     pub cached_sigma: f64,
 
-    /// Current batch of shots (for batched updates)
     pub shot_batch: ShotBatch,
-    /// History of P_max values (for analysis)
+
     pub p_max_history: Vec<f64>,
-    /// Maximum batch size before triggering update
+
     pub batch_size: usize,
-    /// Total number of shots taken for this skill profile
+
     pub shot_count: usize,
-    /// Total payout accumulated (for RTP tracking)
+
     pub total_payout: f64,
-    /// Total shots counted for RTP calculation
+
     pub total_shots_for_rtp: usize,
 }
 
@@ -70,12 +66,10 @@ impl Player {
     pub fn new(id: String, handicap: u8) -> Self {
         let mut skill_profiles = HashMap::new();
 
-        // Initialize skill profiles for each category
-        // Use representative distances for each category
         let categories = [
-            (ClubCategory::Wedge, 100),     // 75-125 yds
-            (ClubCategory::MidIron, 162),   // 150-175 yds
-            (ClubCategory::LongIron, 225),  // 200-250 yds
+            (ClubCategory::Wedge, 100),    // 75-125 yds
+            (ClubCategory::MidIron, 162),  // 150-175 yds
+            (ClubCategory::LongIron, 225), // 200-250 yds
         ];
 
         for (category, distance) in categories.iter() {
@@ -85,21 +79,24 @@ impl Player {
             // Prior std = 30% of initial estimate (reflects handicap uncertainty)
             let prior_std = initial_sigma * 0.3;
             let mcmc_estimator = MCMCSkillEstimator::new(
-                initial_sigma,  // Initial estimate
-                initial_sigma,  // Prior mean (same as initial)
-                prior_std,      // Prior uncertainty
+                initial_sigma, // Initial estimate
+                initial_sigma, // Prior mean (same as initial)
+                prior_std,     // Prior uncertainty
             );
 
-            skill_profiles.insert(*category, SkillProfile {
-                mcmc_estimator,
-                cached_sigma: initial_sigma, // Initialize cache with handicap-based estimate
-                shot_batch: ShotBatch::new(5), // Use ShotBatch struct
-                p_max_history: Vec::new(),
-                batch_size: 5, // Default batch size
-                shot_count: 0, // Start at zero shots
-                total_payout: 0.0, // Initialize payout tracking
-                total_shots_for_rtp: 0, // Initialize shot count for RTP
-            });
+            skill_profiles.insert(
+                *category,
+                SkillProfile {
+                    mcmc_estimator,
+                    cached_sigma: initial_sigma, // Initialize cache with handicap-based estimate
+                    shot_batch: ShotBatch::new(5), // Use ShotBatch struct
+                    p_max_history: Vec::new(),
+                    batch_size: 5,          // Default batch size
+                    shot_count: 0,          // Start at zero shots
+                    total_payout: 0.0,      // Initialize payout tracking
+                    total_shots_for_rtp: 0, // Initialize shot count for RTP
+                },
+            );
         }
 
         Player {
@@ -111,18 +108,10 @@ impl Player {
         }
     }
 
-    /// Get the skill profile for a specific hole
-    ///
-    /// # Arguments
-    /// * `hole` - The hole being played
-    ///
-    /// # Returns
-    /// Reference to the appropriate skill profile
     pub fn get_skill_for_hole(&self, hole: &Hole) -> &SkillProfile {
         self.skill_profiles.get(&hole.category).unwrap()
     }
 
-    /// Get mutable skill profile for a specific hole
     pub fn get_skill_for_hole_mut(&mut self, hole: &Hole) -> &mut SkillProfile {
         self.skill_profiles.get_mut(&hole.category).unwrap()
     }
@@ -162,25 +151,14 @@ impl Player {
     /// assert!(p_max < 20.0);
     /// ```
     pub fn calculate_p_max(&self, hole: &Hole) -> f64 {
-        // Always calculate fresh P_max based on cached sigma
-        // Sigma is updated only during batch processing for stability
         self.calculate_p_max_fresh(hole)
     }
 
-    /// Calculate fresh P_max without rate limiting (internal use only)
-    /// Uses cached MCMC posterior median for stable estimates
-    /// Redirects to BVN calculation with symmetric parameters
     fn calculate_p_max_fresh(&self, hole: &Hole) -> f64 {
         let skill = self.get_skill_for_hole(hole);
 
-        // Use cached MCMC estimate (updated during batch processing)
-        // If no observations yet, this will be the handicap-based initial estimate
         let sigma = skill.cached_sigma;
 
-        // Use BVN with symmetric parameters (equivalent to radial distribution when rho=0)
-        // mu_x = 0, mu_y = 0 (no bias)
-        // sigma_x = sigma_y = sigma (symmetric dispersion)
-        // rho = 0 (no correlation)
         self.calculate_p_max_bvn(hole, 0.0, 0.0, sigma, sigma, 0.0, None)
     }
 
@@ -226,7 +204,7 @@ impl Player {
         mu_y: f64,
         sigma_x: f64,
         sigma_y: f64,
-        rho: f64, // Correlation coefficient between x and y
+        rho: f64,                        // Correlation coefficient between x and y
         actual_rtp_percent: Option<f64>, // Actual RTP% observed so far (for adaptive correction)
     ) -> f64 {
         use crate::math::distributions::bvn_pdf;
@@ -236,48 +214,39 @@ impl Player {
         let fat_tail_prob = 0.02;
         let fat_tail_mult = 3.0;
 
-        // Integration bounds: ±4σ from bias (covers 99.99% of distribution)
         let x_min = mu_x - 4.0 * sigma_x;
         let x_max = mu_x + 4.0 * sigma_x;
         let y_min = mu_y - 4.0 * sigma_y;
         let y_max = mu_y + 4.0 * sigma_y;
 
-        // Grid resolution (200×200 = 40,000 evaluations, ~5ms)
         let n_x = 200;
         let n_y = 200;
         let dx = (x_max - x_min) / n_x as f64;
         let dy = (y_max - y_min) / n_y as f64;
 
-        // Calculate expected payout for normal shots
         let mut expected_payout_normal = 0.0;
         for i in 0..n_x {
             let x = x_min + (i as f64 + 0.5) * dx;
             for j in 0..n_y {
                 let y = y_min + (j as f64 + 0.5) * dy;
 
-                // Distance from pin
                 let r = (x * x + y * y).sqrt();
 
-                // Payout function
                 let payout = if r > d_max {
                     0.0
                 } else {
                     (1.0 - r / d_max).powf(k)
                 };
 
-                // BVN probability density
                 let prob = bvn_pdf(x, y, mu_x, mu_y, sigma_x, sigma_y, rho);
 
-                // Accumulate: payout × probability × area
                 expected_payout_normal += payout * prob * dx * dy;
             }
         }
 
-        // Calculate expected payout for fat-tail shots (3× dispersion)
         let sigma_x_fat = sigma_x * fat_tail_mult;
         let sigma_y_fat = sigma_y * fat_tail_mult;
 
-        // Expand bounds for fat-tail
         let x_min_fat = mu_x - 4.0 * sigma_x_fat;
         let x_max_fat = mu_x + 4.0 * sigma_x_fat;
         let y_min_fat = mu_y - 4.0 * sigma_y_fat;
@@ -303,15 +272,12 @@ impl Player {
             }
         }
 
-        // Weighted average: (1 - p_fat) * E[normal] + p_fat * E[fat]
-        let expected_payout = (1.0 - fat_tail_prob) * expected_payout_normal
-            + fat_tail_prob * expected_payout_fat;
+        let expected_payout =
+            (1.0 - fat_tail_prob) * expected_payout_normal + fat_tail_prob * expected_payout_fat;
 
-        // Base P_max = RTP / expected_payout
         let epsilon = 1e-10;
         let base_p_max = hole.rtp / (expected_payout + epsilon);
 
-        // Apply adaptive correction if we have actual RTP data
         if let Some(actual_rtp) = actual_rtp_percent {
             let target_rtp = hole.rtp;
             let rtp_error = actual_rtp - target_rtp;
@@ -337,27 +303,15 @@ impl Player {
 
             corrected_p_max
         } else {
-            // No RTP data yet, use base calculation
             base_p_max
         }
     }
 
-    /// Add a 1D shot (radial distance only) to the batch
-    ///
-    /// # Arguments
-    /// * `hole` - The hole that was played
-    /// * `miss_distance` - Miss distance in feet
-    /// * `wager` - Wager amount in dollars
-    ///
-    /// # Returns
-    /// True if the batch is full and should be processed
     pub fn add_shot_to_batch(&mut self, hole: &Hole, miss_distance: f64, wager: f64) -> bool {
         let skill = self.get_skill_for_hole_mut(hole);
 
-        // Add shot to batch for later batch processing
         skill.shot_batch.add_shot(miss_distance, wager);
 
-        // IMMEDIATELY add observation to MCMC estimator so P_max stays current
         skill.mcmc_estimator.add_observation(miss_distance);
 
         // Update cached sigma with quick MCMC sampling (fewer iterations for speed)
@@ -371,30 +325,12 @@ impl Player {
         skill.shot_batch.is_full()
     }
 
-    /// Add a 2D shot (x,y coordinates) to the batch for BVN mode
-    ///
-    /// # Arguments
-    /// * `hole` - The hole that was played
-    /// * `x_ft` - Lateral position (feet, positive = right)
-    /// * `y_ft` - Distance position (feet, positive = long)
-    /// * `wager` - Wager amount in dollars
-    ///
-    /// # Returns
-    /// True if the batch is full and should be processed
     pub fn add_shot_to_batch_2d(&mut self, hole: &Hole, x_ft: f64, y_ft: f64, wager: f64) -> bool {
         let skill = self.get_skill_for_hole_mut(hole);
         skill.shot_batch.add_shot_2d(x_ft, y_ft, wager);
         skill.shot_batch.is_full()
     }
 
-    /// Check if a new shot qualifies as high-stakes (≥10× average wager)
-    ///
-    /// # Arguments
-    /// * `hole` - The hole being played
-    /// * `wager` - The proposed wager
-    ///
-    /// # Returns
-    /// True if this is a high-stakes shot
     pub fn is_high_stakes_shot(&self, hole: &Hole, wager: f64) -> bool {
         let skill = self.get_skill_for_hole(hole);
         skill.shot_batch.has_high_stakes_shot(wager)
@@ -422,7 +358,6 @@ impl Player {
             return;
         }
 
-        // All modes now use MCMC-based skill updates
         self.update_skill_1d(hole);
     }
 
@@ -441,11 +376,9 @@ impl Player {
             return;
         }
 
-        // Extract miss distances from batch
         let shots = skill.shot_batch.get_shots();
         let miss_distances: Vec<f64> = shots.iter().map(|s| s.miss_distance).collect();
 
-        // SECURITY: Outlier detection - filter shots >3 sigma from mean
         let mean_miss: f64 = miss_distances.iter().sum::<f64>() / miss_distances.len() as f64;
         let variance: f64 = miss_distances
             .iter()
@@ -460,49 +393,43 @@ impl Player {
             .copied()
             .collect();
 
-        // Use filtered distances if we have any, otherwise use all
         let final_distances = if filtered_distances.is_empty() {
             miss_distances
         } else {
             filtered_distances
         };
 
-        // NOTE: Observations already added to MCMC in add_shot_to_batch()
-        // This batch processing just re-samples with higher accuracy
-
-        // Update shot count
         skill.shot_count += final_distances.len();
 
         // Adaptive MCMC sampling strategy based on observation count
         // Early phase: More samples for faster convergence
         // Later phase: Fewer samples as posterior becomes concentrated
         let (num_samples, burn_in, thin) = if skill.shot_count <= 10 {
-            (2000, 400, 2)  // High sampling early for quick skill detection
+            (2000, 400, 2) // High sampling early for quick skill detection
         } else if skill.shot_count <= 50 {
-            (1500, 300, 2)  // Medium sampling during transition
+            (1500, 300, 2) // Medium sampling during transition
         } else {
-            (1000, 200, 2)  // Standard sampling when mature
+            (1000, 200, 2) // Standard sampling when mature
         };
 
-        // Run MCMC to get posterior estimate
         skill.mcmc_estimator.sample(num_samples, burn_in, thin);
 
-        // Get sigma estimate (posterior median)
         let sigma_estimate = skill.mcmc_estimator.get_sigma_estimate();
 
-        // **CRITICAL**: Cache the estimate so it's stable between updates
         skill.cached_sigma = sigma_estimate;
 
-        // Get credible interval for logging
         let (sigma_lower, sigma_upper) = skill.mcmc_estimator.get_credible_interval(0.95);
         let confidence = skill.mcmc_estimator.calculate_confidence();
 
         eprintln!(
             "📊 MCMC Bayesian update (shot {}): σ={:.2}ft, 95% CI=[{:.2}, {:.2}], conf={:.1}%",
-            skill.shot_count, sigma_estimate, sigma_lower, sigma_upper, confidence * 100.0
+            skill.shot_count,
+            sigma_estimate,
+            sigma_lower,
+            sigma_upper,
+            confidence * 100.0
         );
 
-        // Calculate P_max using posterior median sigma
         let d_max = hole.d_max_ft;
         let k = hole.k;
         let fat_tail_prob = 0.02;
@@ -513,7 +440,8 @@ impl Player {
                 return 0.0;
             }
             let payout_factor = (1.0 - d / d_max).powf(k);
-            let rayleigh_pdf = (d / (sigma_estimate * sigma_estimate)) * (-d * d / (2.0 * sigma_estimate * sigma_estimate)).exp();
+            let rayleigh_pdf = (d / (sigma_estimate * sigma_estimate))
+                * (-d * d / (2.0 * sigma_estimate * sigma_estimate)).exp();
             payout_factor * rayleigh_pdf
         };
 
@@ -534,13 +462,11 @@ impl Player {
         let expected_payout_normal =
             trapezoidal_rule(integrand_normal, 0.0, upper_bound, n_subdivisions);
         let expected_payout_fat = trapezoidal_rule(integrand_fat, 0.0, upper_bound, n_subdivisions);
-        let expected_payout = (1.0 - fat_tail_prob) * expected_payout_normal
-            + fat_tail_prob * expected_payout_fat;
+        let expected_payout =
+            (1.0 - fat_tail_prob) * expected_payout_normal + fat_tail_prob * expected_payout_fat;
         let epsilon = 1e-10;
         let calculated_p_max = hole.rtp / (expected_payout + epsilon);
 
-        // Store P_max in history
-        // MCMC naturally converges - no artificial rate limiting needed!
         skill.p_max_history.push(calculated_p_max);
 
         eprintln!(
@@ -548,42 +474,29 @@ impl Player {
             skill.shot_count, calculated_p_max, sigma_estimate
         );
 
-        // Clear batch
         skill.shot_batch.clear();
     }
 
-
-    /// Get current skill confidence for a hole (0-100%)
     pub fn get_skill_confidence(&mut self, hole: &Hole) -> f64 {
         let skill = self.get_skill_for_hole_mut(hole);
         skill.mcmc_estimator.calculate_confidence()
     }
 
-    /// Get current sigma estimate for a hole (uses cached value)
     pub fn get_current_sigma(&self, hole: &Hole) -> f64 {
         let skill = self.get_skill_for_hole(hole);
         skill.cached_sigma
     }
 
-    /// Get number of shots in current batch for a hole
     pub fn get_batch_size(&self, hole: &Hole) -> usize {
         let skill = self.get_skill_for_hole(hole);
         skill.shot_batch.len()
     }
 
-    /// Track a wager for lifetime average calculation
-    ///
-    /// # Security
-    /// Used for cross-session high-stakes detection to prevent cherry-picking
     pub fn track_wager(&mut self, wager: f64) {
         self.lifetime_wagers.push(wager);
         self.lifetime_total_wagered += wager;
     }
 
-    /// Get lifetime average wager
-    ///
-    /// # Security
-    /// Used for high-stakes detection across multiple sessions
     pub fn get_lifetime_avg_wager(&self) -> f64 {
         if self.lifetime_wagers.is_empty() {
             return 0.0;
@@ -591,14 +504,6 @@ impl Player {
         self.lifetime_total_wagered / self.lifetime_wagers.len() as f64
     }
 
-    /// Track payout for RTP calculation
-    ///
-    /// # Arguments
-    /// * `hole` - The hole being played
-    /// * `payout_multiplier` - The payout multiplier (e.g., 0.5 = 50% return)
-    ///
-    /// # Notes
-    /// This accumulates payout percentages (not dollar amounts) for RTP tracking
     pub fn track_payout(&mut self, hole: &Hole, payout_multiplier: f64) {
         let skill = self.get_skill_for_hole_mut(hole);
         skill.total_payout += payout_multiplier * 100.0; // Convert to percentage
@@ -634,13 +539,10 @@ impl Player {
 pub fn calculate_initial_dispersion(handicap: u8, distance_yds: u16) -> f64 {
     let distance = distance_yds as f64;
 
-    // Base dispersion factor increases with distance
     let distance_factor = 0.05 + ((distance - 75.0) / (250.0 - 75.0)) * 0.01;
 
-    // Skill factor: handicap 0 → 0.5, handicap 30 → 1.5
     let skill_factor = 0.5 + (handicap as f64 / 30.0);
 
-    // Convert yards to feet and apply factors
     distance * 3.0 * distance_factor * skill_factor
 }
 
@@ -716,8 +618,12 @@ mod tests {
 
         // Better players (lower sigma) should have lower P_max
         // because they're more likely to hit the high-payout zone
-        assert!(p_max_pro < p_max_beginner,
-            "Pro P_max: {}, Beginner P_max: {}", p_max_pro, p_max_beginner);
+        assert!(
+            p_max_pro < p_max_beginner,
+            "Pro P_max: {}, Beginner P_max: {}",
+            p_max_pro,
+            p_max_beginner
+        );
     }
 
     #[test]
@@ -804,9 +710,12 @@ mod tests {
 
         // Confidence should increase significantly
         let final_confidence = player.get_skill_confidence(hole);
-        assert!(final_confidence > initial_confidence + 30.0,
+        assert!(
+            final_confidence > initial_confidence + 0.8,
             "Confidence only increased from {} to {}",
-            initial_confidence, final_confidence);
+            initial_confidence,
+            final_confidence
+        );
     }
 
     #[test]
@@ -814,7 +723,7 @@ mod tests {
         let mut player = Player::new("test".to_string(), 15);
 
         let wedge_hole = get_hole_by_id(1).unwrap(); // 75yd
-        let long_hole = get_hole_by_id(8).unwrap();  // 250yd
+        let long_hole = get_hole_by_id(8).unwrap(); // 250yd
 
         // Add shots to wedge
         for _ in 0..5 {
@@ -914,11 +823,11 @@ mod tests {
 
         // Test various parameter combinations
         let test_cases = vec![
-            (0.0, 0.0, 20.0, 20.0),   // Centered, tight
-            (0.0, 0.0, 35.0, 35.0),   // Centered, loose (but realistic for handicap ~20-25)
-            (10.0, 5.0, 25.0, 25.0),  // Large bias
-            (2.0, 1.0, 15.0, 30.0),   // Small bias, elliptical
-            (0.0, 0.0, 35.0, 20.0),   // Lateral worse than distance
+            (0.0, 0.0, 20.0, 20.0),  // Centered, tight
+            (0.0, 0.0, 35.0, 35.0),  // Centered, loose (but realistic for handicap ~20-25)
+            (10.0, 5.0, 25.0, 25.0), // Large bias
+            (2.0, 1.0, 15.0, 30.0),  // Small bias, elliptical
+            (0.0, 0.0, 35.0, 20.0),  // Lateral worse than distance
         ];
 
         for (mu_x, mu_y, sigma_x, sigma_y) in test_cases {

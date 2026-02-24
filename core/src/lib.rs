@@ -8,19 +8,17 @@
 // The simulator ensures fairness (equal EV across all handicaps) while maintaining
 // target RTP (Return to Player) percentages: 86% (short), 88% (mid), 90% (long)
 
-pub mod math;
-pub mod models;
-pub mod simulators;
 pub mod analytics;
 pub mod anti_cheat;
 pub mod config;
+pub mod math;
+pub mod models;
+pub mod simulators;
 
-// WASM module for browser integration
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 
-// Re-export commonly used types
+pub use analytics::{export, metrics};
 pub use math::{distributions, integration};
 pub use models::{hole, player, shot};
-pub use simulators::{player_session, venue, tournament};
-pub use analytics::{metrics, export};
+pub use simulators::{player_session, tournament, venue};

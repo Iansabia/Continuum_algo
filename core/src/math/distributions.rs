@@ -3,6 +3,7 @@
 // Implements:
 // - Normal distribution (Box-Muller transform)
 // - Bivariate Normal distribution (BVN) for 2D shot modeling with correlation
+// - Rayleigh distribution (1D radial distance)
 
 use rand::Rng;
 use std::f64::consts::PI;
@@ -31,6 +32,61 @@ pub fn normal_random(mean: f64, std_dev: f64) -> f64 {
     let z0 = (-2.0 * u1.ln()).sqrt() * (2.0 * PI * u2).cos();
 
     mean + std_dev * z0
+}
+
+/// Generate a random sample from a Rayleigh distribution
+///
+/// Used for 1D radial miss distances.
+///
+/// # Arguments
+/// * `sigma` - Scale parameter (mode of the distribution)
+///
+/// # Returns
+/// A random sample from Rayleigh(σ)
+pub fn rayleigh_random(sigma: f64) -> f64 {
+    let mut rng = rand::thread_rng();
+    let u: f64 = rng.gen();
+    sigma * (-2.0 * u.ln()).sqrt()
+}
+
+/// Calculate the mean of a Rayleigh distribution
+///
+/// # Arguments
+/// * `sigma` - Scale parameter
+///
+/// # Returns
+/// Mean = σ * √(π/2)
+pub fn rayleigh_mean(sigma: f64) -> f64 {
+    sigma * (PI / 2.0).sqrt()
+}
+
+/// Calculate the variance of a Rayleigh distribution
+///
+/// # Arguments
+/// * `sigma` - Scale parameter
+///
+/// # Returns
+/// Variance = (2 - π/2) * σ²
+pub fn rayleigh_variance(sigma: f64) -> f64 {
+    (2.0 - PI / 2.0) * sigma * sigma
+}
+
+/// Simulate a 1D shot with potential fat-tail event
+///
+/// # Arguments
+/// * `sigma` - Base standard deviation
+/// * `fat_tail_prob` - Probability of extreme mishit
+/// * `fat_tail_mult` - Multiplier for dispersion
+///
+/// # Returns
+/// Tuple of (miss_distance, is_fat_tail)
+pub fn fat_tail_shot(sigma: f64, fat_tail_prob: f64, fat_tail_mult: f64) -> (f64, bool) {
+    let mut rng = rand::thread_rng();
+    if rng.gen::<f64>() < fat_tail_prob {
+        (rayleigh_random(sigma * fat_tail_mult), true)
+    } else {
+        (rayleigh_random(sigma), false)
+    }
 }
 
 // ============================================================================
@@ -198,7 +254,13 @@ pub fn fat_tail_shot_bvn(
 
     if roll < fat_tail_prob {
         // Fat-tail event: multiply both sigmas (correlation preserved)
-        let (x, y) = bvn_random(mu_x, mu_y, sigma_x * fat_tail_mult, sigma_y * fat_tail_mult, rho);
+        let (x, y) = bvn_random(
+            mu_x,
+            mu_y,
+            sigma_x * fat_tail_mult,
+            sigma_y * fat_tail_mult,
+            rho,
+        );
         ((x, y), true)
     } else {
         // Normal shot
@@ -365,9 +427,7 @@ mod tests {
     #[test]
     fn test_normal_random_mean() {
         // Test that normal_random produces samples with approximately correct mean
-        let samples: Vec<f64> = (0..10000)
-            .map(|_| normal_random(5.0, 2.0))
-            .collect();
+        let samples: Vec<f64> = (0..10000).map(|_| normal_random(5.0, 2.0)).collect();
 
         let mean = samples.iter().sum::<f64>() / samples.len() as f64;
         assert_relative_eq!(mean, 5.0, epsilon = 0.1);

@@ -4,11 +4,10 @@
 /// - CSV for spreadsheet analysis
 /// - JSON for web visualization tools
 /// - Specialized formats for heatmaps and time-series data
-
 use crate::models::player::Player;
 use crate::simulators::player_session::SessionResult;
-use crate::simulators::venue::VenueResult;
 use crate::simulators::venue::HeatmapData;
+use crate::simulators::venue::VenueResult;
 use csv::Writer;
 use std::error::Error;
 use std::fs::File;
@@ -44,7 +43,7 @@ use std::io::Write;
 /// ```
 pub fn export_session_csv(result: &SessionResult, path: &str) -> Result<(), Box<dyn Error>> {
     let mut wtr = Writer::from_path(path)?;
-    
+
     // Write header
     wtr.write_record(&[
         "shot_num",
@@ -58,15 +57,15 @@ pub fn export_session_csv(result: &SessionResult, path: &str) -> Result<(), Box<
         "cumulative_net",
         "is_fat_tail",
     ])?;
-    
+
     let mut cumulative_net = 0.0;
-    
+
     for (i, shot) in result.shots.iter().enumerate() {
         let net = shot.payout - shot.wager;
         cumulative_net += net;
-        
+
         let hole = crate::models::hole::get_hole_by_id(shot.hole_id).unwrap();
-        
+
         wtr.write_record(&[
             (i + 1).to_string(),
             shot.hole_id.to_string(),
@@ -80,7 +79,7 @@ pub fn export_session_csv(result: &SessionResult, path: &str) -> Result<(), Box<
             shot.is_fat_tail.to_string(),
         ])?;
     }
-    
+
     wtr.flush()?;
     Ok(())
 }
@@ -151,12 +150,12 @@ pub fn export_venue_json(result: &VenueResult, path: &str) -> Result<(), Box<dyn
 /// ```
 pub fn export_heatmap_csv(heatmap: &HeatmapData, path: &str) -> Result<(), Box<dyn Error>> {
     let mut wtr = Writer::from_path(path)?;
-    
+
     // Build header: ["Distance", "Handicap 0-4", "Handicap 5-9", ...]
     let mut header = vec!["Distance (yds)".to_string()];
     header.extend(heatmap.handicap_bins.clone());
     wtr.write_record(&header)?;
-    
+
     // Write data rows
     for (i, distance) in heatmap.distance_bins.iter().enumerate() {
         let mut row = vec![distance.to_string()];
@@ -173,7 +172,7 @@ pub fn export_heatmap_csv(heatmap: &HeatmapData, path: &str) -> Result<(), Box<d
 
         wtr.write_record(&row)?;
     }
-    
+
     wtr.flush()?;
     Ok(())
 }
@@ -208,17 +207,17 @@ pub fn export_heatmap_csv(heatmap: &HeatmapData, path: &str) -> Result<(), Box<d
 /// ```
 pub fn export_pmax_history(player: &Player, path: &str) -> Result<(), Box<dyn Error>> {
     let mut wtr = Writer::from_path(path)?;
-    
+
     // Write header
     wtr.write_record(&["update_num", "club_category", "p_max"])?;
-    
+
     for (category, profile) in &player.skill_profiles {
         let category_name = match category {
             crate::models::hole::ClubCategory::Wedge => "Wedge",
             crate::models::hole::ClubCategory::MidIron => "MidIron",
             crate::models::hole::ClubCategory::LongIron => "LongIron",
         };
-        
+
         for (i, p_max) in profile.p_max_history.iter().enumerate() {
             wtr.write_record(&[
                 (i + 1).to_string(),
@@ -227,7 +226,7 @@ pub fn export_pmax_history(player: &Player, path: &str) -> Result<(), Box<dyn Er
             ])?;
         }
     }
-    
+
     wtr.flush()?;
     Ok(())
 }
@@ -247,9 +246,9 @@ pub fn export_convergence_csv(
     path: &str,
 ) -> Result<(), Box<dyn Error>> {
     let mut wtr = Writer::from_path(path)?;
-    
+
     wtr.write_record(&["shot_num", "confidence_pct", "skill_sigma"])?;
-    
+
     for (shot_num, confidence, sigma) in convergence_data {
         wtr.write_record(&[
             shot_num.to_string(),
@@ -257,7 +256,7 @@ pub fn export_convergence_csv(
             format!("{:.2}", sigma),
         ])?;
     }
-    
+
     wtr.flush()?;
     Ok(())
 }
@@ -266,8 +265,8 @@ pub fn export_convergence_csv(
 mod tests {
     use super::*;
     use crate::models::player::Player;
-    use crate::simulators::player_session::{SessionConfig, run_session, HoleSelection};
-    use crate::simulators::venue::{VenueConfig, run_venue_simulation, PlayerArchetype};
+    use crate::simulators::player_session::{run_session, HoleSelection, SessionConfig};
+    use crate::simulators::venue::{run_venue_simulation, PlayerArchetype, VenueConfig};
     use std::fs;
 
     #[test]
@@ -284,16 +283,16 @@ mod tests {
             shot_generation_mode: None,
         };
         let result = run_session(&mut player, config);
-        
+
         let path = "test_session.csv";
         export_session_csv(&result, path).unwrap();
-        
+
         // Verify file exists and has content
         let contents = fs::read_to_string(path).unwrap();
         assert!(contents.contains("shot_num"));
         assert!(contents.contains("hole_id"));
         assert!(contents.contains("cumulative_net"));
-        
+
         // Cleanup
         fs::remove_file(path).ok();
     }
@@ -311,13 +310,13 @@ mod tests {
 
         let path = "test_venue.json";
         export_venue_json(&result, path).unwrap();
-        
+
         // Verify file exists and is valid JSON
         let contents = fs::read_to_string(path).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&contents).unwrap();
         assert!(parsed["total_wagered"].is_number());
         assert!(parsed["net_profit"].is_number());
-        
+
         // Cleanup
         fs::remove_file(path).ok();
     }
@@ -335,13 +334,13 @@ mod tests {
 
         let path = "test_heatmap.csv";
         export_heatmap_csv(&result.heatmap_data, path).unwrap();
-        
+
         // Verify file exists and has proper structure
         let contents = fs::read_to_string(path).unwrap();
         assert!(contents.contains("Distance"));
         // Heatmap has bins like "0-4", "5-9", etc
         assert!(contents.len() > 0);
-        
+
         // Cleanup
         fs::remove_file(path).ok();
     }
@@ -360,16 +359,16 @@ mod tests {
             shot_generation_mode: None,
         };
         let _result = run_session(&mut player, config);
-        
+
         let path = "test_pmax_history.csv";
         export_pmax_history(&player, path).unwrap();
-        
+
         // Verify file exists
         let contents = fs::read_to_string(path).unwrap();
         assert!(contents.contains("update_num"));
         assert!(contents.contains("club_category"));
         assert!(contents.contains("p_max"));
-        
+
         // Cleanup
         fs::remove_file(path).ok();
     }
@@ -382,16 +381,16 @@ mod tests {
             (20, 70.0, 41.1),
             (30, 85.0, 40.8),
         ];
-        
+
         let path = "test_convergence.csv";
         export_convergence_csv(test_data, path).unwrap();
-        
+
         // Verify file exists
         let contents = fs::read_to_string(path).unwrap();
         assert!(contents.contains("shot_num"));
         assert!(contents.contains("confidence_pct"));
         assert!(contents.contains("skill_sigma"));
-        
+
         // Cleanup
         fs::remove_file(path).ok();
     }
@@ -410,16 +409,16 @@ mod tests {
             shot_generation_mode: None,
         };
         let result = run_session(&mut player, config);
-        
+
         let path = "test_row_count.csv";
         export_session_csv(&result, path).unwrap();
-        
+
         let contents = fs::read_to_string(path).unwrap();
         let lines: Vec<&str> = contents.lines().collect();
-        
+
         // Should have header + 15 data rows = 16 total
         assert_eq!(lines.len(), 16);
-        
+
         // Cleanup
         fs::remove_file(path).ok();
     }

@@ -7,10 +7,7 @@
 //! - Heatmap data for handicap × distance analysis
 //! - Payout distribution histograms
 
-use crate::models::{
-    hole::HOLE_CONFIGURATIONS,
-    player::Player,
-};
+use crate::models::{hole::HOLE_CONFIGURATIONS, player::Player};
 use crate::simulators::player_session::{run_session, HoleSelection, SessionConfig};
 use rand::Rng;
 use rand_distr::{Distribution, Normal, Uniform};
@@ -38,7 +35,10 @@ impl Default for VenueConfig {
             num_bays: 20,
             hours: 8.0,
             shots_per_hour: 100,
-            player_archetype: PlayerArchetype::BellCurve { mean: 15, std_dev: 5.0 },
+            player_archetype: PlayerArchetype::BellCurve {
+                mean: 15,
+                std_dev: 5.0,
+            },
             wager_range: (5.0, 20.0),
         }
     }
@@ -103,9 +103,7 @@ pub fn generate_player_pool(archetype: &PlayerArchetype, size: usize) -> Vec<Pla
 
     for i in 0..size {
         let handicap = match archetype {
-            PlayerArchetype::Uniform => {
-                rng.gen_range(0..=30)
-            }
+            PlayerArchetype::Uniform => rng.gen_range(0..=30),
             PlayerArchetype::BellCurve { mean, std_dev } => {
                 let normal = Normal::new(*mean as f64, *std_dev).unwrap();
                 let sample = normal.sample(&mut rng);
@@ -141,7 +139,8 @@ pub fn generate_player_pool(archetype: &PlayerArchetype, size: usize) -> Vec<Pla
 /// # Returns
 /// VenueResult with comprehensive analytics
 pub fn run_venue_simulation(config: VenueConfig) -> VenueResult {
-    let total_shots = (config.num_bays as f64 * config.hours * config.shots_per_hour as f64) as usize;
+    let total_shots =
+        (config.num_bays as f64 * config.hours * config.shots_per_hour as f64) as usize;
     let shots_per_bay = (total_shots / config.num_bays) as usize;
 
     // Generate player pool (one per bay for simplicity)
@@ -210,7 +209,9 @@ pub fn run_venue_simulation(config: VenueConfig) -> VenueResult {
 }
 
 /// Build heatmap data from bay results
-fn build_heatmap(bay_results: &[(Player, crate::simulators::player_session::SessionResult)]) -> HeatmapData {
+fn build_heatmap(
+    bay_results: &[(Player, crate::simulators::player_session::SessionResult)],
+) -> HeatmapData {
     // Define handicap bins
     let handicap_bins = vec![
         "0-4".to_string(),
@@ -240,7 +241,10 @@ fn build_heatmap(bay_results: &[(Player, crate::simulators::player_session::Sess
         };
 
         for shot in &session_result.shots {
-            if let Some(hole_idx) = HOLE_CONFIGURATIONS.iter().position(|h| h.id == shot.hole_id) {
+            if let Some(hole_idx) = HOLE_CONFIGURATIONS
+                .iter()
+                .position(|h| h.id == shot.hole_id)
+            {
                 let profit = shot.wager - shot.payout;
                 hold_matrix[handicap_bin][hole_idx] += profit;
                 count_matrix[handicap_bin][hole_idx] += 1;
@@ -317,14 +321,20 @@ mod tests {
             max_handicap = max_handicap.max(player.handicap);
         }
 
-        assert!(max_handicap - min_handicap > 10, "Uniform should have wide spread");
+        assert!(
+            max_handicap - min_handicap > 10,
+            "Uniform should have wide spread"
+        );
     }
 
     #[test]
     fn test_generate_player_pool_bell_curve() {
         let players = generate_player_pool(
-            &PlayerArchetype::BellCurve { mean: 15, std_dev: 3.0 },
-            100
+            &PlayerArchetype::BellCurve {
+                mean: 15,
+                std_dev: 3.0,
+            },
+            100,
         );
         assert_eq!(players.len(), 100);
 
@@ -332,7 +342,11 @@ mod tests {
         let mean: f64 = players.iter().map(|p| p.handicap as f64).sum::<f64>() / 100.0;
 
         // Should be roughly centered at 15 (within a reasonable tolerance)
-        assert!((mean - 15.0).abs() < 3.0, "Mean handicap should be near 15, got {}", mean);
+        assert!(
+            (mean - 15.0).abs() < 3.0,
+            "Mean handicap should be near 15, got {}",
+            mean
+        );
     }
 
     #[test]
@@ -342,7 +356,11 @@ mod tests {
 
         // Mean should be above 15 (skewed toward high handicaps)
         let mean: f64 = players.iter().map(|p| p.handicap as f64).sum::<f64>() / 100.0;
-        assert!(mean > 15.0, "SkewedHigh should have mean > 15, got {}", mean);
+        assert!(
+            mean > 15.0,
+            "SkewedHigh should have mean > 15, got {}",
+            mean
+        );
     }
 
     #[test]
@@ -397,7 +415,10 @@ mod tests {
             num_bays: 5,
             hours: 4.0,
             shots_per_hour: 20,
-            player_archetype: PlayerArchetype::BellCurve { mean: 15, std_dev: 5.0 },
+            player_archetype: PlayerArchetype::BellCurve {
+                mean: 15,
+                std_dev: 5.0,
+            },
             wager_range: (5.0, 15.0),
         };
 

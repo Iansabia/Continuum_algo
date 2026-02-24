@@ -7,13 +7,13 @@
 //! - Batch processing and high-stakes shot detection
 //! - Developer mode for manual testing
 
+use crate::anti_cheat::{detect_cherry_picking, detect_sandbagging, AnomalyReport};
+use crate::math::custom_distributions::CustomShapeDistribution;
 use crate::models::{
     hole::{get_hole_by_id, Hole, HOLE_CONFIGURATIONS},
     player::Player,
     shot::ShotOutcome,
 };
-use crate::math::custom_distributions::CustomShapeDistribution;
-use crate::anti_cheat::{detect_cherry_picking, detect_sandbagging, AnomalyReport};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -139,9 +139,9 @@ impl SessionConfig {
         env::var("CONTINUUM_ENV")
             .map(|v| v.to_lowercase() == "production")
             .unwrap_or(false)
-        || env::var("CONTINUUM_PRODUCTION")
-            .map(|v| v.to_lowercase() == "true" || v == "1")
-            .unwrap_or(false)
+            || env::var("CONTINUUM_PRODUCTION")
+                .map(|v| v.to_lowercase() == "true" || v == "1")
+                .unwrap_or(false)
     }
 
     /// Validate configuration for production deployment
@@ -167,37 +167,37 @@ impl SessionConfig {
         // Validate wager range
         if self.wager_min < 0.0 || self.wager_max < 0.0 {
             return Err(SessionConfigError::InvalidWagerRange(
-                "Wagers cannot be negative".to_string()
+                "Wagers cannot be negative".to_string(),
             ));
         }
 
         if self.wager_min > self.wager_max {
-            return Err(SessionConfigError::InvalidWagerRange(
-                format!("Min wager (${:.2}) exceeds max wager (${:.2})",
-                        self.wager_min, self.wager_max)
-            ));
+            return Err(SessionConfigError::InvalidWagerRange(format!(
+                "Min wager (${:.2}) exceeds max wager (${:.2})",
+                self.wager_min, self.wager_max
+            )));
         }
 
         // Validate shot count
         if self.num_shots == 0 {
             return Err(SessionConfigError::InvalidConfig(
-                "Number of shots must be greater than 0".to_string()
+                "Number of shots must be greater than 0".to_string(),
             ));
         }
 
         // Validate fat-tail parameters
         if self.fat_tail_prob < 0.0 || self.fat_tail_prob > 1.0 {
-            return Err(SessionConfigError::InvalidConfig(
-                format!("Fat-tail probability must be between 0.0 and 1.0, got {}",
-                        self.fat_tail_prob)
-            ));
+            return Err(SessionConfigError::InvalidConfig(format!(
+                "Fat-tail probability must be between 0.0 and 1.0, got {}",
+                self.fat_tail_prob
+            )));
         }
 
         if self.fat_tail_mult <= 0.0 {
-            return Err(SessionConfigError::InvalidConfig(
-                format!("Fat-tail multiplier must be positive, got {}",
-                        self.fat_tail_mult)
-            ));
+            return Err(SessionConfigError::InvalidConfig(format!(
+                "Fat-tail multiplier must be positive, got {}",
+                self.fat_tail_mult
+            )));
         }
 
         Ok(())
@@ -424,22 +424,21 @@ impl SessionResult {
 ///
 /// # Returns
 /// Tuple of (miss_distance, is_fat_tail)
-fn generate_miss_distance(
-    config: &SessionConfig,
-    sigma: f64,
-    rng: &mut impl Rng,
-) -> (f64, bool) {
+fn generate_miss_distance(config: &SessionConfig, sigma: f64, rng: &mut impl Rng) -> (f64, bool) {
     use crate::math::distributions::fat_tail_shot_bvn;
 
     match &config.shot_generation_mode {
-        Some(ShotGenerationMode::Standard { fat_tail_prob, fat_tail_mult }) => {
+        Some(ShotGenerationMode::Standard {
+            fat_tail_prob,
+            fat_tail_mult,
+        }) => {
             // Use BVN with symmetric parameters (equivalent to Rayleigh when rho=0)
             let ((x, y), is_fat_tail) = fat_tail_shot_bvn(
-                0.0,    // mu_x: no lateral bias
-                0.0,    // mu_y: no distance bias
-                sigma,  // sigma_x: same as player's sigma
-                sigma,  // sigma_y: symmetric dispersion
-                0.0,    // rho: no correlation (equivalent to Rayleigh)
+                0.0,   // mu_x: no lateral bias
+                0.0,   // mu_y: no distance bias
+                sigma, // sigma_x: same as player's sigma
+                sigma, // sigma_y: symmetric dispersion
+                0.0,   // rho: no correlation (equivalent to Rayleigh)
                 *fat_tail_prob,
                 *fat_tail_mult,
             );
@@ -450,11 +449,15 @@ fn generate_miss_distance(
             // Use custom pattern distribution scaled by player's actual sigma
             dist.sample_miss_distance(sigma, rng)
         }
-        Some(ShotGenerationMode::BivariateNormal { sigma_x, sigma_y, rho }) => {
+        Some(ShotGenerationMode::BivariateNormal {
+            sigma_x,
+            sigma_y,
+            rho,
+        }) => {
             // Use explicit BVN parameters from configuration (no bias)
             let ((x, y), is_fat_tail) = fat_tail_shot_bvn(
-                0.0,      // mu_x: no lateral bias
-                0.0,      // mu_y: no distance bias
+                0.0, // mu_x: no lateral bias
+                0.0, // mu_y: no distance bias
                 *sigma_x,
                 *sigma_y,
                 *rho,
@@ -464,7 +467,10 @@ fn generate_miss_distance(
             let miss_distance = (x * x + y * y).sqrt();
             (miss_distance, is_fat_tail)
         }
-        Some(ShotGenerationMode::OrganicPattern { pattern: _pattern, bvn_params }) => {
+        Some(ShotGenerationMode::OrganicPattern {
+            pattern: _pattern,
+            bvn_params,
+        }) => {
             // Use organic pattern's BVN parameters for shot generation
             let ((x, y), is_fat_tail) = fat_tail_shot_bvn(
                 bvn_params.mu_x,
@@ -482,8 +488,13 @@ fn generate_miss_distance(
         None => {
             // Default: use BVN with symmetric parameters (no bias, no correlation)
             let ((x, y), is_fat_tail) = fat_tail_shot_bvn(
-                0.0, 0.0, sigma, sigma, 0.0,
-                config.fat_tail_prob, config.fat_tail_mult,
+                0.0,
+                0.0,
+                sigma,
+                sigma,
+                0.0,
+                config.fat_tail_prob,
+                config.fat_tail_mult,
             );
             let miss_distance = (x * x + y * y).sqrt();
             (miss_distance, is_fat_tail)
@@ -531,7 +542,11 @@ pub fn run_session(player: &mut Player, config: SessionConfig) -> SessionResult 
                     None, // No adaptive correction
                 )
             }
-            Some(ShotGenerationMode::BivariateNormal { sigma_x, sigma_y, rho }) => {
+            Some(ShotGenerationMode::BivariateNormal {
+                sigma_x,
+                sigma_y,
+                rho,
+            }) => {
                 // Use explicit BVN parameters (no bias)
                 player.calculate_p_max_bvn(hole, 0.0, 0.0, *sigma_x, *sigma_y, *rho, None)
             }
@@ -632,9 +647,7 @@ pub fn run_session(player: &mut Player, config: SessionConfig) -> SessionResult 
     let final_skill_profiles = player
         .skill_profiles
         .iter()
-        .map(|(cat, profile)| {
-            (format!("{:?}", cat), profile.cached_sigma)
-        })
+        .map(|(cat, profile)| (format!("{:?}", cat), profile.cached_sigma))
         .collect();
 
     let net_gain_loss = total_won - total_wagered;
@@ -734,7 +747,10 @@ mod tests {
             seen_holes.insert(hole.id);
         }
 
-        assert!(seen_holes.len() > 1, "Random selection should pick different holes");
+        assert!(
+            seen_holes.len() > 1,
+            "Random selection should pick different holes"
+        );
     }
 
     #[test]
@@ -765,7 +781,10 @@ mod tests {
 
         assert_eq!(result.shots.len(), 10);
         assert!(result.total_wagered >= 50.0 && result.total_wagered <= 100.0);
-        assert_eq!(result.net_gain_loss, result.total_won - result.total_wagered);
+        assert_eq!(
+            result.net_gain_loss,
+            result.total_won - result.total_wagered
+        );
         // House edge can be negative in individual sessions (player wins)
         // Typically should be between -5.0 and 1.0 for small sample sizes
         assert!(result.session_house_edge >= -5.0 && result.session_house_edge <= 1.0);
@@ -840,8 +859,11 @@ mod tests {
         let result = run_session(&mut player, config);
 
         // Should have at least some Kalman updates
-        assert!(result.num_kalman_updates > 0,
-            "Expected Kalman updates, got {}", result.num_kalman_updates);
+        assert!(
+            result.num_kalman_updates > 0,
+            "Expected Kalman updates, got {}",
+            result.num_kalman_updates
+        );
     }
 
     #[test]
@@ -859,7 +881,7 @@ mod tests {
         };
 
         match config.validate() {
-            Err(SessionConfigError::InvalidWagerRange(_)) => {},
+            Err(SessionConfigError::InvalidWagerRange(_)) => {}
             _ => panic!("Expected InvalidWagerRange error"),
         }
     }
@@ -873,7 +895,7 @@ mod tests {
         };
 
         match config.validate() {
-            Err(SessionConfigError::InvalidWagerRange(_)) => {},
+            Err(SessionConfigError::InvalidWagerRange(_)) => {}
             _ => panic!("Expected InvalidWagerRange error"),
         }
     }
@@ -886,7 +908,7 @@ mod tests {
         };
 
         match config.validate() {
-            Err(SessionConfigError::InvalidConfig(_)) => {},
+            Err(SessionConfigError::InvalidConfig(_)) => {}
             _ => panic!("Expected InvalidConfig error"),
         }
     }
@@ -899,7 +921,7 @@ mod tests {
         };
 
         match config.validate() {
-            Err(SessionConfigError::InvalidConfig(_)) => {},
+            Err(SessionConfigError::InvalidConfig(_)) => {}
             _ => panic!("Expected InvalidConfig error"),
         }
     }
@@ -933,7 +955,7 @@ mod tests {
         };
 
         match config.validate() {
-            Err(SessionConfigError::DeveloperModeInProduction) => {},
+            Err(SessionConfigError::DeveloperModeInProduction) => {}
             _ => panic!("Expected DeveloperModeInProduction error"),
         }
 
@@ -1046,9 +1068,7 @@ mod tests {
             cherry_picking_report: Some(AnomalyReport {
                 is_suspicious: true,
                 confidence: 0.95,
-                detected_patterns: vec![
-                    "Extreme exploitation detected".to_string()
-                ],
+                detected_patterns: vec!["Extreme exploitation detected".to_string()],
                 recommended_action: "Immediate suspension".to_string(),
             }),
             sandbagging_report: None,
@@ -1077,9 +1097,7 @@ mod tests {
             sandbagging_report: Some(AnomalyReport {
                 is_suspicious: true,
                 confidence: 0.65, // Below default 0.7 threshold
-                detected_patterns: vec![
-                    "Moderate variance pattern".to_string()
-                ],
+                detected_patterns: vec!["Moderate variance pattern".to_string()],
                 recommended_action: "Monitor".to_string(),
             }),
             cherry_picking_report: None,

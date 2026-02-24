@@ -2,7 +2,6 @@
 ///
 /// This test suite validates that the simulator matches all claims
 /// made in the business plan for the Continuum Golf wagering system.
-
 use continuum_golf_simulator::math::distributions::*;
 use continuum_golf_simulator::models::hole::*;
 use continuum_golf_simulator::models::player::*;
@@ -36,7 +35,7 @@ fn validate_rtp_by_distance() {
             developer_mode: None,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
-        shot_generation_mode: None,
+            shot_generation_mode: None,
         };
         let result = run_session(&mut player, config);
         short_wagered += result.total_wagered;
@@ -48,7 +47,8 @@ fn validate_rtp_by_distance() {
     assert!(
         (short_rtp - 0.86).abs() < TOLERANCE,
         "Short holes RTP {:.4} differs from target 0.86 by more than {}",
-        short_rtp, TOLERANCE
+        short_rtp,
+        TOLERANCE
     );
 
     // Test Mid Holes (H4, H5)
@@ -66,7 +66,7 @@ fn validate_rtp_by_distance() {
             developer_mode: None,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
-        shot_generation_mode: None,
+            shot_generation_mode: None,
         };
         let result = run_session(&mut player, config);
         mid_wagered += result.total_wagered;
@@ -78,7 +78,8 @@ fn validate_rtp_by_distance() {
     assert!(
         (mid_rtp - 0.88).abs() < TOLERANCE,
         "Mid holes RTP {:.4} differs from target 0.88 by more than {}",
-        mid_rtp, TOLERANCE
+        mid_rtp,
+        TOLERANCE
     );
 
     // Test Long Holes (H6, H7, H8)
@@ -96,7 +97,7 @@ fn validate_rtp_by_distance() {
             developer_mode: None,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
-        shot_generation_mode: None,
+            shot_generation_mode: None,
         };
         let result = run_session(&mut player, config);
         long_wagered += result.total_wagered;
@@ -108,7 +109,8 @@ fn validate_rtp_by_distance() {
     assert!(
         (long_rtp - 0.90).abs() < TOLERANCE,
         "Long holes RTP {:.4} differs from target 0.90 by more than {}",
-        long_rtp, TOLERANCE
+        long_rtp,
+        TOLERANCE
     );
 }
 
@@ -131,11 +133,7 @@ fn validate_house_edge_by_distance() {
         num_shots: NUM_SHOTS,
         wager_min: 10.0,
         wager_max: 10.0,
-        hole_selection: HoleSelection::Weighted(vec![
-            (1, 0.33),
-            (2, 0.33),
-            (3, 0.34),
-        ]),
+        hole_selection: HoleSelection::Weighted(vec![(1, 0.33), (2, 0.33), (3, 0.34)]),
         developer_mode: None,
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
@@ -155,10 +153,7 @@ fn validate_house_edge_by_distance() {
         num_shots: NUM_SHOTS,
         wager_min: 10.0,
         wager_max: 10.0,
-        hole_selection: HoleSelection::Weighted(vec![
-            (4, 0.50),
-            (5, 0.50),
-        ]),
+        hole_selection: HoleSelection::Weighted(vec![(4, 0.50), (5, 0.50)]),
         developer_mode: None,
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
@@ -178,11 +173,7 @@ fn validate_house_edge_by_distance() {
         num_shots: NUM_SHOTS,
         wager_min: 10.0,
         wager_max: 10.0,
-        hole_selection: HoleSelection::Weighted(vec![
-            (6, 0.33),
-            (7, 0.33),
-            (8, 0.34),
-        ]),
+        hole_selection: HoleSelection::Weighted(vec![(6, 0.33), (7, 0.33), (8, 0.34)]),
         developer_mode: None,
         fat_tail_prob: 0.02,
         fat_tail_mult: 3.0,
@@ -224,7 +215,7 @@ fn validate_fairness_all_handicaps() {
             developer_mode: None,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
-        shot_generation_mode: None,
+            shot_generation_mode: None,
         };
         let result = run_session(&mut player, config);
         let ev = result.net_gain_loss / NUM_SHOTS as f64;
@@ -237,12 +228,16 @@ fn validate_fairness_all_handicaps() {
     let min_ev = evs.iter().cloned().fold(f64::INFINITY, f64::min);
     let spread = max_ev - min_ev;
 
-    println!("EV Spread: ${:.4} (max allowed: ${:.4})", spread, MAX_EV_SPREAD);
+    println!(
+        "EV Spread: ${:.4} (max allowed: ${:.4})",
+        spread, MAX_EV_SPREAD
+    );
 
     assert!(
         spread < MAX_EV_SPREAD,
         "Fairness validation failed: EV spread ${:.4} exceeds ${:.4}",
-        spread, MAX_EV_SPREAD
+        spread,
+        MAX_EV_SPREAD
     );
 }
 
@@ -262,14 +257,17 @@ fn validate_breakeven_radius_formula() {
         // At breakeven, payout multiplier should be 1.0
         let payout_at_breakeven = hole.calculate_payout(d_break, p_max);
 
-        println!("Hole {}: d_break={:.2} ft, P_max={:.2}, payout={:.4}",
-                 hole.id, d_break, p_max, payout_at_breakeven);
+        println!(
+            "Hole {}: d_break={:.2} ft, P_max={:.2}, payout={:.4}",
+            hole.id, d_break, p_max, payout_at_breakeven
+        );
 
         // Payout at breakeven should be very close to the wager (multiplier ≈ 1.0)
         assert!(
             (payout_at_breakeven - 1.0).abs() < 0.001,
             "Breakeven formula error for hole {}: payout={:.4}",
-            hole.id, payout_at_breakeven
+            hole.id,
+            payout_at_breakeven
         );
     }
 }
@@ -298,12 +296,16 @@ fn validate_fat_tail_parameters() {
     }
 
     let actual_freq = fat_tail_count as f64 / NUM_SAMPLES as f64;
-    println!("Fat-tail frequency: {:.4} (target: {:.4})", actual_freq, TARGET_FREQ);
+    println!(
+        "Fat-tail frequency: {:.4} (target: {:.4})",
+        actual_freq, TARGET_FREQ
+    );
 
     assert!(
         (actual_freq - TARGET_FREQ).abs() < FREQ_TOLERANCE,
         "Fat-tail frequency {:.4} differs from target {:.4}",
-        actual_freq, TARGET_FREQ
+        actual_freq,
+        TARGET_FREQ
     );
 
     // Verify multiplier effect
@@ -325,13 +327,17 @@ fn validate_fat_tail_parameters() {
 
     println!("Average normal: {:.2} ft", avg_normal);
     println!("Average fat-tail: {:.2} ft", avg_fat_tail);
-    println!("Multiplier: {:.2}× (target: {:.2}×)", actual_mult, TARGET_MULT);
+    println!(
+        "Multiplier: {:.2}× (target: {:.2}×)",
+        actual_mult, TARGET_MULT
+    );
 
     // Multiplier should be close to 3.0
     assert!(
         (actual_mult - TARGET_MULT).abs() < 0.3,
         "Fat-tail multiplier {:.2} differs significantly from target {:.2}",
-        actual_mult, TARGET_MULT
+        actual_mult,
+        TARGET_MULT
     );
 }
 
@@ -379,7 +385,10 @@ fn validate_high_stakes_logic() {
     let high_stakes_updates = high_stakes_result.num_kalman_updates;
     let high_stakes_count = high_stakes_result.num_high_stakes_shots;
 
-    println!("High-stakes shots (10 @ $100): {} updates", high_stakes_updates);
+    println!(
+        "High-stakes shots (10 @ $100): {} updates",
+        high_stakes_updates
+    );
     println!("High-stakes shots detected: {}", high_stakes_count);
 
     // High-stakes should trigger more frequent updates
@@ -393,7 +402,8 @@ fn validate_high_stakes_logic() {
     assert!(
         high_stakes_updates >= normal_updates + 10,
         "High-stakes updates insufficient: {} vs {} + 10",
-        high_stakes_updates, normal_updates
+        high_stakes_updates,
+        normal_updates
     );
 }
 
@@ -418,25 +428,33 @@ fn validate_hole_configurations() {
     for (id, dist, d_max, rtp, k) in expected_configs {
         let hole = get_hole_by_id(id).expect(&format!("Hole {} not found", id));
 
-        println!("Hole {}: {}yd, d_max={:.2}, RTP={:.2}, k={:.1}",
-                 id, dist, d_max, rtp, k);
+        println!(
+            "Hole {}: {}yd, d_max={:.2}, RTP={:.2}, k={:.1}",
+            id, dist, d_max, rtp, k
+        );
 
         assert_eq!(hole.id, id, "Hole ID mismatch");
         assert_eq!(hole.distance_yds, dist, "Hole {} distance mismatch", id);
         assert!(
             (hole.d_max_ft - d_max).abs() < 0.01,
             "Hole {} d_max mismatch: expected {:.2}, got {:.2}",
-            id, d_max, hole.d_max_ft
+            id,
+            d_max,
+            hole.d_max_ft
         );
         assert!(
             (hole.rtp - rtp).abs() < 0.001,
             "Hole {} RTP mismatch: expected {:.3}, got {:.3}",
-            id, rtp, hole.rtp
+            id,
+            rtp,
+            hole.rtp
         );
         assert!(
             (hole.k - k).abs() < 0.01,
             "Hole {} k mismatch: expected {:.1}, got {:.1}",
-            id, k, hole.k
+            id,
+            k,
+            hole.k
         );
     }
 }
@@ -468,14 +486,17 @@ fn validate_kalman_convergence_properties() {
             developer_mode: None,
             fat_tail_prob: 0.02,
             fat_tail_mult: 3.0,
-        shot_generation_mode: None,
+            shot_generation_mode: None,
         };
 
         let result = run_session(&mut player, config);
         let num_updates = result.num_kalman_updates;
 
-        println!("After {} shots: {} Kalman updates",
-                 (batch_num + 1) * SHOTS_PER_BATCH, num_updates);
+        println!(
+            "After {} shots: {} Kalman updates",
+            (batch_num + 1) * SHOTS_PER_BATCH,
+            num_updates
+        );
 
         if num_updates > 0 {
             confidence_increased += 1;
@@ -486,15 +507,17 @@ fn validate_kalman_convergence_properties() {
     assert!(
         confidence_increased >= NUM_BATCHES - 2,
         "Kalman updates did not occur consistently: only {} out of {} batches",
-        confidence_increased, NUM_BATCHES
+        confidence_increased,
+        NUM_BATCHES
     );
 
     // After many shots, sigma should have converged to a reasonable range
-    let final_sigma = player.get_skill_for_hole(hole).kalman_filter.estimate;
+    let final_sigma = player.get_skill_for_hole(hole).cached_sigma;
     assert!(
         final_sigma > 20.0 && final_sigma < 200.0,
         "Final sigma {:.2} is out of reasonable range after {} shots",
-        final_sigma, NUM_BATCHES * SHOTS_PER_BATCH
+        final_sigma,
+        NUM_BATCHES * SHOTS_PER_BATCH
     );
 }
 
@@ -509,32 +532,33 @@ fn validate_rayleigh_distribution() {
 
     println!("\n=== Validation: Rayleigh Distribution Properties ===");
 
-    let samples: Vec<f64> = (0..NUM_SAMPLES)
-        .map(|_| rayleigh_random(SIGMA))
-        .collect();
+    let samples: Vec<f64> = (0..NUM_SAMPLES).map(|_| rayleigh_random(SIGMA)).collect();
 
     let mean = samples.iter().sum::<f64>() / NUM_SAMPLES as f64;
-    let variance = samples.iter()
-        .map(|x| (x - mean).powi(2))
-        .sum::<f64>() / NUM_SAMPLES as f64;
+    let variance = samples.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / NUM_SAMPLES as f64;
     let std_dev = variance.sqrt();
 
     let expected_mean = rayleigh_mean(SIGMA);
     let expected_std_dev = rayleigh_variance(SIGMA).sqrt();
 
     println!("Sample mean: {:.2} (expected: {:.2})", mean, expected_mean);
-    println!("Sample std dev: {:.2} (expected: {:.2})", std_dev, expected_std_dev);
+    println!(
+        "Sample std dev: {:.2} (expected: {:.2})",
+        std_dev, expected_std_dev
+    );
 
     assert!(
         (mean - expected_mean).abs() < 0.5,
         "Rayleigh mean differs from expected: {:.2} vs {:.2}",
-        mean, expected_mean
+        mean,
+        expected_mean
     );
 
     assert!(
         (std_dev - expected_std_dev).abs() < 0.5,
         "Rayleigh std dev differs from expected: {:.2} vs {:.2}",
-        std_dev, expected_std_dev
+        std_dev,
+        expected_std_dev
     );
 }
 
@@ -563,7 +587,7 @@ fn validate_system_wide_rtp() {
                 developer_mode: None,
                 fat_tail_prob: 0.02,
                 fat_tail_mult: 3.0,
-        shot_generation_mode: None,
+                shot_generation_mode: None,
             };
 
             let result = run_session(&mut player, config);

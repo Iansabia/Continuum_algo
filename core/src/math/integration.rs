@@ -164,13 +164,7 @@ where
 ///
 /// # Returns
 /// Integral value (between 0 and 1)
-pub fn integrate_payout_function<F>(
-    d_max: f64,
-    k: f64,
-    sigma: f64,
-    pdf_fn: F,
-    n: usize,
-) -> f64
+pub fn integrate_payout_function<F>(d_max: f64, k: f64, sigma: f64, pdf_fn: F, n: usize) -> f64
 where
     F: Fn(f64, f64) -> f64,
 {
